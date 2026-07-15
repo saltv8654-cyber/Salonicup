@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(unzip -l \"C:\\\\Users\\\\giorg\\\\Downloads\\\\salonicup-app.zip\")",
+      "Bash(mkdir -p \"C:/Users/giorg/OneDrive/Υπολογιστής/salonicupPlatform\")",
+      "Bash(unzip -o \"C:/Users/giorg/Downloads/salonicup-app.zip\" -d .)",
+      "Bash(git --version)",
+      "Bash(gh --version)",
+      "Bash(gh auth *)",
+      "Bash(vercel --version)",
+      "Bash(npm --version)",
+      "mcp__claude-in-chrome__list_connected_browsers",
+      "mcp__claude-in-chrome__tabs_context_mcp",
+      "mcp__claude-in-chrome__navigate",
+      "mcp__claude-in-chrome__computer",
+      "PowerShell(Get-Content -Raw \"C:\\\\Users\\\\giorg\\\\OneDrive\\\\Υπολογιστής\\\\salonicupPlatform\\\\schema.sql\" | Set-Clipboard; Write-Output \"Clipboard set. Length: $\\(\\(Get-Clipboard -Raw\\).Length\\) chars\")",
+      "mcp__claude-in-chrome__read_page",
+      "mcp__claude-in-chrome__get_page_text",
+      "PowerShell($k = Get-Clipboard -Raw; if \\($k -match '^sb_secret_'\\) { Write-Output \"OK secret key copied, length $\\($k.Trim\\(\\).Length\\)\" } else { Write-Output \"NOT a secret key. Starts with: $\\($k.Substring\\(0,[Math]::Min\\(12,$k.Length\\)\\)\\)\" })",
+      "PowerShell(Set-Clipboard -Value \" \")",
+      "Bash(npm install *)",
+      "Bash(git config *)",
+      "Bash(git init *)",
+      "Bash(git branch *)",
+      "Bash(npm run *)",
+      "Bash(git add *)"
+    ]
+  }
+}

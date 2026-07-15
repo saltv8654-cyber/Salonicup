@@ -1,0 +1,165 @@
+'use client'
+import { useRouter, useParams } from 'next/navigation'
+import Link from 'next/link'
+import { useLiveMatch } from '@/lib/hooks/useLiveMatch'
+import { useAuth } from '@/lib/hooks/useAuth'
+import { Watermark, Crest, Avatar, LiveDot, SectionLabel, Loading, Empty } from '@/app/ui'
+import { PERIODS, EVENTS, fmtMinute, absMinute } from '@/lib/match'
+import type { Period } from '@/lib/types'
+
+export default function PublicMatch() {
+  const { matchId } = useParams()
+  const router = useRouter()
+  const { isSpeaker } = useAuth()
+  const { match, events, loading } = useLiveMatch(matchId as string)
+
+  if (loading) return <Loading />
+  if (!match) return <div className="min-h-screen bg-pitch" />
+
+  const live = match.match_status === 'Live'
+  const done = ['Played', 'Forfeit'].includes(match.match_status)
+  const hasPens = match.pens_team_a > 0 || match.pens_team_b > 0
+  const place = [match.venue?.name, match.field].filter(Boolean).join(' · ')
+
+  return (
+    <div className="min-h-screen bg-pitch pb-8">
+      {/* Πίνακας σκορ */}
+      <div className="relative bg-turf border-b-2 border-brand overflow-hidden">
+        <Watermark opacity={0.05} />
+        <div className="relative px-3.5 pt-3.5 pb-5">
+          <div className="flex items-center justify-between mb-4">
+            <button onClick={() => router.back()}
+              className="w-[30px] h-[30px] rounded-lg bg-chalk/[0.06] grid place-items-center
+                text-silver text-base">
+              ‹
+            </button>
+            <span className="text-[9.5px] text-dim font-bold">
+              {match.league?.name} · Αγ. {match.round}
+            </span>
+            <div className="w-[30px]" />
+          </div>
+
+          <div className="flex items-start gap-2.5">
+            <Side team={match.team_a_data} />
+            <div className="shrink-0 text-center pt-1.5">
+              <div className="text-[40px] font-extrabold text-chalk leading-none
+                tracking-tight tnum">
+                {match.goals_team_a}
+                <span className="text-dim mx-1.5 font-normal">·</span>
+                {match.goals_team_b}
+              </div>
+              {hasPens && (
+                <div className="text-[11px] font-extrabold text-lit mt-1.5 tnum">
+                  πέν. {match.pens_team_a}–{match.pens_team_b}
+                </div>
+              )}
+              <div className="mt-2">
+                {live ? <LiveDot /> : (
+                  <span className="text-[9px] font-extrabold text-dim tracking-[0.14em]">
+                    {done ? 'ΤΕΛΙΚΟ' : 'ΠΡΟΓΡΑΜΜΑΤΙΣΜΕΝΟΣ'}
+                  </span>
+                )}
+              </div>
+            </div>
+            <Side team={match.team_b_data} />
+          </div>
+
+          {place && (
+            <p className="text-[9.5px] text-off text-center mt-4">{place}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Κουμπί speaker */}
+      {isSpeaker && (
+        <div className="px-3.5 pt-3.5">
+          <Link href={`/speaker/${matchId}`}
+            className="block w-full py-3 rounded-xl bg-gradient-to-b from-lit to-brand
+              text-white font-extrabold text-sm text-center
+              shadow-[0_4px_16px_rgba(224,91,31,0.3)]">
+            Άνοιγμα panel speaker
+          </Link>
+        </div>
+      )}
+
+      {/* Περιγραφή */}
+      <div className="px-3.5 pt-4">
+        <SectionLabel>Περιγραφή</SectionLabel>
+
+        {!events.length ? (
+          <Empty>Δεν υπάρχουν φάσεις ακόμα.</Empty>
+        ) : (
+          <div className="flex flex-col gap-2.5">
+            {PERIODS.slice().reverse().map(P => {
+              const list = events
+                .filter(e => (e.period ?? 'H1') === P.id)
+                .sort((a, b) =>
+                  absMinute(b.period as Period, b.minute) -
+                  absMinute(a.period as Period, a.minute))
+
+              if (!list.length) return null
+
+              return (
+                <div key={P.id}>
+                  <p className="text-[8.5px] font-extrabold text-off
+                    tracking-[0.14em] mb-1.5 px-1">
+                    {P.label.toUpperCase()}
+                  </p>
+                  <div className="flex flex-col gap-1">
+                    {list.map(e => {
+                      const cfg  = EVENTS[e.event_type as keyof typeof EVENTS]
+                      const home = e.team_id === match.team_a
+                      return (
+                        <div key={e.event_id}
+                          className="bg-turf rounded-lg px-3 py-2.5 flex items-center gap-3
+                            border border-chalk/[0.04]"
+                          style={{ borderLeft: `3px solid ${home ? '#E05B1F' : '#63636E'}` }}>
+                          <span className="text-xs font-extrabold text-silver w-9 shrink-0 tnum">
+                            {fmtMinute(e.period as Period, e.minute)}
+                          </span>
+                          <span className="text-base shrink-0">{cfg?.icon}</span>
+                          <Avatar url={e.player?.photo_url} name={e.player?.full_name} size={24} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13.5px] font-semibold text-chalk truncate">
+                              {e.player?.full_name}
+                            </p>
+                            <p className="text-[10px] text-dim">
+                              {cfg?.label} · {home ? match.team_a_data?.name : match.team_b_data?.name}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Κείμενο αγώνα */}
+      {match.report && (
+        <div className="px-3.5 pt-6">
+          <SectionLabel>Ρεπορτάζ</SectionLabel>
+          <div className="bg-turf rounded-xl p-4 border border-chalk/[0.05]">
+            <p className="text-[13.5px] text-chalk leading-relaxed whitespace-pre-wrap">
+              {match.report}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Side({ team }: { team: any }) {
+  return (
+    <div className="flex-1 min-w-0 flex flex-col items-center gap-2">
+      <Crest url={team?.logo_url} name={team?.name} size={52} />
+      <span className="text-xs font-bold text-chalk text-center leading-tight">
+        {team?.name}
+      </span>
+    </div>
+  )
+}
