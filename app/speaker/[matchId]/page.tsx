@@ -155,7 +155,9 @@ export default function SpeakerPanel() {
             <span className="text-[9.5px] text-dim font-bold">
               {match.league?.name} · Αγ. {match.round}
             </span>
-            <div className="w-[30px]" />
+            <button onClick={() => router.push('/')} aria-label="Αρχική"
+              className="w-[30px] h-[30px] rounded-lg bg-chalk/[0.06] grid place-items-center
+                text-silver text-base">🏠</button>
           </div>
 
           <div className="flex items-start gap-2.5">
