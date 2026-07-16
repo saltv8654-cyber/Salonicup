@@ -121,6 +121,7 @@ create table matches (
   pens_team_b     int  not null default 0,
   match_status    match_status not null default 'Scheduled',
   report          text,                  -- κείμενο αγώνα
+  mvp_player_id   uuid references players on delete set null,  -- MVP (χειροκίνητα από speaker)
   squad_a         uuid[] not null default '{}',   -- όσοι συμμετείχαν
   squad_b         uuid[] not null default '{}',
   squad_set_at    timestamptz,
@@ -296,7 +297,9 @@ select
   (select count(*) from events e
      where e.player_id = p.player_id and e.event_type='YELLOW')::int as yellow_cards,
   (select count(*) from events e
-     where e.player_id = p.player_id and e.event_type='RED')::int as red_cards
+     where e.player_id = p.player_id and e.event_type='RED')::int as red_cards,
+  (select count(*) from matches m
+     where m.mvp_player_id = p.player_id)::int as mvp_awards
 from players p
 join teams t on t.team_id = p.team_id
 where p.active;

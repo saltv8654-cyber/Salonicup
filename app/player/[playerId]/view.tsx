@@ -121,10 +121,11 @@ export default function PlayerView({ stat, team, history }: {
 
       {/* Σύνολα */}
       <div className="px-3.5 py-4">
-        <div className="grid grid-cols-5 gap-1.5 mb-6">
-          <Box v={stat.appearances}  l="ΣΥΜΜ."  c="text-silver" />
+        <div className="grid grid-cols-3 gap-1.5 mb-6">
           <Box v={stat.goals}        l="ΓΚΟΛ"   c="text-lit" big />
-          <Box v={stat.assists}      l="ΑΣΙΣΤ"  c="text-chalk" />
+          <Box v={stat.assists}      l="ΑΣΙΣΤ"  c="text-chalk" big />
+          <Box v={stat.mvp_awards ?? 0} l="MVP"  c="text-lit" big />
+          <Box v={stat.appearances}  l="ΣΥΜΜ."  c="text-silver" />
           <Box v={stat.yellow_cards} l="ΚΙΤΡ."  c="text-card" />
           <Box v={stat.red_cards}    l="ΚΟΚΚ."  c="text-danger" />
         </div>

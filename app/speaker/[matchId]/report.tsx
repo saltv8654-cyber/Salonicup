@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { EVENTS } from '@/lib/match'
@@ -18,8 +18,23 @@ export default function ReportSheet({ match, events, onClose, onFinished }: {
   const [busy, setBusy]     = useState(false)
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [mvp, setMvp]       = useState<string | null>(match.mvp_player_id ?? null)
+  const [squad, setSquad]   = useState<any[]>([])
+  const [pickMvp, setPickMvp] = useState(false)
 
   const done = ['Played', 'Forfeit'].includes(match.match_status)
+
+  // Οι παίκτες που συμμετείχαν, και από τις δύο ομάδες
+  useEffect(() => {
+    const ids = [...(match.squad_a ?? []), ...(match.squad_b ?? [])]
+    if (!ids.length) return
+    supabase.from('players')
+      .select('player_id, full_name, number, photo_url, team_id')
+      .in('player_id', ids)
+      .then(({ data }) => setSquad(data ?? []))
+  }, [match.match_id])
+
+  const mvpPlayer = squad.find(p => p.player_id === mvp)
 
   async function generate() {
     setBusy(true)
@@ -44,6 +59,7 @@ export default function ReportSheet({ match, events, onClose, onFinished }: {
     setSaving(true)
     const { error } = await supabase.from('matches').update({
       report: text || null,
+      mvp_player_id: mvp,
       match_status: done ? match.match_status : 'Played',
       updated_by: profile?.id,
     }).eq('match_id', match.match_id)
@@ -110,6 +126,24 @@ export default function ReportSheet({ match, events, onClose, onFinished }: {
           )}
         </div>
 
+        {/* MVP αγώνα */}
+        <div className="px-4 pb-1 shrink-0">
+          <button onClick={() => setPickMvp(true)}
+            className="w-full flex items-center gap-3 bg-lit/[0.08] border border-lit/25
+              rounded-xl px-3.5 py-3 active:bg-lit/[0.12]">
+            <span className="text-lg">⭐</span>
+            <div className="flex-1 text-left min-w-0">
+              <p className="text-[8.5px] font-extrabold text-lit tracking-[0.12em]">
+                MVP ΑΓΩΝΑ
+              </p>
+              <p className="text-[13.5px] font-bold text-chalk truncate">
+                {mvpPlayer ? mvpPlayer.full_name : 'Διάλεξε παίκτη'}
+              </p>
+            </div>
+            <span className="text-dim text-sm">{mvpPlayer ? 'Αλλαγή' : '›'}</span>
+          </button>
+        </div>
+
         <div className="px-4 pt-2.5 pb-6 flex flex-col gap-2 shrink-0">
           {!text ? (
             <button onClick={generate} disabled={busy}
@@ -149,6 +183,55 @@ export default function ReportSheet({ match, events, onClose, onFinished }: {
           )}
         </div>
       </div>
+
+      {/* Επιλογή MVP */}
+      {pickMvp && (
+        <div className="fixed inset-0 z-[60] flex flex-col justify-end"
+          onClick={() => setPickMvp(false)}>
+          <div className="absolute inset-0 bg-black/80" />
+          <div onClick={e => e.stopPropagation()}
+            className="relative bg-turf rounded-t-[20px] max-h-[80vh] flex flex-col
+              border-t-2 border-brand">
+            <div className="px-4 pt-4 pb-3 flex items-center gap-3 shrink-0
+              border-b border-chalk/[0.06]">
+              <span className="text-lg">⭐</span>
+              <h3 className="flex-1 text-base font-extrabold text-chalk">MVP αγώνα</h3>
+              {mvp && (
+                <button onClick={() => { setMvp(null); setPickMvp(false) }}
+                  className="text-[11px] font-bold text-dim px-2.5 py-1.5
+                    bg-chalk/[0.05] rounded-lg">Καθαρισμός</button>
+              )}
+              <button onClick={() => setPickMvp(false)}
+                className="w-[30px] h-[30px] rounded-lg bg-chalk/[0.06]
+                  grid place-items-center text-silver text-sm">✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-3.5 py-3.5">
+              <div className="flex flex-col gap-1">
+                {squad.map(p => {
+                  const home = p.team_id === match.team_a
+                  return (
+                    <button key={p.player_id}
+                      onClick={() => { setMvp(p.player_id); setPickMvp(false) }}
+                      className={`w-full rounded-xl px-3.5 py-3 flex items-center gap-3
+                        border ${mvp === p.player_id
+                          ? 'bg-lit/[0.12] border-lit/40'
+                          : 'bg-chalk/[0.04] border-transparent'}`}>
+                      <span className="w-6 text-[12.5px] font-extrabold text-dim
+                        text-center shrink-0 tnum">{p.number ?? '—'}</span>
+                      <span className="flex-1 text-left text-[14.5px] font-semibold
+                        text-chalk truncate">{p.full_name}</span>
+                      <span className="text-[10px] font-bold text-dim shrink-0">
+                        {home ? match.team_a_data?.name : match.team_b_data?.name}
+                      </span>
+                      {mvp === p.player_id && <span className="text-lit text-sm">✓</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -37,6 +37,7 @@ export interface Match {
   pens_team_a: number; pens_team_b: number
   match_status: MatchState
   report: string | null
+  mvp_player_id: string | null
   squad_a: string[]; squad_b: string[]
   squad_set_at: string | null; squad_set_by: string | null
 }
@@ -62,6 +63,7 @@ export interface PlayerStat {
   team_name: string; appearances: number
   goals: number; own_goals: number; assists: number
   yellow_cards: number; red_cards: number
+  mvp_awards: number
 }
 
 export interface Slot {

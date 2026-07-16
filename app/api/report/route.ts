@@ -100,8 +100,13 @@ export async function POST(req: Request) {
       return out || '[Δεν καταγράφηκαν]'
     }
 
-    /* ── MVP: 2 πόντοι το γκολ, 1 η ασίστ ── */
-    const mvp = (() => {
+    /* ── MVP: χειροκίνητος αν έχει οριστεί, αλλιώς υπολογισμένος ── */
+    let mvp = '—'
+    if (match.mvp_player_id) {
+      const { data: p } = await db.from('players')
+        .select('full_name').eq('player_id', match.mvp_player_id).single()
+      mvp = p?.full_name ?? '—'
+    } else {
       const pts = new Map<string, number>()
       list.forEach(e => {
         if (e.period === 'PEN') return
@@ -110,8 +115,8 @@ export async function POST(req: Request) {
         pts.set(n, (pts.get(n) ?? 0) + (e.event_type === 'GOAL' ? 2 : 1))
       })
       const top = [...pts.entries()].sort((a, b) => b[1] - a[1])[0]
-      return top ? top[0] : '—'
-    })()
+      mvp = top ? top[0] : '—'
+    }
 
     const hasPens = match.pens_team_a > 0 || match.pens_team_b > 0
 

@@ -138,6 +138,30 @@ export default function PublicMatch() {
         )}
       </div>
 
+      {/* MVP */}
+      {match.mvp && (
+        <div className="px-3.5 pt-6">
+          <SectionLabel>MVP αγώνα</SectionLabel>
+          <div className="bg-gradient-to-r from-lit/[0.14] to-turf rounded-xl p-3.5
+            border border-lit/25 flex items-center gap-3">
+            <span className="text-2xl">⭐</span>
+            <Avatar url={match.mvp.photo_url} name={match.mvp.full_name} size={44} ring />
+            <div className="flex-1 min-w-0">
+              <p className="text-[8.5px] font-extrabold text-lit tracking-[0.14em]">
+                ΠΟΛΥΤΙΜΟΤΕΡΟΣ ΠΑΙΚΤΗΣ
+              </p>
+              <p className="text-[15px] font-extrabold text-chalk truncate">
+                {match.mvp.full_name}
+              </p>
+              <p className="text-[10.5px] text-dim">
+                {match.mvp.team_id === match.team_a
+                  ? match.team_a_data?.name : match.team_b_data?.name}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Κείμενο αγώνα */}
       {match.report && (
         <div className="px-3.5 pt-6">
