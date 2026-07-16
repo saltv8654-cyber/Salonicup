@@ -358,3 +358,30 @@ create policy speaker_players_insert on players for insert with check (is_speake
 -- ── Realtime ──
 alter publication supabase_realtime add table events;
 alter publication supabase_realtime add table matches;
+
+-- ═══════════════════════════════════════════════════════════
+-- STORAGE — ανέβασμα σημάτων/φωτογραφιών (buckets: logos, players)
+-- ═══════════════════════════════════════════════════════════
+-- Δημόσια ανάγνωση + ανέβασμα/αλλαγή/διαγραφή από συνδεδεμένους χρήστες.
+update storage.buckets set public = true where id in ('logos','players');
+
+drop policy if exists "read logos/players"   on storage.objects;
+drop policy if exists "upload logos/players" on storage.objects;
+drop policy if exists "update logos/players" on storage.objects;
+drop policy if exists "delete logos/players" on storage.objects;
+
+create policy "read logos/players" on storage.objects
+  for select using (bucket_id in ('logos','players'));
+
+create policy "upload logos/players" on storage.objects
+  for insert to authenticated
+  with check (bucket_id in ('logos','players'));
+
+create policy "update logos/players" on storage.objects
+  for update to authenticated
+  using (bucket_id in ('logos','players'))
+  with check (bucket_id in ('logos','players'));
+
+create policy "delete logos/players" on storage.objects
+  for delete to authenticated
+  using (bucket_id in ('logos','players'));
