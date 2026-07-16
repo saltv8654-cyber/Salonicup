@@ -346,10 +346,11 @@ create policy admin_all on slots    for all using (is_admin());
 create policy admin_all on events   for all using (is_admin());
 create policy admin_profiles on profiles for all using (is_admin());
 
--- Speaker: φάσεις + ενημέρωση αγώνα + φωτό παίκτη
+-- Speaker: φάσεις + ενημέρωση αγώνα + φωτό/προσθήκη παίκτη
 create policy speaker_events  on events  for all    using (is_speaker());
 create policy speaker_matches on matches for update using (is_speaker());
 create policy speaker_players on players for update using (is_speaker());
+create policy speaker_players_insert on players for insert with check (is_speaker());
 
 -- ── Realtime ──
 alter publication supabase_realtime add table events;

@@ -1,4 +1,67 @@
 'use client'
+import { useRef, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import toast from 'react-hot-toast'
+
+/* ── Ανέβασμα σήματος (ομάδα/πρωτάθλημα) από το άλμπουμ ── */
+export function LogoUpload({ bucket, url, onChange, fallback = '🏆', label = 'ΣΗΜΑ' }: {
+  bucket: string; url: string; onChange: (url: string) => void
+  fallback?: string; label?: string
+}) {
+  const supabase = createClient()
+  const [up, setUp] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  async function upload(file: File) {
+    setUp(true)
+    try {
+      const ext  = file.name.split('.').pop() || 'png'
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`
+      const { error } = await supabase.storage.from(bucket)
+        .upload(path, file, { upsert: true, contentType: file.type })
+      if (error) throw error
+      const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(path)
+      onChange(publicUrl)
+      toast.success('Σήμα ανέβηκε')
+    } catch (e: any) {
+      toast.error(e.message ?? 'Δεν ανέβηκε')
+    } finally { setUp(false) }
+  }
+
+  return (
+    <div>
+      <label className="block text-[8.5px] font-extrabold text-dim
+        tracking-[0.12em] mb-1.5 pl-0.5">{label}</label>
+      <div className="flex items-center gap-3">
+        <div className="relative shrink-0">
+          <div className="w-16 h-16 rounded-xl bg-chalk/[0.04] overflow-hidden
+            border border-chalk/[0.07] grid place-items-center">
+            {url
+              ? <img src={url} alt="" className="w-full h-full object-contain" />
+              : <span className="text-2xl">{fallback}</span>}
+          </div>
+          {up && (
+            <div className="absolute inset-0 rounded-xl bg-black/60 grid place-items-center">
+              <div className="spinner" />
+            </div>
+          )}
+        </div>
+        <div className="flex-1 flex flex-col gap-1.5">
+          <button type="button" onClick={() => fileRef.current?.click()}
+            className="px-3.5 py-2.5 rounded-xl bg-chalk/[0.05] text-silver
+              text-[12px] font-bold">📷 Επίλεξε από άλμπουμ</button>
+          {url && (
+            <button type="button" onClick={() => onChange('')}
+              className="px-3.5 py-2 rounded-xl bg-danger/15 text-danger
+                text-[11px] font-bold">Αφαίρεση</button>
+          )}
+        </div>
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }} />
+    </div>
+  )
+}
 
 /* ── Κοινά admin components ── */
 export function Modal({ title, onClose, children }: {

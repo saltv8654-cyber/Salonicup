@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Crest, Loading, Empty, Postponements } from '@/app/ui'
-import { Modal, Field, Select, SaveBtn } from '../ui'
+import { Modal, Field, Select, SaveBtn, LogoUpload } from '../ui'
 import { MAX_POSTPONEMENTS } from '@/lib/match'
 import toast from 'react-hot-toast'
 import type { Team, League } from '@/lib/types'
@@ -151,7 +151,7 @@ function TeamForm({ row, leagues, onClose, onSaved }: {
       <Field label="ΟΝΟΜΑ" value={name} onChange={setName} placeholder="Los Magos" />
       <Select label="ΠΡΩΤΑΘΛΗΜΑ" value={league} onChange={setLeague}
         options={leagues.map(l => ({ value: l.league_id, label: l.name }))} />
-      <Field label="LOGO URL" value={logo} onChange={setLogo} placeholder="(προαιρετικό)" />
+      <LogoUpload bucket="logos" url={logo} onChange={setLogo} fallback="⚽" label="ΣΗΜΑ ΟΜΑΔΑΣ" />
       <SaveBtn busy={busy} onClick={save} />
     </Modal>
   )

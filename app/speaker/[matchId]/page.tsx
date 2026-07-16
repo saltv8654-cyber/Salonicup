@@ -186,7 +186,9 @@ export default function SpeakerPanel() {
       {phase === 'squad' ? (
         <SquadPicker
           teamA={match.team_a_data} teamB={match.team_b_data}
+          teamIdA={match.team_a} teamIdB={match.team_b}
           rosterA={rosterA} rosterB={rosterB}
+          setRosterA={setRosterA} setRosterB={setRosterB}
           inA={inA} inB={inB} setInA={setInA} setInB={setInB}
           onSave={saveSquad} saving={saving}
         />
@@ -397,17 +399,42 @@ function Badge({ team, n }: { team: any; n: number }) {
 
 /* ── Συμμετοχές: μέσα / έξω ── */
 function SquadPicker({
-  teamA, teamB, rosterA, rosterB, inA, inB, setInA, setInB, onSave, saving,
+  teamA, teamB, teamIdA, teamIdB, rosterA, rosterB, setRosterA, setRosterB,
+  inA, inB, setInA, setInB, onSave, saving,
 }: any) {
-  const [tab, setTab] = useState<Side>('a')
-  const roster = tab === 'a' ? rosterA : rosterB
-  const set    = tab === 'a' ? inA : inB
-  const setSet = tab === 'a' ? setInA : setInB
+  const supabase = createClient()
+  const [tab, setTab]       = useState<Side>('a')
+  const [adding, setAdding] = useState(false)
+  const [busy, setBusy]     = useState(false)
+
+  const roster    = tab === 'a' ? rosterA : rosterB
+  const setRoster = tab === 'a' ? setRosterA : setRosterB
+  const teamId    = tab === 'a' ? teamIdA : teamIdB
+  const teamName  = tab === 'a' ? teamA?.name : teamB?.name
+  const set       = tab === 'a' ? inA : inB
+  const setSet    = tab === 'a' ? setInA : setInB
 
   const toggle = (id: string) => {
     const next = new Set(set)
     next.has(id) ? next.delete(id) : next.add(id)
     setSet(next)
+  }
+
+  async function addPlayer(name: string, number: string) {
+    setBusy(true)
+    const { data, error } = await supabase.from('players').insert({
+      full_name: name.trim(),
+      number: number ? parseInt(number) : null,
+      team_id: teamId,
+      active: true,
+    }).select().single()
+    setBusy(false)
+
+    if (error || !data) { toast.error('Δεν προστέθηκε ο παίκτης'); return }
+    setRoster([...roster, data])
+    const next = new Set(set); next.add(data.player_id); setSet(next)
+    toast.success('Ο παίκτης προστέθηκε')
+    setAdding(false)
   }
 
   const total = inA.size + inB.size
@@ -445,6 +472,11 @@ function SquadPicker({
           className="flex-1 py-2 rounded-lg bg-chalk/[0.04] text-[11px]
             font-bold text-silver">
           Καθαρισμός
+        </button>
+        <button onClick={() => setAdding(true)}
+          className="flex-1 py-2 rounded-lg bg-lit/[0.12] text-[11px]
+            font-bold text-lit">
+          + Νέος παίκτης
         </button>
       </div>
 
@@ -484,6 +516,67 @@ function SquadPicker({
             text-white font-extrabold text-[15px] disabled:opacity-25
             shadow-[0_4px_16px_rgba(224,91,31,0.3)]">
           {saving ? 'Αποθήκευση…' : 'Έναρξη αγώνα'}
+        </button>
+      </div>
+
+      {adding && (
+        <AddPlayerSheet
+          teamName={teamName} busy={busy}
+          onAdd={addPlayer} onClose={() => setAdding(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+/* ── Προσθήκη νέου παίκτη (από τις συνθέσεις) ── */
+function AddPlayerSheet({ teamName, busy, onAdd, onClose }: {
+  teamName?: string; busy: boolean
+  onAdd: (name: string, number: string) => void; onClose: () => void
+}) {
+  const [name, setName] = useState('')
+  const [num, setNum]   = useState('')
+
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col justify-end" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/75" />
+      <div onClick={e => e.stopPropagation()}
+        className="relative bg-turf rounded-t-[20px] flex flex-col
+          border-t-2 border-brand p-4 gap-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-bold text-chalk">
+            Νέος παίκτης{teamName ? ` · ${teamName}` : ''}
+          </h3>
+          <button onClick={onClose}
+            className="w-[30px] h-[30px] rounded-lg bg-chalk/[0.06]
+              grid place-items-center text-silver text-sm">✕</button>
+        </div>
+
+        <div>
+          <label className="block text-[8.5px] font-extrabold text-dim
+            tracking-[0.12em] mb-1.5 pl-0.5">ΟΝΟΜΑΤΕΠΩΝΥΜΟ</label>
+          <input value={name} onChange={e => setName(e.target.value)} autoFocus
+            placeholder="Παύλου Γιάννης"
+            className="w-full bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-sm
+              outline-none border border-chalk/[0.07] focus:border-lit/50
+              placeholder:text-off" />
+        </div>
+
+        <div>
+          <label className="block text-[8.5px] font-extrabold text-dim
+            tracking-[0.12em] mb-1.5 pl-0.5">ΝΟΥΜΕΡΟ</label>
+          <input value={num} onChange={e => setNum(e.target.value.replace(/\D/g, ''))}
+            inputMode="numeric" placeholder="9"
+            className="w-full bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-sm
+              outline-none border border-chalk/[0.07] focus:border-lit/50
+              placeholder:text-off" />
+        </div>
+
+        <button onClick={() => onAdd(name, num)} disabled={busy || !name.trim()}
+          className="w-full py-3.5 rounded-xl bg-gradient-to-b from-lit to-brand
+            text-white font-extrabold text-[15px] disabled:opacity-40
+            shadow-[0_4px_16px_rgba(224,91,31,0.3)]">
+          {busy ? 'Προσθήκη…' : 'Προσθήκη στη σύνθεση'}
         </button>
       </div>
     </div>

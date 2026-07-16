@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Loading, Empty } from '@/app/ui'
 import toast from 'react-hot-toast'
 import type { League } from '@/lib/types'
-import { Modal, Field, SaveBtn } from '../ui'
+import { Modal, Field, SaveBtn, LogoUpload } from '../ui'
 
 export default function AdminLeagues() {
   const supabase = createClient()
@@ -121,7 +121,7 @@ function LeagueForm({ row, onClose, onSaved }: {
     <Modal title={row ? 'Επεξεργασία' : 'Νέο πρωτάθλημα'} onClose={onClose}>
       <Field label="ΟΝΟΜΑ" value={name} onChange={setName} placeholder="Elite League" />
       <Field label="ΣΕΖΟΝ" value={season} onChange={setSeason} placeholder="2025-26" />
-      <Field label="LOGO URL" value={logo} onChange={setLogo} placeholder="(προαιρετικό)" />
+      <LogoUpload bucket="logos" url={logo} onChange={setLogo} fallback="🏆" label="ΣΗΜΑ ΠΡΩΤΑΘΛΗΜΑΤΟΣ" />
       <Field label="ΣΕΙΡΑ" value={order} onChange={setOrder} numeric />
 
       <label className="flex items-center gap-2.5 mt-1">
