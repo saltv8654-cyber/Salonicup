@@ -2,22 +2,9 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Watermark, Crest, LiveDot, SectionLabel, Empty } from '@/app/ui'
+import { fmtDateTime as fmt, isTodayAthens as isToday } from '@/lib/time'
 
 export const dynamic = 'force-dynamic'
-
-function fmt(iso: string | null) {
-  if (!iso) return ''
-  const d = new Date(iso)
-  const days = ['ΚΥΡ','ΔΕΥ','ΤΡΙ','ΤΕΤ','ΠΕΜ','ΠΑΡ','ΣΑΒ']
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mm = String(d.getMinutes()).padStart(2, '0')
-  return `${days[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1} · ${hh}:${mm}`
-}
-
-function isToday(iso: string | null) {
-  if (!iso) return false
-  return new Date(iso).toDateString() === new Date().toDateString()
-}
 
 export default async function SpeakerHome() {
   const supabase = createClient()

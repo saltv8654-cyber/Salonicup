@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Crest, Loading, Empty } from '@/app/ui'
 import { Modal, Field, Select, SaveBtn } from '../ui'
+import { toDatetimeLocal } from '@/lib/time'
 import toast from 'react-hot-toast'
 import type { Team, League, Venue, MatchState } from '@/lib/types'
 
@@ -138,8 +139,7 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved }: {
   const [teamB, setTeamB]     = useState(row?.team_b ?? '')
   const [venue, setVenue]     = useState(row?.venue_id ?? '')
   const [field, setField]     = useState(row?.field ?? '')
-  const [date, setDate]       = useState(
-    row?.match_date ? row.match_date.slice(0, 16) : '')
+  const [date, setDate]       = useState(toDatetimeLocal(row?.match_date))
   const [status, setStatus]   = useState<MatchState>(row?.match_status ?? 'Scheduled')
   const [busy, setBusy]       = useState(false)
 

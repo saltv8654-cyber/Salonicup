@@ -1,24 +1,9 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Watermark, BottomNav, Empty } from '@/app/ui'
+import { fmtTime as time, fmtDay as dayLabel, athensDateKey as dayKey } from '@/lib/time'
 
 export const revalidate = 30
-
-const DAYS = ['Κυριακή','Δευτέρα','Τρίτη','Τετάρτη','Πέμπτη','Παρασκευή','Σάββατο']
-
-function dayKey(iso: string) {
-  return iso.slice(0, 10)
-}
-
-function dayLabel(iso: string) {
-  const d = new Date(iso)
-  return `${DAYS[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`
-}
-
-function time(iso: string) {
-  const d = new Date(iso)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
 
 export default async function SchedulePage() {
   const supabase = createClient()
