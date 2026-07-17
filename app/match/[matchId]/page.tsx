@@ -70,6 +70,18 @@ export default function PublicMatch() {
         </div>
       </div>
 
+      {/* Γραφικό αποτελέσματος για Instagram */}
+      {(live || done) && (
+        <div className="px-3.5 pt-3.5">
+          <a href={`/api/og/match/${matchId}`} target="_blank" rel="noopener"
+            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl
+              bg-turf border border-lit/25 text-lit text-[12.5px] font-extrabold
+              active:bg-[#1C1C22]">
+            📸 Γραφικό αποτελέσματος για Instagram
+          </a>
+        </div>
+      )}
+
       {/* Κουμπί speaker */}
       {isSpeaker && (
         <div className="px-3.5 pt-3.5">

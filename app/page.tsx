@@ -76,6 +76,14 @@ export default async function Home({
               </div>
             </div>
 
+            {/* Γραφικό για Instagram */}
+            <a href={`/api/og/standings/${active.league_id}`} target="_blank" rel="noopener"
+              className="flex items-center justify-center gap-2 mb-4 py-3 rounded-xl
+                bg-turf border border-lit/25 text-lit text-[12.5px] font-extrabold
+                active:bg-[#1C1C22]">
+              📸 Γραφικό βαθμολογίας για Instagram
+            </a>
+
             {!rows?.length ? <Empty /> : (
               <>
                 {/* Κεφαλίδα πίνακα */}
