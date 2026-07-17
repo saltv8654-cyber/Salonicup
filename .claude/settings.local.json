@@ -23,7 +23,8 @@
       "Bash(git init *)",
       "Bash(git branch *)",
       "Bash(npm run *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "mcp__Claude_Code_Remote__send_later"
     ]
   }
 }
