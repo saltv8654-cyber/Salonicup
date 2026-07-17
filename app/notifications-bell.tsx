@@ -13,7 +13,18 @@ export default function NotificationsBell() {
 
   async function toggle() {
     if (state === 'granted') {
-      toast('Οι ειδοποιήσεις είναι ήδη ενεργές', { icon: '🔔' })
+      // Δοκιμαστική ειδοποίηση + διάγνωση
+      const r = await fetch('/api/push/test', { method: 'POST' }).then(x => x.json()).catch(() => null)
+      if (!r) return toast.error('Σφάλμα δικτύου')
+      if (r.ok) {
+        toast.success(`Στάλθηκε δοκιμή σε ${r.sent}/${r.subs} συσκευές`)
+      } else if (r.reason === 'env-missing') {
+        toast.error('Λείπουν κλειδιά στο Vercel: ' + (r.missing || []).join(', '))
+      } else if (r.reason === 'no-subscriptions') {
+        toast.error('Καμία εγγεγραμμένη συσκευή — πάτα ξανά «Επιτρέπω»')
+      } else {
+        toast.error('Πρόβλημα: ' + (r.reason || r.error || '?'))
+      }
       return
     }
     if (state === 'denied') {
