@@ -1,6 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useAuth } from '@/lib/hooks/useAuth'
 
 /* ── Σήμα Salonicup ως υδατογράφημα ── */
 export function Watermark({ opacity = 0.055 }: { opacity?: number }) {
@@ -116,10 +117,21 @@ const TABS = [
 
 export function BottomNav() {
   const path = usePathname()
+  const { isAdmin, isSpeaker, profile } = useAuth()
+
+  // 4o κουμπί: προσαρμόζεται στην κατάσταση σύνδεσης
+  const authTab = isAdmin
+    ? { href: '/admin',      label: 'Admin',   icon: '🔑' }
+    : isSpeaker
+    ? { href: '/speaker',    label: 'Speaker', icon: '🎙️' }
+    : { href: '/auth/login', label: 'Είσοδος', icon: '👤' }
+
+  const tabs = [...TABS, authTab]
+
   return (
     <nav className="fixed bottom-0 inset-x-0 h-16 pb-2 flex z-40
       bg-pitch/95 backdrop-blur-xl border-t border-lit/20">
-      {TABS.map(t => {
+      {tabs.map(t => {
         const on = t.href === '/' ? path === '/' : path.startsWith(t.href)
         return (
           <Link key={t.href} href={t.href}
