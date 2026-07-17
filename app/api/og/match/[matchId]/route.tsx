@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og'
 import { db, loadFonts, C } from '../../shared'
 
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 function Crest({ url, name, size }: { url?: string | null; name?: string; size: number }) {
@@ -23,6 +23,7 @@ function Crest({ url, name, size }: { url?: string | null; name?: string; size: 
 }
 
 export async function GET(req: Request, { params }: { params: { matchId: string } }) {
+  const origin = new URL(req.url).origin
   const supabase = db()
 
   const { data: m } = await supabase
@@ -52,7 +53,7 @@ export async function GET(req: Request, { params }: { params: { matchId: string 
   const done = ['Played', 'Forfeit'].includes(m.match_status)
   const statusLabel = live ? 'LIVE' : done ? 'ΤΕΛΙΚΟ' : 'ΠΡΟΓΡΑΜΜΑΤΙΣΜΕΝΟΣ'
 
-  const fonts = await loadFonts()
+  const fonts = await loadFonts(origin)
 
   return new ImageResponse(
     (

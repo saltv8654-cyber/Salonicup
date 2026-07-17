@@ -1,10 +1,11 @@
 import { ImageResponse } from 'next/og'
 import { db, loadFonts, C } from '../../shared'
 
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request, { params }: { params: { leagueId: string } }) {
+  const origin = new URL(req.url).origin
   const supabase = db()
 
   const [{ data: league }, { data: rows }] = await Promise.all([
@@ -14,7 +15,7 @@ export async function GET(req: Request, { params }: { params: { leagueId: string
 
   if (!rows) return new Response('Not found', { status: 404 })
 
-  const fonts = await loadFonts()
+  const fonts = await loadFonts(origin)
   const top = rows.slice(0, 16)
 
   const Cell = ({ children, w, color = C.silver, align = 'center', bold = false }: any) => (

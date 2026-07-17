@@ -22,11 +22,11 @@ export function db() {
   )
 }
 
-/** Γραμματοσειρά με ελληνικά (DejaVu Sans), bundled δίπλα στα routes. */
-export async function loadFonts() {
+/** Γραμματοσειρά με ελληνικά (DejaVu Sans) από τα public assets (όχι στο bundle). */
+export async function loadFonts(origin: string) {
   const [regular, bold] = await Promise.all([
-    fetch(new URL('./_fonts/DejaVuSans.ttf', import.meta.url)).then((r) => r.arrayBuffer()),
-    fetch(new URL('./_fonts/DejaVuSans-Bold.ttf', import.meta.url)).then((r) => r.arrayBuffer()),
+    fetch(`${origin}/fonts/DejaVuSans.ttf`).then((r) => r.arrayBuffer()),
+    fetch(`${origin}/fonts/DejaVuSans-Bold.ttf`).then((r) => r.arrayBuffer()),
   ])
   return [
     { name: 'Deja', data: regular, weight: 400 as const, style: 'normal' as const },
