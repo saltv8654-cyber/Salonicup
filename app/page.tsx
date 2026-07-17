@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Watermark, Crest, Postponements, BottomNav, Empty } from './ui'
+import NotificationsBell from './notifications-bell'
 import type { League, Standing } from '@/lib/types'
 
 export const revalidate = 30
@@ -29,12 +30,17 @@ export default async function Home({
         <div className="absolute -right-6 -top-4 w-32 h-36">
           <Watermark opacity={0.05} />
         </div>
-        <p className="text-[9.5px] tracking-[0.22em] uppercase text-lit font-extrabold">
-          Salonicup
-        </p>
-        <h1 className="text-2xl font-extrabold text-chalk mt-1 tracking-tight">
-          Πρωταθλήματα
-        </h1>
+        <div className="relative flex items-start justify-between">
+          <div>
+            <p className="text-[9.5px] tracking-[0.22em] uppercase text-lit font-extrabold">
+              Salonicup
+            </p>
+            <h1 className="text-2xl font-extrabold text-chalk mt-1 tracking-tight">
+              Πρωταθλήματα
+            </h1>
+          </div>
+          <NotificationsBell />
+        </div>
       </header>
 
       {/* Πρωταθλήματα */}

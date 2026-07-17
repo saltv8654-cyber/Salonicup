@@ -121,6 +121,19 @@ export default function SpeakerPanel() {
     if (error) { toast.error('Δεν καταχωρήθηκε'); return }
 
     if (wasGoal) {
+      // Ειδοποίηση push σε όσους έχουν εγγραφεί (fire-and-forget)
+      const teamName = side === 'a' ? match.team_a_data?.name : match.team_b_data?.name
+      const scorer = roster.find(p => p.player_id === playerId)?.full_name ?? ''
+      fetch('/api/push/send', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title: `⚽ ΓΚΟΛ! ${teamName ?? ''}`.trim(),
+          body: `${scorer}${scorer ? ' — ' : ''}${match.team_a_data?.name} εναντίον ${match.team_b_data?.name}`,
+          url: `/match/${match.match_id}`,
+        }),
+      }).catch(() => {})
+
       // Αλυσίδα: γκολ → ασίστ, ίδιο λεπτό, ίδια ομάδα
       setPending('ASSIST')
       setChained(true)

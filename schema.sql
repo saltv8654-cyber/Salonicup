@@ -385,3 +385,18 @@ create policy "update logos/players" on storage.objects
 create policy "delete logos/players" on storage.objects
   for delete to authenticated
   using (bucket_id in ('logos','players'));
+
+-- ═══════════════════════════════════════════════════════════
+-- PUSH NOTIFICATIONS — συνδρομές συσκευών
+-- ═══════════════════════════════════════════════════════════
+create table if not exists push_subscriptions (
+  id         uuid primary key default gen_random_uuid(),
+  endpoint   text unique not null,
+  p256dh     text not null,
+  auth       text not null,
+  created_at timestamptz default now()
+);
+alter table push_subscriptions enable row level security;
+-- Οποιοσδήποτε μπορεί να εγγραφεί· ανάγνωση/διαγραφή μόνο service role (send endpoint).
+drop policy if exists push_insert on push_subscriptions;
+create policy push_insert on push_subscriptions for insert with check (true);

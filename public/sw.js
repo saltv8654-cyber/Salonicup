@@ -1,6 +1,6 @@
 /* Salonicup service worker — installability + offline shell.
    Προσοχή: τα live δεδομένα (Supabase, API) ΔΕΝ γίνονται cache. */
-const CACHE = 'salonicup-v2'
+const CACHE = 'salonicup-v3'
 const ASSETS = [
   '/', '/manifest.json',
   '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png',
@@ -51,4 +51,32 @@ self.addEventListener('fetch', (e) => {
       )
     )
   }
+})
+
+/* ── Push notifications ── */
+self.addEventListener('push', (e) => {
+  let data = {}
+  try { data = e.data ? e.data.json() : {} } catch (_) {}
+  const title = data.title || 'Salonicup'
+  const options = {
+    body: data.body || '',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    vibrate: [80, 40, 80],
+    data: { url: data.url || '/' },
+  }
+  e.waitUntil(self.registration.showNotification(title, options))
+})
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close()
+  const url = e.notification.data && e.notification.data.url ? e.notification.data.url : '/'
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+      for (const w of wins) {
+        if (w.url.includes(url) && 'focus' in w) return w.focus()
+      }
+      return self.clients.openWindow(url)
+    })
+  )
 })
