@@ -131,9 +131,13 @@ export async function POST(req: Request) {
 ΦΑΣΕΙΣ
 ${timeline || '(δεν καταγράφηκαν φάσεις)'}`
 
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return NextResponse.json(
+        { error: 'Λείπει το ANTHROPIC_API_KEY στο Vercel' }, { status: 503 })
+    }
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     const msg = await client.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-5',
       max_tokens: 1200,
       system: SYSTEM,
       messages: [{ role: 'user', content: prompt }],
