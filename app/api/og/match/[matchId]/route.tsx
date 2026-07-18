@@ -43,7 +43,7 @@ export async function GET(req: Request, { params }: { params: { matchId: string 
   const scorers = (side: string) =>
     (ev ?? [])
       .filter((e: any) => e.team_id === side)
-      .map((e: any) => (e.player?.full_name ?? '').split(' ').slice(-1)[0])
+      .map((e: any) => (e.player?.full_name ?? '').trim())
       .filter(Boolean)
 
   const sA = scorers(m.team_a)
