@@ -131,7 +131,7 @@ export async function POST(req: Request) {
 ΦΑΣΕΙΣ
 ${timeline || '(δεν καταγράφηκαν φάσεις)'}`
 
-    /* ── Δωρεάν αυτόματο ρεπορτάζ (χωρίς AI), εμπλουτισμένο ── */
+    /* ── Δωρεάν αυτόματο ρεπορτάζ (χωρίς AI): πλούσιο, με χιούμορ ── */
     function buildAutoNarrative(): string {
       const pick = (a: string[]) => a[Math.floor(Math.random() * a.length)]
       const ga = match.goals_team_a, gb = match.goals_team_b
@@ -139,59 +139,102 @@ ${timeline || '(δεν καταγράφηκαν φάσεις)'}`
       const total = ga + gb, diff = Math.abs(ga - gb)
       const league = match.league?.name ?? 'το πρωτάθλημα'
       const winner = ga > gb ? nameA : gb > ga ? nameB : null
+      const winnerId = ga > gb ? match.team_a : gb > ga ? match.team_b : null
+      const penWinner = pa > pb ? nameA : nameB
 
-      const character = total >= 6
-        ? pick(['ένα πραγματικό γκολ-θέαμα', 'καταιγισμό γκολ', 'αφθονία τερμάτων'])
+      const character = total >= 8
+        ? pick([
+            'ένα ατελείωτο πάρτι γκολ που θύμιζε περισσότερο μπάσκετ παρά ποδόσφαιρο',
+            'καταιγισμό τερμάτων που κούρασε ακόμα και τον πίνακα του σκορ',
+            'γκολ-θέαμα που θα ζήλευε και highlights του NBA'])
+        : total >= 5
+        ? pick(['ένα πλούσιο σε γκολ ματς', 'μπόλικη δράση και τέρματα', 'ένα ανοιχτό, θεαματικό παιχνίδι'])
         : total <= 2
-        ? pick(['μια σφιχτή μάχη', 'ένα παιχνίδι τακτικής και υπομονής', 'μια αναμέτρηση χαμηλού σκορ'])
-        : pick(['ένα δυνατό ματς', 'μια ζωντανή αναμέτρηση', 'ένα ενδιαφέρον παιχνίδι'])
+        ? pick([
+            'μια σφιχτή, σχεδόν σκακιστική αναμέτρηση',
+            'ένα ματς όπου τα γκολ ήταν είδος πολυτελείας',
+            'παιχνίδι υπομονής, με τις άμυνες να κλέβουν την παράσταση'])
+        : pick(['ένα ζωντανό ματς με εναλλαγές', 'μια αναμέτρηση με νεύρο και ρυθμό'])
 
       const opener = pick([
         `Αυλαία στην ${match.round}η αγωνιστική ${league}. `,
-        `${league}, ${match.round}η αγωνιστική. `,
-        `Στην ${match.round}η αγωνιστική ${league}, `,
-      ])
+        `${league}, ${match.round}η αγωνιστική, και το γήπεδο είχε κέφια. `,
+        `Στην ${match.round}η αγωνιστική ${league}, `])
       const intro = `${opener}${nameA} και ${nameB} μας χάρισαν ${character}, ` +
-        `με τελικό ${nameA} ${ga}-${gb} ${nameB}${hasPens ? ` (πέναλτι ${pa}-${pb})` : ''}.`
+        `με τελικό ${nameA} ${ga}-${gb} ${nameB}${hasPens ? ` (και πέναλτι ${pa}-${pb})` : ''}.`
+
+      // Ανίχνευση ανατροπής (ο νικητής βρέθηκε πίσω στο σκορ)
+      const ordered = [...list]
+        .filter(e => (e.event_type === 'GOAL' || e.event_type === 'OWN') && e.period !== 'PEN')
+        .sort((a, b) => absMinute(a.period as Period, a.minute) - absMinute(b.period as Period, b.minute))
+      let sa = 0, sb = 0, winnerWasBehind = false
+      for (const e of ordered) {
+        const forA = (e.event_type === 'GOAL' && e.team_id === match.team_a) ||
+                     (e.event_type === 'OWN' && e.team_id === match.team_b)
+        if (forA) sa++; else sb++
+        if (winnerId === match.team_a && sa < sb) winnerWasBehind = true
+        if (winnerId === match.team_b && sb < sa) winnerWasBehind = true
+      }
+      const comeback = winner && winnerWasBehind
+        ? pick([
+            `Και μάλιστα από θέση πίσω στο σκορ: ανατροπή που θα τη συζητούν για καιρό.`,
+            `Η ${winner} το γύρισε από χαμένο, γιατί το ποδόσφαιρο αγαπάει τα σίκουελ.`])
+        : null
 
       const HALF: Record<string, string> = {
         H1: 'Στο πρώτο μέρος', H2: 'Στην επανάληψη', ET: 'Στην παράταση',
       }
       const halves = (['H1', 'H2', 'ET'] as Period[]).map(pid => {
-        const goals = list
-          .filter(e => (e.period ?? 'H1') === pid &&
-            (e.event_type === 'GOAL' || e.event_type === 'OWN'))
-          .sort((a, b) => absMinute(pid, a.minute) - absMinute(pid, b.minute))
+        const goals = ordered.filter(e => (e.period ?? 'H1') === pid)
         if (!goals.length) return null
         const parts = goals.map(e =>
           `${fmtMinute(pid, e.minute)} ${e.player?.full_name ?? '—'} ` +
           `(${teamName(e.team_id)}${e.event_type === 'OWN' ? ', αυτογκόλ' : ''})`)
-        const lead = pick(['τα γκολ ήρθαν από', 'σκόραραν', 'βρήκαν δίχτυα'])
+        const lead = pick(['με σκόρερ', 'όπου βρήκαν δίχτυα οι', 'με τα γκολ να ανήκουν στους', 'και πρωταγωνιστές στο σκορ τους'])
         return `${HALF[pid]} ${lead}: ${parts.join(' · ')}.`
       }).filter(Boolean)
 
-      // Πρωταγωνιστής σκόρερ (2+ γκολ)
+      // Έξτρα χρώμα: αυτογκόλ, κόκκινες
+      const flavor: string[] = []
+      if (list.some(e => e.event_type === 'OWN'))
+        flavor.push(pick([
+          'Δεν έλειψε και το αυτογκόλ, γιατί το ποδόσφαιρο έχει και τα σουρεαλιστικά του.',
+          'Μπήκε στη μέση κι ένα αυτογκόλ, απλώς για να μη λείπει η πινελιά τρέλας.']))
+      if (list.some(e => e.event_type === 'RED'))
+        flavor.push(pick([
+          'Υπήρξε και ένταση με αποβολή, που άλλαξε τις ισορροπίες.',
+          'Η κόκκινη κάρτα έβαλε κι αυτή το χεράκι της στο σενάριο.']))
+
+      // Πρωταγωνιστής σκόρερ
       const gc = new Map<string, number>()
       list.filter(e => e.event_type === 'GOAL' && e.period !== 'PEN')
         .forEach(e => { const n = e.player?.full_name ?? '—'; gc.set(n, (gc.get(n) ?? 0) + 1) })
-      const topScorer = [...gc.entries()].sort((a, b) => b[1] - a[1])[0]
-      const highlight = topScorer && topScorer[1] >= 2
-        ? pick([
-            `Πρωταγωνιστής ο ${topScorer[0]} με ${topScorer[1]} γκολ.`,
-            `Ξεχώρισε ο ${topScorer[0]}, που πέτυχε ${topScorer[1]} τέρματα.`,
-          ])
+      const top = [...gc.entries()].sort((a, b) => b[1] - a[1])[0]
+      const highlight = top && top[1] >= 3
+        ? pick([`Χατ-τρικ για τον ${top[0]} — μόνος του «καθάρισε» το ματς.`,
+                `Ο ${top[0]} πήρε τη μπάλα στο σπίτι του: ${top[1]} γκολ και υπογραφή.`])
+        : top && top[1] === 2
+        ? pick([`Ο ${top[0]} με δύο γκολ ήταν ο πιο επικίνδυνος στο γήπεδο.`,
+                `Νταμπλ για τον ${top[0]}, που θύμισε σε όλους γιατί τον φοβούνται.`])
         : null
 
-      const result = winner
-        ? pick([
-            `Στο τέλος, η ${winner} πανηγύρισε τη νίκη${diff >= 3 ? ' με άνεση' : diff === 1 ? ' στο νήμα' : ''}.`,
-            `Το «τρίποντο» πήρε η ${winner}${diff >= 3 ? ', χωρίς ιδιαίτερο άγχος' : ''}.`,
-          ])
+      const closing = winner
+        ? (diff >= 4
+            ? pick([`Μονόλογος της ${winner}, που δεν άφησε περιθώρια ούτε για ευγενική αντίσταση.`,
+                    `Η ${winner} έκανε περίπατο και γύρισε σπίτι με το καλάθι γεμάτο.`])
+            : diff === 1
+            ? pick([`Θρίλερ που κρίθηκε στη λεπτομέρεια, με τη ${winner} να το παίρνει στο νήμα.`,
+                    `Η ${winner} κράτησε γερά τα νεύρα της και πήρε μια νίκη-ανάσα.`])
+            : pick([`Στο τέλος, η ${winner} πανηγύρισε δίκαια το τρίποντο.`,
+                    `Καθαρή δουλειά για τη ${winner}, που πήρε αυτό που ήθελε.`]))
         : hasPens
-        ? `Η ισοπαλία λύθηκε στα πέναλτι, με την ${pa > pb ? nameA : nameB} να προκρίνεται.`
-        : `Δίκαιη μοιρασιά βαθμών στο ${ga}-${gb}.`
+        ? pick([`Και επειδή το κανονικό δεν έφτανε, η υπόθεση πήγε στη λοταρία των πέναλτι, με τη ${penWinner} να έχει πιο σταθερό χέρι.`,
+                `Στα πέναλτι, εκεί που η καρδιά χτυπάει σαν ταμπούρλο, η ${penWinner} κράτησε την ψυχραιμία της.`])
+        : pick([`Δίκαιη μοιρασιά, με τις δύο ομάδες να τα «σπάνε» φιλικά στο ${ga}-${gb}.`,
+                `Ισοπαλία που άφησε και τους δύο με ένα «κρίμα» στα χείλη.`])
 
-      return [intro, ...halves, highlight, result].filter(Boolean).join('\n\n')
+      return [intro, comeback, ...halves, ...flavor, highlight, closing]
+        .filter(Boolean).join('\n\n')
     }
 
     let body: string
