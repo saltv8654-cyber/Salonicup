@@ -131,23 +131,51 @@ export async function POST(req: Request) {
 ΦΑΣΕΙΣ
 ${timeline || '(δεν καταγράφηκαν φάσεις)'}`
 
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return NextResponse.json(
-        { error: 'Λείπει το ANTHROPIC_API_KEY στο Vercel' }, { status: 503 })
-    }
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-    const msg = await client.messages.create({
-      model: 'claude-sonnet-5',
-      max_tokens: 1200,
-      system: SYSTEM,
-      messages: [{ role: 'user', content: prompt }],
-    })
+    /* ── Δωρεάν αυτόματο ρεπορτάζ (χωρίς AI) ── */
+    function buildAutoNarrative(): string {
+      const ga = match.goals_team_a, gb = match.goals_team_b
+      const intro = `${match.league?.name ?? ''}, ${match.round}η αγωνιστική. ` +
+        `${nameA} και ${nameB} αναμετρήθηκαν με τελικό ${nameA} ${ga}-${gb} ${nameB}` +
+        `${hasPens ? ` (πέναλτι ${match.pens_team_a}-${match.pens_team_b})` : ''}.`
 
-    const body = msg.content
-      .filter(b => b.type === 'text')
-      .map(b => (b as any).text)
-      .join('\n')
-      .trim()
+      const halves = (['H1', 'H2', 'ET'] as Period[]).map(pid => {
+        const goals = list
+          .filter(e => (e.period ?? 'H1') === pid &&
+            (e.event_type === 'GOAL' || e.event_type === 'OWN'))
+          .sort((a, b) => absMinute(pid, a.minute) - absMinute(pid, b.minute))
+        if (!goals.length) return null
+        const label = PERIODS.find(p => p.id === pid)!.label
+        const parts = goals.map(e =>
+          `${fmtMinute(pid, e.minute)} ${e.player?.full_name ?? '—'} ` +
+          `(${teamName(e.team_id)}${e.event_type === 'OWN' ? ', αυτογκόλ' : ''})`)
+        return `${label}: ${parts.join(' · ')}.`
+      }).filter(Boolean)
+
+      const result = ga > gb ? `Τη νίκη πήρε η ${nameA}.`
+        : gb > ga ? `Τη νίκη πήρε η ${nameB}.`
+        : hasPens ? `Η αναμέτρηση κρίθηκε στη διαδικασία των πέναλτι.`
+        : `Το παιχνίδι έληξε ισόπαλο.`
+
+      return [intro, ...halves, result].filter(Boolean).join('\n\n')
+    }
+
+    let body: string
+    if (process.env.ANTHROPIC_API_KEY) {
+      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+      const msg = await client.messages.create({
+        model: 'claude-sonnet-5',
+        max_tokens: 1200,
+        system: SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      })
+      body = msg.content
+        .filter(b => b.type === 'text')
+        .map(b => (b as any).text)
+        .join('\n')
+        .trim()
+    } else {
+      body = buildAutoNarrative()
+    }
 
     const report = [
       body,
