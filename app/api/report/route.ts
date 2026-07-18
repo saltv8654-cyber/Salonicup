@@ -181,17 +181,52 @@ ${timeline || '(δεν καταγράφηκαν φάσεις)'}`
             `Η ${winner} το γύρισε από χαμένο, γιατί το ποδόσφαιρο αγαπάει τα σίκουελ.`])
         : null
 
-      const HALF: Record<string, string> = {
-        H1: 'Στο πρώτο μέρος', H2: 'Στην επανάληψη', ET: 'Στην παράταση',
+      // Αφήγηση γκολ με τρέχον σκορ, ομαδοποιημένα σε προτάσεις ανά ημίχρονο
+      const forTeamA = (e: any) =>
+        (e.event_type === 'GOAL' && e.team_id === match.team_a) ||
+        (e.event_type === 'OWN' && e.team_id === match.team_b)
+      const HALFLEAD: Record<string, string[]> = {
+        H1: ['Στο πρώτο ημίχρονο', 'Από νωρίς', 'Στο πρώτο μέρος'],
+        H2: ['Στην επανάληψη', 'Μετά την ανάπαυλα', 'Στο δεύτερο μέρος'],
+        ET: ['Στην παράταση', 'Στα έξτρα λεπτά'],
+      }
+      let ra = 0, rb = 0
+      const clauses: { pid: string; text: string }[] = []
+      for (let i = 0; i < ordered.length;) {
+        const e = ordered[i]
+        const forA = forTeamA(e)
+        const team = forA ? nameA : nameB
+        const pid = (e.period ?? 'H1') as string
+        const myB = forA ? ra : rb, oppB = forA ? rb : ra
+        // μάζεψε συνεχόμενα γκολ ίδιας ομάδας στο ίδιο ημίχρονο
+        const names: string[] = []
+        let j = i
+        while (j < ordered.length) {
+          const g = ordered[j]
+          if (forTeamA(g) !== forA || (g.period ?? 'H1') !== pid) break
+          names.push(`${g.player?.full_name ?? '—'}${g.event_type === 'OWN' ? ' αυτ.' : ''} ${fmtMinute(pid as Period, g.minute)}`)
+          if (forTeamA(g)) ra++; else rb++
+          j++
+        }
+        const myA = forA ? ra : rb, oppA = forA ? rb : ra
+        const firstOfMatch = (ra + rb - names.length) === 0
+        const verb = firstOfMatch
+          ? pick(['άνοιξε το σκορ', 'μπήκε δυνατά και προηγήθηκε'])
+          : myA === oppA ? pick(['ισοφάρισε', 'ισοφάρισε το ματς'])
+          : myA > oppA && myB <= oppB ? pick(['πήρε το προβάδισμα', 'πέρασε μπροστά'])
+          : myA > oppA ? pick(['αύξησε τη διαφορά', 'ξέφυγε κι άλλο'])
+          : pick(['μείωσε', 'απάντησε'])
+        clauses.push({ pid, text: `η ${team} ${verb} (${names.join(', ')})` })
+        i = j
       }
       const halves = (['H1', 'H2', 'ET'] as Period[]).map(pid => {
-        const goals = ordered.filter(e => (e.period ?? 'H1') === pid)
-        if (!goals.length) return null
-        const parts = goals.map(e =>
-          `${fmtMinute(pid, e.minute)} ${e.player?.full_name ?? '—'} ` +
-          `(${teamName(e.team_id)}${e.event_type === 'OWN' ? ', αυτογκόλ' : ''})`)
-        const lead = pick(['με σκόρερ', 'όπου βρήκαν δίχτυα οι', 'με τα γκολ να ανήκουν στους', 'και πρωταγωνιστές στο σκορ τους'])
-        return `${HALF[pid]} ${lead}: ${parts.join(' · ')}.`
+        const cs = clauses.filter(c => c.pid === pid)
+        if (!cs.length) return null
+        const lead = pick(HALFLEAD[pid])
+        const sentence = cs.map((c, idx) =>
+          idx === 0 ? `${lead}, ${c.text}` : c.text.charAt(0).toUpperCase() + c.text.slice(1)
+        ).join('. ') + '.'
+        return sentence
       }).filter(Boolean)
 
       // Έξτρα χρώμα: αυτογκόλ, κόκκινες
