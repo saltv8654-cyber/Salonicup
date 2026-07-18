@@ -12,30 +12,26 @@ export default function NotificationsBell() {
   if (!pushSupported()) return null
 
   async function toggle() {
-    if (state === 'granted') {
-      // Δοκιμαστική ειδοποίηση + διάγνωση
-      const r = await fetch('/api/push/test', { method: 'POST' }).then(x => x.json()).catch(() => null)
-      if (!r) return toast.error('Σφάλμα δικτύου')
-      if (r.ok) {
-        toast.success(`Στάλθηκε δοκιμή σε ${r.sent}/${r.subs} συσκευές`)
-      } else if (r.reason === 'env-missing') {
-        toast.error('Λείπουν κλειδιά στο Vercel: ' + (r.missing || []).join(', '))
-      } else if (r.reason === 'no-subscriptions') {
-        toast.error('Καμία εγγεγραμμένη συσκευή — πάτα ξανά «Επιτρέπω»')
-      } else {
-        toast.error('Πρόβλημα: ' + (r.reason || r.error || '?'))
-      }
-      return
-    }
     if (state === 'denied') {
-      toast.error('Οι ειδοποιήσεις είναι μπλοκαρισμένες — ενεργοποίησέ τες απ\' τις ρυθμίσεις του browser')
+      toast.error('Μπλοκαρισμένες — ενεργοποίησέ τες απ\' τις Ρυθμίσεις iPhone → Salonicup')
       return
     }
     setBusy(true)
     try {
+      // Πάντα ξανα-εξασφαλίζει άδεια + εγγραφή + αποθήκευση (idempotent)
       await enablePush()
       setState('granted')
-      toast.success('Ειδοποιήσεις ενεργές! ⚽')
+      // Αμέσως μετά, δοκιμαστική ειδοποίηση + διάγνωση
+      const r = await fetch('/api/push/test', { method: 'POST' }).then(x => x.json()).catch(() => null)
+      if (r?.ok) {
+        toast.success(`Ενεργές! Δοκιμή σε ${r.sent}/${r.subs} συσκευές 📲`)
+      } else if (r?.reason === 'env-missing') {
+        toast.error('Λείπουν κλειδιά: ' + (r.missing || []).join(', '))
+      } else if (r?.reason === 'no-subscriptions') {
+        toast.error('Η εγγραφή δεν σώθηκε — ξαναπάτησέ το')
+      } else {
+        toast.success('Ειδοποιήσεις ενεργές ⚽')
+      }
     } catch (e: any) {
       toast.error(e?.message ?? 'Δεν ενεργοποιήθηκαν')
       setState(pushState())
