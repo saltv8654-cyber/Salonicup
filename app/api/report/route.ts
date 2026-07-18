@@ -131,32 +131,67 @@ export async function POST(req: Request) {
 ΦΑΣΕΙΣ
 ${timeline || '(δεν καταγράφηκαν φάσεις)'}`
 
-    /* ── Δωρεάν αυτόματο ρεπορτάζ (χωρίς AI) ── */
+    /* ── Δωρεάν αυτόματο ρεπορτάζ (χωρίς AI), εμπλουτισμένο ── */
     function buildAutoNarrative(): string {
+      const pick = (a: string[]) => a[Math.floor(Math.random() * a.length)]
       const ga = match.goals_team_a, gb = match.goals_team_b
-      const intro = `${match.league?.name ?? ''}, ${match.round}η αγωνιστική. ` +
-        `${nameA} και ${nameB} αναμετρήθηκαν με τελικό ${nameA} ${ga}-${gb} ${nameB}` +
-        `${hasPens ? ` (πέναλτι ${match.pens_team_a}-${match.pens_team_b})` : ''}.`
+      const pa = match.pens_team_a, pb = match.pens_team_b
+      const total = ga + gb, diff = Math.abs(ga - gb)
+      const league = match.league?.name ?? 'το πρωτάθλημα'
+      const winner = ga > gb ? nameA : gb > ga ? nameB : null
 
+      const character = total >= 6
+        ? pick(['ένα πραγματικό γκολ-θέαμα', 'καταιγισμό γκολ', 'αφθονία τερμάτων'])
+        : total <= 2
+        ? pick(['μια σφιχτή μάχη', 'ένα παιχνίδι τακτικής και υπομονής', 'μια αναμέτρηση χαμηλού σκορ'])
+        : pick(['ένα δυνατό ματς', 'μια ζωντανή αναμέτρηση', 'ένα ενδιαφέρον παιχνίδι'])
+
+      const opener = pick([
+        `Αυλαία στην ${match.round}η αγωνιστική ${league}. `,
+        `${league}, ${match.round}η αγωνιστική. `,
+        `Στην ${match.round}η αγωνιστική ${league}, `,
+      ])
+      const intro = `${opener}${nameA} και ${nameB} μας χάρισαν ${character}, ` +
+        `με τελικό ${nameA} ${ga}-${gb} ${nameB}${hasPens ? ` (πέναλτι ${pa}-${pb})` : ''}.`
+
+      const HALF: Record<string, string> = {
+        H1: 'Στο πρώτο μέρος', H2: 'Στην επανάληψη', ET: 'Στην παράταση',
+      }
       const halves = (['H1', 'H2', 'ET'] as Period[]).map(pid => {
         const goals = list
           .filter(e => (e.period ?? 'H1') === pid &&
             (e.event_type === 'GOAL' || e.event_type === 'OWN'))
           .sort((a, b) => absMinute(pid, a.minute) - absMinute(pid, b.minute))
         if (!goals.length) return null
-        const label = PERIODS.find(p => p.id === pid)!.label
         const parts = goals.map(e =>
           `${fmtMinute(pid, e.minute)} ${e.player?.full_name ?? '—'} ` +
           `(${teamName(e.team_id)}${e.event_type === 'OWN' ? ', αυτογκόλ' : ''})`)
-        return `${label}: ${parts.join(' · ')}.`
+        const lead = pick(['τα γκολ ήρθαν από', 'σκόραραν', 'βρήκαν δίχτυα'])
+        return `${HALF[pid]} ${lead}: ${parts.join(' · ')}.`
       }).filter(Boolean)
 
-      const result = ga > gb ? `Τη νίκη πήρε η ${nameA}.`
-        : gb > ga ? `Τη νίκη πήρε η ${nameB}.`
-        : hasPens ? `Η αναμέτρηση κρίθηκε στη διαδικασία των πέναλτι.`
-        : `Το παιχνίδι έληξε ισόπαλο.`
+      // Πρωταγωνιστής σκόρερ (2+ γκολ)
+      const gc = new Map<string, number>()
+      list.filter(e => e.event_type === 'GOAL' && e.period !== 'PEN')
+        .forEach(e => { const n = e.player?.full_name ?? '—'; gc.set(n, (gc.get(n) ?? 0) + 1) })
+      const topScorer = [...gc.entries()].sort((a, b) => b[1] - a[1])[0]
+      const highlight = topScorer && topScorer[1] >= 2
+        ? pick([
+            `Πρωταγωνιστής ο ${topScorer[0]} με ${topScorer[1]} γκολ.`,
+            `Ξεχώρισε ο ${topScorer[0]}, που πέτυχε ${topScorer[1]} τέρματα.`,
+          ])
+        : null
 
-      return [intro, ...halves, result].filter(Boolean).join('\n\n')
+      const result = winner
+        ? pick([
+            `Στο τέλος, η ${winner} πανηγύρισε τη νίκη${diff >= 3 ? ' με άνεση' : diff === 1 ? ' στο νήμα' : ''}.`,
+            `Το «τρίποντο» πήρε η ${winner}${diff >= 3 ? ', χωρίς ιδιαίτερο άγχος' : ''}.`,
+          ])
+        : hasPens
+        ? `Η ισοπαλία λύθηκε στα πέναλτι, με την ${pa > pb ? nameA : nameB} να προκρίνεται.`
+        : `Δίκαιη μοιρασιά βαθμών στο ${ga}-${gb}.`
+
+      return [intro, ...halves, highlight, result].filter(Boolean).join('\n\n')
     }
 
     let body: string
