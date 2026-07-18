@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/hooks/useAuth'
 import { useLiveMatch } from '@/lib/hooks/useLiveMatch'
 import { Watermark, Crest, Avatar, LiveDot, SectionLabel, Loading } from '@/app/ui'
 import {
-  PERIODS, EVENTS, PLAY_EVENTS, PEN_EVENTS, fmtMinute, absMinute,
+  PERIODS, EVENTS, PLAY_EVENTS, PEN_EVENTS, fmtMinute, absMinute, toRelativeMinute,
 } from '@/lib/match'
 import ReportSheet from './report'
 import toast from 'react-hot-toast'
@@ -19,7 +19,7 @@ export default function SpeakerPanel() {
   const router = useRouter()
   const { profile, isSpeaker, loading: authLoading } = useAuth()
   const supabase = createClient()
-  const { match, events, loading } = useLiveMatch(matchId as string)
+  const { match, events, loading, refresh } = useLiveMatch(matchId as string)
 
   const [phase, setPhase]     = useState<'squad' | 'live'>('squad')
   const [rosterA, setRosterA] = useState<Player[]>([])
@@ -106,7 +106,8 @@ export default function SpeakerPanel() {
   async function commit(playerId: string) {
     if (!pending) return
     const wasGoal = pending === 'GOAL' && period !== 'PEN'
-    const min = period === 'PEN' ? null : (minute ? parseInt(minute) : null)
+    const min = period === 'PEN' ? null
+      : (minute ? toRelativeMinute(period, parseInt(minute)) : null)
 
     const { error } = await supabase.from('events').insert({
       match_id:   match.match_id,
@@ -152,7 +153,8 @@ export default function SpeakerPanel() {
 
   async function removeEvent(id: string) {
     const { error } = await supabase.from('events').delete().eq('event_id', id)
-    if (error) toast.error('Δεν διαγράφηκε')
+    if (error) { toast.error('Δεν διαγράφηκε'); return }
+    refresh()   // άμεση ενημέρωση (το realtime DELETE δεν φτάνει πάντα)
   }
 
   return (
@@ -228,7 +230,7 @@ export default function SpeakerPanel() {
                 <div className="shrink-0">
                   <label className="block text-[8.5px] font-extrabold text-dim
                     tracking-[0.12em] mb-1.5 pl-0.5">
-                    ΛΕΠΤΟ{minute ? ` → ${fmtMinute(period, minute)}` : ''}
+                    ΛΕΠΤΟ{minute ? ` → ${fmtMinute(period, toRelativeMinute(period, parseInt(minute)))}` : ''}
                   </label>
                   <input
                     value={minute}
@@ -257,8 +259,7 @@ export default function SpeakerPanel() {
 
             {period !== 'PEN' && (
               <p className="text-[9.5px] text-off text-center mb-2.5">
-                1–{PERIODS.find(P => P.id === period)!.cap} κανονικό ·
-                πάνω από {PERIODS.find(P => P.id === period)!.cap} = καθυστερήσεις
+                Γράψε το πραγματικό λεπτό (π.χ. 58'). Καθυστερήσεις: π.χ. 62' = 60+2'
               </p>
             )}
 
@@ -376,7 +377,7 @@ export default function SpeakerPanel() {
           type={pending}
           players={roster}
           teamName={side === 'a' ? match.team_a_data?.name : match.team_b_data?.name}
-          minuteLabel={period === 'PEN' ? '' : (minute ? fmtMinute(period, minute) : '')}
+          minuteLabel={period === 'PEN' ? '' : (minute ? fmtMinute(period, toRelativeMinute(period, parseInt(minute))) : '')}
           chained={chained}
           onPick={commit}
           onSkip={skipAssist}

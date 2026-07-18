@@ -400,3 +400,6 @@ alter table push_subscriptions enable row level security;
 -- Οποιοσδήποτε μπορεί να εγγραφεί· ανάγνωση/διαγραφή μόνο service role (send endpoint).
 drop policy if exists push_insert on push_subscriptions;
 create policy push_insert on push_subscriptions for insert with check (true);
+
+-- Ώστε τα DELETE των φάσεων να φτάνουν live στους θεατές
+alter table events replica identity full;

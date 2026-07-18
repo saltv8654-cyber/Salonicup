@@ -26,6 +26,19 @@ export function fmtMinute(period: Period, raw: number | string | null): string {
   return `${P.base + n}'`
 }
 
+/**
+ * Μετατρέπει αυτό που πληκτρολογεί ο speaker σε σχετικό λεπτό (για αποθήκευση).
+ * Δέχεται είτε το ΠΡΑΓΜΑΤΙΚΟ λεπτό είτε το σχετικό:
+ *   H2, 58 → 28  (58' πραγματικό)     H2, 28 → 28  (=58')
+ *   H2, 62 → 32  (60+2')              ET, 63 → 3   (63')
+ *   H1, 25 → 25                        H1, 33 → 33  (30+3')
+ */
+export function toRelativeMinute(period: Period, typed: number): number {
+  if (period === 'PEN') return typed
+  const P = PERIODS.find(p => p.id === period)!
+  return typed > P.base ? typed - P.base : typed
+}
+
 /** Απόλυτο λεπτό, για ταξινόμηση */
 export function absMinute(period: Period, raw: number | null): number {
   if (period === 'PEN') return 9999
