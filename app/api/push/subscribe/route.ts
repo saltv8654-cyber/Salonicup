@@ -10,9 +10,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: 'bad request' }, { status: 400 })
   }
 
+  // Προτίμησε το service role (παρακάμπτει RLS)· αλλιώς anon.
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    key,
     { auth: { persistSession: false } }
   )
 
