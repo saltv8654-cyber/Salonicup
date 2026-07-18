@@ -46,5 +46,8 @@ export async function enablePush() {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth }),
   })
-  if (!res.ok) throw new Error('Αποτυχία εγγραφής')
+  if (!res.ok) {
+    const info = await res.json().catch(() => null)
+    throw new Error('Εγγραφή: ' + (info?.error || `HTTP ${res.status}`))
+  }
 }
