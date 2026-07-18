@@ -9,6 +9,7 @@ import {
   PERIODS, EVENTS, PLAY_EVENTS, PEN_EVENTS, fmtMinute, absMinute, toRelativeMinute,
 } from '@/lib/match'
 import ReportSheet from './report'
+import { notifyPush } from '@/lib/push'
 import toast from 'react-hot-toast'
 import type { Period, EventType, Player } from '@/lib/types'
 
@@ -87,17 +88,25 @@ export default function SpeakerPanel() {
 
   /* ── Συνθέσεις ── */
   async function saveSquad() {
+    const starting = match.match_status === 'Scheduled'
     setSaving(true)
     const { error } = await supabase.from('matches').update({
       squad_a: [...inA],
       squad_b: [...inB],
       squad_set_at: new Date().toISOString(),
       squad_set_by: profile?.id,
-      match_status: match.match_status === 'Scheduled' ? 'Live' : match.match_status,
+      match_status: starting ? 'Live' : match.match_status,
     }).eq('match_id', match.match_id)
     setSaving(false)
 
     if (error) { toast.error('Δεν αποθηκεύτηκε'); return }
+    if (starting) {
+      notifyPush({
+        title: '🟢 Έναρξη αγώνα',
+        body: `${match.team_a_data?.name} εναντίον ${match.team_b_data?.name} — ${match.league?.name ?? ''}`.trim(),
+        url: `/match/${match.match_id}`,
+      })
+    }
     toast.success('Συμμετοχές αποθηκεύτηκαν')
     setPhase('live')
   }
@@ -121,24 +130,27 @@ export default function SpeakerPanel() {
 
     if (error) { toast.error('Δεν καταχωρήθηκε'); return }
 
-    if (wasGoal) {
-      // Ειδοποίηση push σε όσους έχουν εγγραφεί (fire-and-forget)
-      const teamName = side === 'a' ? match.team_a_data?.name : match.team_b_data?.name
-      const scorer = roster.find(p => p.player_id === playerId)?.full_name ?? ''
-      fetch('/api/push/send', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          title: `⚽ ΓΚΟΛ! ${teamName ?? ''}`.trim(),
-          body: `${scorer}${scorer ? ' — ' : ''}${match.team_a_data?.name} εναντίον ${match.team_b_data?.name}`,
-          url: `/match/${match.match_id}`,
-        }),
-      }).catch(() => {})
+    const teamName = side === 'a' ? match.team_a_data?.name : match.team_b_data?.name
+    const pname = roster.find(p => p.player_id === playerId)?.full_name ?? ''
+    const vs = `${match.team_a_data?.name} εναντίον ${match.team_b_data?.name}`
 
+    if (wasGoal) {
+      notifyPush({
+        title: `⚽ ΓΚΟΛ! ${teamName ?? ''}`.trim(),
+        body: `${pname}${pname ? ' — ' : ''}${vs}`,
+        url: `/match/${match.match_id}`,
+      })
       // Αλυσίδα: γκολ → ασίστ, ίδιο λεπτό, ίδια ομάδα
       setPending('ASSIST')
       setChained(true)
     } else {
+      if (pending === 'RED') {
+        notifyPush({
+          title: '🟥 Κόκκινη κάρτα',
+          body: `${pname} (${teamName}) — ${vs}`,
+          url: `/match/${match.match_id}`,
+        })
+      }
       setPending(null)
       setChained(false)
       setMinute('')

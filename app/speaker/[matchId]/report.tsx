@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { EVENTS } from '@/lib/match'
+import { notifyPush } from '@/lib/push'
 import toast from 'react-hot-toast'
 import type { EventType } from '@/lib/types'
 
@@ -66,6 +67,13 @@ export default function ReportSheet({ match, events, onClose, onFinished }: {
     setSaving(false)
 
     if (error) { toast.error('Δεν αποθηκεύτηκε'); return }
+    if (!done) {
+      notifyPush({
+        title: '🏁 Τελικό σφύριγμα',
+        body: `${match.team_a_data?.name} ${match.goals_team_a}-${match.goals_team_b} ${match.team_b_data?.name}`,
+        url: `/match/${match.match_id}`,
+      })
+    }
     toast.success(done ? 'Αποθηκεύτηκε' : 'Ο αγώνας έληξε')
     onFinished()
   }

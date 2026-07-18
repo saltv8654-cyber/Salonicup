@@ -11,6 +11,15 @@ function urlB64ToUint8Array(base64: string) {
 
 export type PushState = 'unsupported' | 'default' | 'granted' | 'denied'
 
+/** Στέλνει ειδοποίηση σε όλους (fire-and-forget· ο server ελέγχει δικαιώματα). */
+export function notifyPush(payload: { title: string; body: string; url: string }) {
+  fetch('/api/push/send', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).catch(() => {})
+}
+
 export function pushSupported() {
   return typeof window !== 'undefined' &&
     'serviceWorker' in navigator &&
