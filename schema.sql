@@ -354,6 +354,9 @@ create policy speaker_events  on events  for all    using (is_speaker());
 create policy speaker_matches on matches for update using (is_speaker());
 create policy speaker_players on players for update using (is_speaker());
 create policy speaker_players_insert on players for insert with check (is_speaker());
+create policy speaker_players_delete on players for delete using (is_speaker());
+-- ώστε ο speaker να βλέπει ποιος σπικερ καταχώρησε (όνομα από profiles)
+create policy speaker_read_profiles on profiles for select using (is_speaker());
 
 -- ── Realtime ──
 alter publication supabase_realtime add table events;

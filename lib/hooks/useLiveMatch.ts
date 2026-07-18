@@ -15,6 +15,7 @@ export function useLiveMatch(matchId: string) {
       .select(`
         *,
         mvp:mvp_player_id(player_id, full_name, number, photo_url, team_id),
+        setter:squad_set_by(full_name),
         team_a_data:team_a(team_id, name, logo_url),
         team_b_data:team_b(team_id, name, logo_url),
         league:league_id(name),

@@ -197,6 +197,12 @@ export default function SpeakerPanel() {
             </div>
             <Badge team={match.team_b_data} n={activeB.length} />
           </div>
+
+          {match.setter?.full_name && (
+            <p className="text-[9px] text-off text-center mt-3">
+              Καταχωρήθηκε από {match.setter.full_name}
+            </p>
+          )}
         </div>
       </div>
 
@@ -421,6 +427,7 @@ function SquadPicker({
   const supabase = createClient()
   const [tab, setTab]       = useState<Side>('a')
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<Player | null>(null)
   const [busy, setBusy]     = useState(false)
 
   const roster    = tab === 'a' ? rosterA : rosterB
@@ -451,6 +458,32 @@ function SquadPicker({
     const next = new Set(set); next.add(data.player_id); setSet(next)
     toast.success('Ο παίκτης προστέθηκε')
     setAdding(false)
+  }
+
+  async function savePlayer(p: Player, name: string, number: string) {
+    setBusy(true)
+    const { error } = await supabase.from('players').update({
+      full_name: name.trim(),
+      number: number ? parseInt(number) : null,
+    }).eq('player_id', p.player_id)
+    setBusy(false)
+    if (error) { toast.error('Δεν αποθηκεύτηκε'); return }
+    setRoster(roster.map((x: Player) => x.player_id === p.player_id
+      ? { ...x, full_name: name.trim(), number: number ? parseInt(number) : null } : x))
+    toast.success('Αποθηκεύτηκε')
+    setEditing(null)
+  }
+
+  async function deletePlayer(p: Player) {
+    if (!confirm(`Αφαίρεση του «${p.full_name}» από το ρόστερ;`)) return
+    setBusy(true)
+    const { error } = await supabase.from('players').delete().eq('player_id', p.player_id)
+    setBusy(false)
+    if (error) { toast.error('Δεν αφαιρέθηκε (ίσως έχει φάσεις)'); return }
+    setRoster(roster.filter((x: Player) => x.player_id !== p.player_id))
+    const next = new Set(set); next.delete(p.player_id); setSet(next)
+    toast.success('Αφαιρέθηκε')
+    setEditing(null)
   }
 
   const total = inA.size + inB.size
@@ -501,26 +534,29 @@ function SquadPicker({
           {roster.map((p: Player) => {
             const on = set.has(p.player_id)
             return (
-              <button key={p.player_id} onClick={() => toggle(p.player_id)}
-                className={`w-full rounded-xl px-3.5 py-3 flex items-center gap-3
-                  transition-colors border
-                  ${on ? 'bg-lit/[0.07] border-lit/[0.28]'
-                       : 'bg-turf border-transparent'}`}>
-                <span className={`w-[3px] h-6 rounded-sm shrink-0
-                  ${on ? 'bg-lit' : 'bg-off'}`} />
-                <span className="w-6 text-[12.5px] font-extrabold text-dim
-                  text-center shrink-0 tnum">
-                  {p.number ?? '—'}
-                </span>
-                <Avatar url={p.photo_url} name={p.full_name} size={28} />
-                <span className={`flex-1 text-left text-[14.5px] font-semibold truncate
-                  ${on ? 'text-chalk' : 'text-chalk/[0.28]'}`}>
-                  {p.full_name}
-                </span>
-                <span className="text-[9px] font-bold text-dim tracking-[0.06em] shrink-0">
-                  {on ? 'ΣΥΜΜΕΤΟΧΗ' : 'ΕΚΤΟΣ'}
-                </span>
-              </button>
+              <div key={p.player_id} className={`rounded-xl flex items-center border
+                ${on ? 'bg-lit/[0.07] border-lit/[0.28]' : 'bg-turf border-transparent'}`}>
+                <button onClick={() => toggle(p.player_id)}
+                  className="flex-1 min-w-0 px-3.5 py-3 flex items-center gap-3">
+                  <span className={`w-[3px] h-6 rounded-sm shrink-0
+                    ${on ? 'bg-lit' : 'bg-off'}`} />
+                  <span className="w-6 text-[12.5px] font-extrabold text-dim
+                    text-center shrink-0 tnum">
+                    {p.number ?? '—'}
+                  </span>
+                  <Avatar url={p.photo_url} name={p.full_name} size={28} />
+                  <span className={`flex-1 text-left text-[14.5px] font-semibold truncate
+                    ${on ? 'text-chalk' : 'text-chalk/[0.28]'}`}>
+                    {p.full_name}
+                  </span>
+                  <span className="text-[9px] font-bold text-dim tracking-[0.06em] shrink-0">
+                    {on ? 'ΣΥΜΜΕΤΟΧΗ' : 'ΕΚΤΟΣ'}
+                  </span>
+                </button>
+                <button onClick={() => setEditing(p)} aria-label="Επεξεργασία"
+                  className="w-11 h-11 shrink-0 grid place-items-center text-silver
+                    text-[15px] active:bg-chalk/[0.06] rounded-r-xl">✎</button>
+              </div>
             )
           })}
         </div>
@@ -541,6 +577,69 @@ function SquadPicker({
           onAdd={addPlayer} onClose={() => setAdding(false)}
         />
       )}
+
+      {editing && (
+        <EditPlayerSheet
+          player={editing} busy={busy}
+          onSave={savePlayer} onDelete={deletePlayer}
+          onClose={() => setEditing(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+/* ── Επεξεργασία / αφαίρεση παίκτη ── */
+function EditPlayerSheet({ player, busy, onSave, onDelete, onClose }: {
+  player: Player; busy: boolean
+  onSave: (p: Player, name: string, number: string) => void
+  onDelete: (p: Player) => void
+  onClose: () => void
+}) {
+  const [name, setName] = useState(player.full_name)
+  const [num, setNum]   = useState(player.number != null ? String(player.number) : '')
+
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col justify-end" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/75" />
+      <div onClick={e => e.stopPropagation()}
+        className="relative bg-turf rounded-t-[20px] flex flex-col
+          border-t-2 border-brand p-4 gap-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-bold text-chalk">Επεξεργασία παίκτη</h3>
+          <button onClick={onClose}
+            className="w-[30px] h-[30px] rounded-lg bg-chalk/[0.06]
+              grid place-items-center text-silver text-sm">✕</button>
+        </div>
+
+        <div>
+          <label className="block text-[8.5px] font-extrabold text-dim
+            tracking-[0.12em] mb-1.5 pl-0.5">ΟΝΟΜΑΤΕΠΩΝΥΜΟ</label>
+          <input value={name} onChange={e => setName(e.target.value)} autoFocus
+            className="w-full bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-sm
+              outline-none border border-chalk/[0.07] focus:border-lit/50" />
+        </div>
+
+        <div>
+          <label className="block text-[8.5px] font-extrabold text-dim
+            tracking-[0.12em] mb-1.5 pl-0.5">ΝΟΥΜΕΡΟ</label>
+          <input value={num} onChange={e => setNum(e.target.value.replace(/\D/g, ''))}
+            inputMode="numeric" placeholder="—"
+            className="w-full bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-sm
+              outline-none border border-chalk/[0.07] focus:border-lit/50" />
+        </div>
+
+        <button onClick={() => onSave(player, name, num)} disabled={busy || !name.trim()}
+          className="w-full py-3.5 rounded-xl bg-gradient-to-b from-lit to-brand
+            text-white font-extrabold text-[15px] disabled:opacity-40">
+          {busy ? 'Αποθήκευση…' : 'Αποθήκευση'}
+        </button>
+        <button onClick={() => onDelete(player)} disabled={busy}
+          className="w-full py-3 rounded-xl bg-danger/15 text-danger
+            font-bold text-[13px] disabled:opacity-40">
+          Αφαίρεση από το ρόστερ
+        </button>
+      </div>
     </div>
   )
 }
