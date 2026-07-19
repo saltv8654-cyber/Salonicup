@@ -35,6 +35,13 @@ const parseDay = (tok: string) => {
 const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)
 const rotate = <T,>(a: T[], k: number) => a.map((_, i) => a[(i + k) % a.length])
 
+// Ταυτότητα σαββατοκύριακου: Πεμ-Παρ-Σαβ-Κυρ της ίδιας εβδομάδας (Δευ–Κυρ) πέφτουν στο ίδιο id
+function weekendId(date: Date): number {
+  const sinceMon = (date.getDay() + 6) % 7 // Δευ=0 … Κυρ=6
+  const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate() - sinceMon)
+  return Math.round(monday.getTime() / 86400000)
+}
+
 interface LeagueState {
   id: string
   rounds: [string, string][][]
@@ -167,7 +174,7 @@ export default function AdminFixtures() {
         const date = addDays(start, dayOffset)
         const times = byDow[date.getDay()]
         if (!times) continue
-        const week = Math.floor(dayOffset / 7)
+        const week = weekendId(date)
 
         for (const tm of times) {
           if (allDone()) break
@@ -183,8 +190,9 @@ export default function AdminFixtures() {
               const L = states[(cursor + k) % states.length]
               if (L.done) continue
               if (oneWeek) {
-                if (week < L.weekLock) continue
+                // Η αγωνιστική δεν σπάει σε δύο σαββατοκύριακα + μία/ΠΣΚ
                 if (L.roundWeek !== -1 && week !== L.roundWeek) continue
+                if (L.roundWeek === -1 && week < L.weekLock) continue
               }
               const idx = L.remaining.findIndex(([a, b]) => !used.has(a) && !used.has(b))
               if (idx < 0) continue
@@ -197,8 +205,7 @@ export default function AdminFixtures() {
               })
               used.add(a); used.add(b)
               if (L.remaining.length === 0) {
-                if (oneWeek) L.weekLock = (L.roundWeek >= 0 ? L.roundWeek : week) + 1
-                L.roundWeek = -1
+                if (oneWeek) { L.weekLock = L.roundWeek + 7; L.roundWeek = -1 } // επόμενο σαββατοκύριακο
                 if (L.rPtr < L.rounds.length - 1) { L.rPtr++; L.remaining = L.rounds[L.rPtr].slice() }
                 else L.done = true
               }
@@ -314,7 +321,7 @@ export default function AdminFixtures() {
           <input type="checkbox" checked={oneWeek}
             onChange={e => setOneWeek(e.target.checked)}
             className="w-4 h-4 accent-[#E05B1F]" />
-          <span className="text-[13px] text-silver font-semibold">Μία αγωνιστική/εβδομάδα ανά πρωτάθλημα</span>
+          <span className="text-[13px] text-silver font-semibold">Μία αγωνιστική ανά ΠΣΚ (σαββατοκύριακο)</span>
         </label>
         <label className="flex items-center gap-2.5">
           <input type="checkbox" checked={double}
