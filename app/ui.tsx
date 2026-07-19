@@ -110,9 +110,9 @@ export function Postponements({ n, max = 2 }: { n: number; max?: number }) {
 
 /* ── Κάτω πλοήγηση ── */
 const TABS = [
-  { href: '/',        label: 'Βαθμολογία', icon: '🏆' },
-  { href: '/matches', label: 'Αγώνες',     icon: '⚽' },
-  { href: '/stats',   label: 'Σκόρερ',     icon: '📊' },
+  { href: '/',          label: 'Αγώνες',     icon: '⚽' },
+  { href: '/standings', label: 'Βαθμολογία', icon: '🏆' },
+  { href: '/stats',     label: 'Σκόρερ',     icon: '📊' },
 ]
 
 export function BottomNav() {
