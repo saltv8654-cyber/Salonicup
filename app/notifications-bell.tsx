@@ -4,14 +4,25 @@ import toast from 'react-hot-toast'
 import { enablePush, pushState, pushSupported, type PushState } from '@/lib/push'
 
 export default function NotificationsBell() {
-  const [state, setState] = useState<PushState>('default')
-  const [busy, setBusy]   = useState(false)
+  const [state, setState]         = useState<PushState>('default')
+  const [supported, setSupported] = useState(true)
+  const [busy, setBusy]           = useState(false)
 
-  useEffect(() => { setState(pushState()) }, [])
-
-  if (!pushSupported()) return null
+  useEffect(() => {
+    setSupported(pushSupported())
+    setState(pushState())
+  }, [])
 
   async function toggle() {
+    // Μη υποστηριζόμενο (π.χ. iPhone Safari χωρίς εγκατάσταση)
+    if (!supported) {
+      const iOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
+      toast(iOS
+        ? 'Για ειδοποιήσεις: Κοινή χρήση ↑ → «Προσθήκη στην αρχική οθόνη», μετά άνοιξέ την από εκεί.'
+        : 'Ο browser σου δεν υποστηρίζει ειδοποιήσεις.',
+        { duration: 6000, icon: '📲' })
+      return
+    }
     if (state === 'denied') {
       toast.error('Μπλοκαρισμένες — ενεργοποίησέ τες απ\' τις Ρυθμίσεις iPhone → Salonicup')
       return
