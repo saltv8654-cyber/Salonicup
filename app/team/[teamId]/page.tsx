@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { Watermark, Crest, Avatar, BottomNav, Empty, SectionLabel, LiveDot } from '@/app/ui'
-import { fmtDateTime } from '@/lib/time'
+import { Watermark, Crest, Avatar, BottomNav, Empty } from '@/app/ui'
+import { fmtDay, fmtTime } from '@/lib/time'
 import type { PlayerStat, Standing } from '@/lib/types'
 
 export const revalidate = 30
@@ -34,8 +34,6 @@ export default async function TeamPage({
   ])
 
   const s = standing as Standing | null
-  const played = (matches ?? []).filter((m: any) => ['Played', 'Forfeit', 'Live'].includes(m.match_status))
-  const upcoming = (matches ?? []).filter((m: any) => m.match_status === 'Scheduled')
 
   // Φόρμα: τελευταία 5 ολοκληρωμένα, πιο πρόσφατο τελευταίο
   const form: ('W' | 'D' | 'L')[] = (matches ?? [])
@@ -47,6 +45,25 @@ export default async function TeamPage({
       const ga = us ? m.goals_team_b : m.goals_team_a
       return gf > ga ? 'W' : gf < ga ? 'L' : 'D'
     })
+
+  // Ζευγάρωμα ανά αντίπαλο: Α' γύρος (πρώτη συνάντηση) | Β' γύρος (δεύτερη)
+  const oppMap = new Map<string, { oppName: string; oppLogo: string | null; legs: any[] }>()
+  for (const m of matches ?? []) {
+    const us = m.team_a === params.teamId
+    const oppId = us ? m.team_b : m.team_a
+    const oppData = us ? m.team_b_data : m.team_a_data
+    if (!oppMap.has(oppId)) oppMap.set(oppId, {
+      oppName: oppData?.name ?? '—', oppLogo: oppData?.logo_url ?? null, legs: [],
+    })
+    oppMap.get(oppId)!.legs.push(m)
+  }
+  const fixtureRows = [...oppMap.values()]
+    .map(r => {
+      const legs = r.legs.slice().sort((a: any, b: any) => (a.round ?? 0) - (b.round ?? 0))
+      return { ...r, leg1: legs[0] ?? null, leg2: legs[1] ?? null,
+        firstRound: legs[0]?.round ?? 999 }
+    })
+    .sort((a, b) => a.firstRound - b.firstRound)
 
   return (
     <div className="min-h-screen bg-pitch pb-20">
@@ -130,24 +147,33 @@ export default async function TeamPage({
             </>
           )
         ) : (
-          !matches?.length ? <Empty>Δεν υπάρχουν αγώνες.</Empty> : (
-            <div className="flex flex-col gap-4">
-              {played.length > 0 && (
-                <div>
-                  <SectionLabel>Αποτελέσματα</SectionLabel>
-                  <div className="flex flex-col gap-1.5">
-                    {played.map((m: any) => <MatchRow key={m.match_id} m={m} teamId={params.teamId} />)}
+          !fixtureRows.length ? <Empty>Δεν υπάρχουν αγώνες.</Empty> : (
+            <div>
+              {/* Κεφαλίδα στηλών */}
+              <div className="grid items-center gap-2 px-1 pb-2
+                [grid-template-columns:1fr_92px_1fr]">
+                <span className="text-[8.5px] font-extrabold text-dim tracking-[0.1em] text-center">
+                  Α΄ ΓΥΡΟΣ
+                </span>
+                <span />
+                <span className="text-[8.5px] font-extrabold text-dim tracking-[0.1em] text-center">
+                  Β΄ ΓΥΡΟΣ
+                </span>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {fixtureRows.map((r, i) => (
+                  <div key={i} className="grid items-center gap-2
+                    [grid-template-columns:1fr_92px_1fr]">
+                    <LegCell m={r.leg1} teamId={params.teamId} />
+                    <div className="flex flex-col items-center gap-1 min-w-0">
+                      <Crest url={r.oppLogo} name={r.oppName} size={26} />
+                      <span className="text-[10px] font-semibold text-silver text-center
+                        leading-tight truncate max-w-[90px]">{r.oppName}</span>
+                    </div>
+                    <LegCell m={r.leg2} teamId={params.teamId} />
                   </div>
-                </div>
-              )}
-              {upcoming.length > 0 && (
-                <div>
-                  <SectionLabel>Υπολείπονται</SectionLabel>
-                  <div className="flex flex-col gap-1.5">
-                    {upcoming.map((m: any) => <MatchRow key={m.match_id} m={m} teamId={params.teamId} />)}
-                  </div>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
           )
         )}
@@ -155,6 +181,47 @@ export default async function TeamPage({
 
       <BottomNav />
     </div>
+  )
+}
+
+function LegCell({ m, teamId }: { m: any; teamId: string }) {
+  if (!m) {
+    return (
+      <div className="rounded-lg bg-chalk/[0.02] border border-dashed border-chalk/[0.06]
+        px-2 py-2.5 grid place-items-center min-h-[52px]">
+        <span className="text-[11px] text-off">—</span>
+      </div>
+    )
+  }
+  const live = m.match_status === 'Live'
+  const done = ['Played', 'Forfeit'].includes(m.match_status)
+  const us = m.team_a === teamId
+  const gf = us ? m.goals_team_a : m.goals_team_b
+  const ga = us ? m.goals_team_b : m.goals_team_a
+  const resColor = !done ? 'text-chalk'
+    : gf > ga ? 'text-[#2FA84F]' : gf < ga ? 'text-[#D8483C]' : 'text-dim'
+
+  return (
+    <Link href={`/match/${m.match_id}`}
+      className={`block rounded-lg bg-turf border px-2 py-2 text-center active:bg-[#1C1C22]
+        min-h-[52px] flex flex-col justify-center
+        ${live ? 'border-live/35' : 'border-chalk/[0.05]'}`}>
+      <div className="text-[7.5px] font-extrabold text-off tracking-[0.06em] mb-0.5">
+        Αγ.{m.round}
+      </div>
+      {live || done ? (
+        <div className={`text-[16px] font-extrabold tnum leading-none ${resColor}`}>
+          {gf}<span className="text-dim mx-0.5">-</span>{ga}
+        </div>
+      ) : m.match_date ? (
+        <div className="leading-tight">
+          <div className="text-[10.5px] font-bold text-silver">{fmtDay(m.match_date)}</div>
+          <div className="text-[10px] text-dim tnum">{fmtTime(m.match_date)}</div>
+        </div>
+      ) : (
+        <div className="text-[11px] font-extrabold text-off">VS</div>
+      )}
+    </Link>
   )
 }
 
@@ -166,45 +233,6 @@ function TabLink({ teamId, tab, active, children }: {
       className={`flex-1 text-center py-2.5 rounded-xl text-[12.5px] font-bold border
         ${active ? 'bg-brand text-chalk border-lit' : 'bg-turf text-dim border-chalk/[0.06]'}`}>
       {children}
-    </Link>
-  )
-}
-
-function MatchRow({ m, teamId }: { m: any; teamId: string }) {
-  const live = m.match_status === 'Live'
-  const done = ['Played', 'Forfeit'].includes(m.match_status)
-  const homeUs = m.team_a === teamId
-  return (
-    <Link href={`/match/${m.match_id}`}
-      className={`block bg-turf rounded-lg px-3.5 py-3 border active:bg-[#1C1C22]
-        ${live ? 'border-live/35' : 'border-chalk/[0.04]'}`}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[9.5px] text-dim font-bold">
-          Αγ. {m.round}{m.match_date ? ` · ${fmtDateTime(m.match_date)}` : ''}
-        </span>
-        {live && <LiveDot />}
-      </div>
-      <div className="grid items-center gap-2 [grid-template-columns:1fr_50px_1fr]">
-        <div className="flex items-center gap-2 min-w-0">
-          <Crest url={m.team_a_data?.logo_url} name={m.team_a_data?.name} size={22} />
-          <span className={`text-[13px] truncate ${homeUs ? 'font-extrabold text-chalk' : 'font-semibold text-silver'}`}>
-            {m.team_a_data?.name}
-          </span>
-        </div>
-        <div className="text-center">
-          {live || done ? (
-            <span className="text-lg font-extrabold text-chalk tnum">
-              {m.goals_team_a}<span className="text-off mx-1">·</span>{m.goals_team_b}
-            </span>
-          ) : <span className="text-[11px] font-extrabold text-off">VS</span>}
-        </div>
-        <div className="flex items-center gap-2 min-w-0 justify-end">
-          <span className={`text-[13px] truncate text-right ${!homeUs ? 'font-extrabold text-chalk' : 'font-semibold text-silver'}`}>
-            {m.team_b_data?.name}
-          </span>
-          <Crest url={m.team_b_data?.logo_url} name={m.team_b_data?.name} size={22} />
-        </div>
-      </div>
     </Link>
   )
 }
