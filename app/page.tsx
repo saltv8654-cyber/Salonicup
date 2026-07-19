@@ -143,6 +143,24 @@ export default async function Home({
   )
 }
 
+// Σταθερό χρώμα ανά γήπεδο (από hash του ονόματος)
+function FieldBadge({ field }: { field: string }) {
+  let h = 0
+  for (let i = 0; i < field.length; i++) h = (h * 31 + field.charCodeAt(i)) % 360
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-[3px] rounded-full text-[9.5px] font-extrabold
+        border max-w-[140px] truncate"
+      style={{
+        background: `hsl(${h} 70% 50% / 0.16)`,
+        borderColor: `hsl(${h} 70% 55% / 0.45)`,
+        color: `hsl(${h} 85% 72%)`,
+      }}>
+      <span style={{ fontSize: 8 }}>📍</span>{field}
+    </span>
+  )
+}
+
 function MatchRow({ m, first }: { m: any; first: boolean }) {
   const live = m.match_status === 'Live'
   const done = ['Played', 'Forfeit'].includes(m.match_status)
@@ -187,11 +205,11 @@ function MatchRow({ m, first }: { m: any; first: boolean }) {
         </div>
       </div>
 
-      {/* Γήπεδο */}
+      {/* Γήπεδο — χρωματιστό ανά γήπεδο */}
       {m.field && (
-        <p className="text-center text-[9.5px] text-off mt-1.5 truncate">
-          📍 {m.field}
-        </p>
+        <div className="flex justify-center mt-1.5">
+          <FieldBadge field={m.field} />
+        </div>
       )}
     </Link>
   )
