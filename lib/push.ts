@@ -60,3 +60,18 @@ export async function enablePush() {
     throw new Error('Εγγραφή: ' + (info?.error || `HTTP ${res.status}`))
   }
 }
+
+/** Απεγγράφεται από το push σε αυτή τη συσκευή και σβήνει τη συνδρομή στον server. */
+export async function disablePush() {
+  if (!pushSupported()) return
+  const reg = await navigator.serviceWorker.ready
+  const sub = await reg.pushManager.getSubscription()
+  if (!sub) return
+  const endpoint = sub.endpoint
+  await sub.unsubscribe().catch(() => {})
+  await fetch('/api/push/unsubscribe', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ endpoint }),
+  }).catch(() => {})
+}

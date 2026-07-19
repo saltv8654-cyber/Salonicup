@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { enablePush, pushState, pushSupported, type PushState } from '@/lib/push'
+import { enablePush, disablePush, pushState, pushSupported, type PushState } from '@/lib/push'
 
 export default function NotificationsBell() {
   const [state, setState]         = useState<PushState>('default')
@@ -9,8 +9,17 @@ export default function NotificationsBell() {
   const [busy, setBusy]           = useState(false)
 
   useEffect(() => {
-    setSupported(pushSupported())
-    setState(pushState())
+    const sup = pushSupported()
+    setSupported(sup)
+    const perm = pushState()
+    setState(perm)
+    // «Ενεργές» μόνο αν υπάρχει και ενεργή συνδρομή σε αυτή τη συσκευή
+    if (sup && perm === 'granted') {
+      navigator.serviceWorker.ready
+        .then(reg => reg.pushManager.getSubscription())
+        .then(sub => { if (!sub) setState('default') })
+        .catch(() => {})
+    }
   }, [])
 
   async function toggle() {
@@ -27,6 +36,23 @@ export default function NotificationsBell() {
       toast.error('Μπλοκαρισμένες — ενεργοποίησέ τες απ\' τις Ρυθμίσεις iPhone → Salonicup')
       return
     }
+
+    // Ήδη ενεργές → απενεργοποίηση
+    if (state === 'granted') {
+      setBusy(true)
+      try {
+        await disablePush()
+        setState('default')
+        toast('Ειδοποιήσεις ανενεργές 🔕', { icon: '🔕' })
+      } catch (e: any) {
+        toast.error(e?.message ?? 'Δεν απενεργοποιήθηκαν')
+      } finally {
+        setBusy(false)
+      }
+      return
+    }
+
+    // Αλλιώς → ενεργοποίηση
     setBusy(true)
     try {
       // Πάντα ξανα-εξασφαλίζει άδεια + εγγραφή + αποθήκευση (idempotent)
