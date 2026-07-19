@@ -94,6 +94,7 @@ export default function AdminPost() {
         awayName: m.team_b_data?.name ?? '—',
         awayLogo: m.team_b_data?.logo_url ?? null,
       }
+      if (m.field) row.field = m.field
       if (kind === 'results') {
         row.score = `${m.goals_team_a ?? 0}-${m.goals_team_b ?? 0}`
       } else {

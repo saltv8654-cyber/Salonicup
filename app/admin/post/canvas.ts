@@ -20,7 +20,7 @@ export type PostType = 'schedule' | 'results' | 'standings'
 export interface MatchRow {
   homeName: string; homeLogo: string | null
   awayName: string; awayLogo: string | null
-  time?: string; score?: string
+  time?: string; score?: string; field?: string
 }
 export interface StandRow {
   position: number; name: string; logo: string | null
@@ -220,16 +220,21 @@ function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEl
       ctx.textBaseline = 'middle'
       ctx.fillText(fit(ctx, m.homeName, 300), PAD + 100, cy)
 
-      // κέντρο: ώρα (πορτοκαλί) ή σκορ (άσπρο)
+      // κέντρο: ώρα (πορτοκαλί) ή σκορ (άσπρο) + γήπεδο από κάτω
       ctx.textAlign = 'center'
       if (m.score != null) {
         ctx.fillStyle = COL.white
         ctx.font = font(700, 46)
-        ctx.fillText(m.score, S / 2, cy)
+        ctx.fillText(m.score, S / 2, m.field ? cy - 12 : cy)
       } else {
         ctx.fillStyle = COL.orange1
         ctx.font = font(700, 40)
-        ctx.fillText(m.time ?? '', S / 2, cy)
+        ctx.fillText(m.time ?? '', S / 2, m.field ? cy - 12 : cy)
+      }
+      if (m.field) {
+        ctx.fillStyle = COL.dim
+        ctx.font = font(600, 22)
+        ctx.fillText(m.field, S / 2, cy + 26)
       }
 
       // φιλοξενούμενος (δεξιά)
