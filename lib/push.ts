@@ -59,6 +59,7 @@ export async function enablePush() {
     const info = await res.json().catch(() => null)
     throw new Error('Εγγραφή: ' + (info?.error || `HTTP ${res.status}`))
   }
+  return j.endpoint as string
 }
 
 /** Απεγγράφεται από το push σε αυτή τη συσκευή και σβήνει τη συνδρομή στον server. */

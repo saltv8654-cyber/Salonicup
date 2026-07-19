@@ -52,23 +52,13 @@ export default function NotificationsBell() {
       return
     }
 
-    // Αλλιώς → ενεργοποίηση
+    // Αλλιώς → ενεργοποίηση (χωρίς δοκιμαστικό μήνυμα)
     setBusy(true)
     try {
-      // Πάντα ξανα-εξασφαλίζει άδεια + εγγραφή + αποθήκευση (idempotent)
+      // Ξανα-εξασφαλίζει άδεια + εγγραφή + αποθήκευση (idempotent)
       await enablePush()
       setState('granted')
-      // Αμέσως μετά, δοκιμαστική ειδοποίηση + διάγνωση
-      const r = await fetch('/api/push/test', { method: 'POST' }).then(x => x.json()).catch(() => null)
-      if (r?.ok) {
-        toast.success(`Ενεργές! Δοκιμή σε ${r.sent}/${r.subs} συσκευές 📲`)
-      } else if (r?.reason === 'env-missing') {
-        toast.error('Λείπουν κλειδιά: ' + (r.missing || []).join(', '))
-      } else if (r?.reason === 'no-subscriptions') {
-        toast.error('Η εγγραφή δεν σώθηκε — ξαναπάτησέ το')
-      } else {
-        toast.success('Ειδοποιήσεις ενεργές ⚽')
-      }
+      toast.success('Ειδοποιήσεις ενεργές ⚽')
     } catch (e: any) {
       toast.error(e?.message ?? 'Δεν ενεργοποιήθηκαν')
       setState(pushState())
