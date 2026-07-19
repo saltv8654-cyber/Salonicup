@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { Watermark, Crest, Postponements, BottomNav, Empty, LiveDot, FieldBadge } from '../ui'
+import { Watermark, Crest, Postponements, BottomNav, Empty, LiveDot, FieldBadge, Avatar, SectionLabel } from '../ui'
 import GraphicLink from '../graphic-link'
 import { fmtDay, fmtTime } from '@/lib/time'
-import type { League, Standing } from '@/lib/types'
+import type { League, Standing, PlayerStat } from '@/lib/types'
 
 export const revalidate = 30
 
@@ -13,7 +13,8 @@ export default async function StandingsPage({
   searchParams,
 }: { searchParams: { league?: string; view?: string } }) {
   const supabase = createClient()
-  const view = searchParams.view === 'fixtures' ? 'fixtures' : 'table'
+  const view = searchParams.view === 'fixtures' ? 'fixtures'
+    : searchParams.view === 'scorers' ? 'scorers' : 'table'
 
   const { data: leagues } = await supabase
     .from('leagues').select('*').eq('active', true).order('sort_order')
@@ -41,6 +42,17 @@ export default async function StandingsPage({
     byRound.get(m.round)!.push(m)
   }
   const rounds = [...byRound.keys()].sort((a, b) => a - b)
+
+  // Σκόρερ (μόνο στην αντίστοιχη καρτέλα)
+  const { data: stats } = active && view === 'scorers'
+    ? await supabase.from('player_stats').select('*').eq('league_id', active.league_id)
+    : { data: [] as PlayerStat[] }
+  const srows = (stats ?? []) as PlayerStat[]
+  const top = (key: (p: PlayerStat) => number) =>
+    srows.filter(p => key(p) > 0).sort((a, b) => key(b) - key(a) || b.goals - a.goals).slice(0, 12)
+  const scorers = top(p => p.goals)
+  const assists = top(p => p.assists)
+  const cards = top(p => p.yellow_cards + p.red_cards * 2)
 
   return (
     <div className="min-h-screen bg-pitch pb-20">
@@ -97,21 +109,30 @@ export default async function StandingsPage({
               </div>
             </div>
 
-            {/* Καρτέλες: Βαθμολογία | Αγωνιστικές */}
+            {/* Καρτέλες: Βαθμολογία | Αγωνιστικές | Σκόρερ */}
             <div className="flex gap-1.5 mb-4">
-              <Link href={`/standings?league=${active.league_id}&view=table`}
-                className={`flex-1 text-center py-2.5 rounded-xl text-[12.5px] font-bold border
-                  ${view === 'table' ? 'bg-brand text-chalk border-lit' : 'bg-turf text-dim border-chalk/[0.06]'}`}>
-                Βαθμολογία
-              </Link>
-              <Link href={`/standings?league=${active.league_id}&view=fixtures`}
-                className={`flex-1 text-center py-2.5 rounded-xl text-[12.5px] font-bold border
-                  ${view === 'fixtures' ? 'bg-brand text-chalk border-lit' : 'bg-turf text-dim border-chalk/[0.06]'}`}>
-                Αγωνιστικές
-              </Link>
+              {([
+                ['table', 'Βαθμολογία'], ['fixtures', 'Αγωνιστικές'], ['scorers', 'Σκόρερ'],
+              ] as const).map(([v, label]) => (
+                <Link key={v} href={`/standings?league=${active.league_id}&view=${v}`}
+                  className={`flex-1 text-center py-2.5 rounded-xl text-[12px] font-bold border
+                    ${view === v ? 'bg-brand text-chalk border-lit' : 'bg-turf text-dim border-chalk/[0.06]'}`}>
+                  {label}
+                </Link>
+              ))}
             </div>
 
-            {view === 'fixtures' ? (
+            {view === 'scorers' ? (
+              !srows.length ? <Empty>Δεν υπάρχουν στατιστικά.</Empty> : (
+                <div className="flex flex-col gap-6">
+                  <StatList title="⚽ Σκόρερ" rows={scorers} value={p => p.goals} />
+                  <StatList title="🅰️ Ασίστ" rows={assists} value={p => p.assists} />
+                  <StatList title="🟨 Κάρτες" rows={cards}
+                    value={p => p.yellow_cards + p.red_cards}
+                    extra={p => p.red_cards > 0 ? `${p.yellow_cards}🟨 ${p.red_cards}🟥` : `${p.yellow_cards}🟨`} />
+                </div>
+              )
+            ) : view === 'fixtures' ? (
               !rounds.length ? <Empty>Δεν υπάρχουν αγωνιστικές.</Empty> : (
                 <div className="flex flex-col gap-4">
                   {rounds.map(r => (
@@ -206,6 +227,42 @@ export default async function StandingsPage({
       </div>
 
       <BottomNav />
+    </div>
+  )
+}
+
+function StatList({ title, rows, value, extra }: {
+  title: string; rows: PlayerStat[]
+  value: (p: PlayerStat) => number
+  extra?: (p: PlayerStat) => string
+}) {
+  return (
+    <div>
+      <SectionLabel>{title}</SectionLabel>
+      {!rows.length ? <Empty>—</Empty> : (
+        <div className="flex flex-col gap-1">
+          {rows.map((p, i) => (
+            <Link key={p.player_id} href={`/player/${p.player_id}`}
+              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border
+                ${i === 0 ? 'bg-gradient-to-r from-lit/[0.14] to-turf border-lit/30'
+                          : 'bg-turf border-chalk/[0.04]'}`}>
+              <span className={`w-5 text-center text-xs font-extrabold tnum shrink-0
+                ${i === 0 ? 'text-lit' : i < 3 ? 'text-silver' : 'text-dim'}`}>
+                {i + 1}
+              </span>
+              <Avatar url={p.photo_url} name={p.full_name} size={30} ring={i === 0} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[13.5px] font-semibold text-chalk truncate">{p.full_name}</p>
+                <p className="text-[10px] text-dim truncate">{p.team_name}</p>
+              </div>
+              {extra && <span className="text-[10px] text-dim shrink-0">{extra(p)}</span>}
+              <span className="text-lg font-extrabold text-chalk tnum shrink-0 w-8 text-right">
+                {value(p)}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
