@@ -119,14 +119,19 @@ export function BottomNav() {
   const path = usePathname()
   const { isAdmin, isSpeaker, profile } = useAuth()
 
+  const firstName = profile?.full_name?.trim().split(/\s+/)[0]
+  const initial = (profile?.full_name?.trim()?.[0] ?? '?').toUpperCase()
+
   // 4o κουμπί: προσαρμόζεται στην κατάσταση σύνδεσης
   const authTab = isAdmin
-    ? { href: '/admin',      label: 'Admin',   icon: '🔑' }
+    ? { href: '/admin',      label: firstName ?? 'Admin',   icon: '🔑', avatar: initial }
     : isSpeaker
-    ? { href: '/speaker',    label: 'Speaker', icon: '🎙️' }
-    : { href: '/auth/login', label: 'Είσοδος', icon: '👤' }
+    ? { href: '/speaker',    label: firstName ?? 'Speaker', icon: '🎙️', avatar: initial }
+    : profile
+    ? { href: '/auth/login', label: firstName ?? 'Προφίλ',  icon: '👤', avatar: initial }
+    : { href: '/auth/login', label: 'Είσοδος',              icon: '👤', avatar: null as string | null }
 
-  const tabs = [...TABS, authTab]
+  const tabs = [...TABS.map(t => ({ ...t, avatar: null as string | null })), authTab]
 
   return (
     <nav className="fixed bottom-0 inset-x-0 h-16 pb-2 flex z-40
@@ -137,8 +142,16 @@ export function BottomNav() {
           <Link key={t.href} href={t.href}
             className={`flex-1 flex flex-col items-center justify-center gap-0.5 pt-2
               ${on ? 'text-lit' : 'text-dim'}`}>
-            <span className={`text-lg ${on ? '' : 'opacity-45'}`}>{t.icon}</span>
-            <span className="text-[9.5px] font-bold">{t.label}</span>
+            {t.avatar ? (
+              <span className={`w-[22px] h-[22px] rounded-full grid place-items-center
+                text-[10px] font-black text-white bg-gradient-to-br from-lit to-brand
+                ${on ? 'ring-2 ring-lit/50' : ''}`}>
+                {t.avatar}
+              </span>
+            ) : (
+              <span className={`text-lg ${on ? '' : 'opacity-45'}`}>{t.icon}</span>
+            )}
+            <span className="text-[9.5px] font-bold truncate max-w-[70px]">{t.label}</span>
           </Link>
         )
       })}
