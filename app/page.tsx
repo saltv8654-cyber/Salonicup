@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { Crest, LiveDot, BottomNav, Empty, Watermark } from './ui'
+import { Crest, LiveDot, BottomNav, Empty, Watermark, FieldBadge } from './ui'
 import NotificationsBell from './notifications-bell'
 import { athensDateKey, fmtDay, fmtTime } from '@/lib/time'
 
@@ -140,24 +140,6 @@ export default async function Home({
 
       <BottomNav />
     </div>
-  )
-}
-
-// Σταθερό χρώμα ανά γήπεδο (από hash του ονόματος)
-function FieldBadge({ field }: { field: string }) {
-  let h = 0
-  for (let i = 0; i < field.length; i++) h = (h * 31 + field.charCodeAt(i)) % 360
-  return (
-    <span
-      className="inline-flex items-center gap-1 px-2 py-[3px] rounded-full text-[9.5px] font-extrabold
-        border max-w-[140px] truncate"
-      style={{
-        background: `hsl(${h} 70% 50% / 0.16)`,
-        borderColor: `hsl(${h} 70% 55% / 0.45)`,
-        color: `hsl(${h} 85% 72%)`,
-      }}>
-      <span style={{ fontSize: 8 }}>📍</span>{field}
-    </span>
   )
 }
 

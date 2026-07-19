@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { Watermark, Crest, Avatar, BottomNav, Empty } from '@/app/ui'
+import { Watermark, Crest, Avatar, BottomNav, Empty, FieldBadge } from '@/app/ui'
 import { fmtDay, fmtTime } from '@/lib/time'
 import type { PlayerStat, Standing } from '@/lib/types'
 
@@ -220,6 +220,11 @@ function LegCell({ m, teamId }: { m: any; teamId: string }) {
         </div>
       ) : (
         <div className="text-[11px] font-extrabold text-off">VS</div>
+      )}
+      {m.field && (
+        <div className="flex justify-center mt-1.5">
+          <FieldBadge field={m.field} size="xs" />
+        </div>
       )}
     </Link>
   )

@@ -159,6 +159,25 @@ export function BottomNav() {
   )
 }
 
+/* ── Χρωματιστό badge γηπέδου (σταθερό χρώμα ανά γήπεδο) ── */
+export function FieldBadge({ field, size = 'sm' }: { field: string; size?: 'sm' | 'xs' }) {
+  let h = 0
+  for (let i = 0; i < field.length; i++) h = (h * 31 + field.charCodeAt(i)) % 360
+  const pad = size === 'xs' ? 'px-1.5 py-[2px] text-[8.5px]' : 'px-2 py-[3px] text-[9.5px]'
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full font-extrabold border
+        max-w-[140px] truncate ${pad}`}
+      style={{
+        background: `hsl(${h} 70% 50% / 0.16)`,
+        borderColor: `hsl(${h} 70% 55% / 0.45)`,
+        color: `hsl(${h} 85% 72%)`,
+      }}>
+      <span style={{ fontSize: 8 }}>📍</span>{field}
+    </span>
+  )
+}
+
 /* ── Κενή κατάσταση ── */
 export function Empty({ children = 'Δεν υπάρχουν δεδομένα.' }: { children?: React.ReactNode }) {
   return <p className="text-xs text-off text-center py-10">{children}</p>

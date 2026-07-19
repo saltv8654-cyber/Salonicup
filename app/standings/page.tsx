@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { Watermark, Crest, Postponements, BottomNav, Empty } from '../ui'
+import { Watermark, Crest, Postponements, BottomNav, Empty, LiveDot, FieldBadge } from '../ui'
 import GraphicLink from '../graphic-link'
+import { fmtDay, fmtTime } from '@/lib/time'
 import type { League, Standing } from '@/lib/types'
 
 export const revalidate = 30
@@ -10,8 +11,9 @@ const GRID = 'grid items-center gap-0 [grid-template-columns:18px_24px_1fr_24px_
 
 export default async function StandingsPage({
   searchParams,
-}: { searchParams: { league?: string } }) {
+}: { searchParams: { league?: string; view?: string } }) {
   const supabase = createClient()
+  const view = searchParams.view === 'fixtures' ? 'fixtures' : 'table'
 
   const { data: leagues } = await supabase
     .from('leagues').select('*').eq('active', true).order('sort_order')
@@ -23,6 +25,22 @@ export default async function StandingsPage({
     ? await supabase.from('standings').select('*')
         .eq('league_id', active.league_id).order('position')
     : { data: [] as Standing[] }
+
+  // Αγωνιστικές (μόνο στην αντίστοιχη καρτέλα)
+  const { data: fixtures } = active && view === 'fixtures'
+    ? await supabase.from('matches')
+        .select(`*, team_a_data:team_a(name, logo_url), team_b_data:team_b(name, logo_url)`)
+        .eq('league_id', active.league_id)
+        .order('round', { ascending: true })
+        .order('match_date', { ascending: true })
+    : { data: [] as any[] }
+
+  const byRound = new Map<number, any[]>()
+  for (const m of fixtures ?? []) {
+    if (!byRound.has(m.round)) byRound.set(m.round, [])
+    byRound.get(m.round)!.push(m)
+  }
+  const rounds = [...byRound.keys()].sort((a, b) => a - b)
 
   return (
     <div className="min-h-screen bg-pitch pb-20">
@@ -79,6 +97,38 @@ export default async function StandingsPage({
               </div>
             </div>
 
+            {/* Καρτέλες: Βαθμολογία | Αγωνιστικές */}
+            <div className="flex gap-1.5 mb-4">
+              <Link href={`/standings?league=${active.league_id}&view=table`}
+                className={`flex-1 text-center py-2.5 rounded-xl text-[12.5px] font-bold border
+                  ${view === 'table' ? 'bg-brand text-chalk border-lit' : 'bg-turf text-dim border-chalk/[0.06]'}`}>
+                Βαθμολογία
+              </Link>
+              <Link href={`/standings?league=${active.league_id}&view=fixtures`}
+                className={`flex-1 text-center py-2.5 rounded-xl text-[12.5px] font-bold border
+                  ${view === 'fixtures' ? 'bg-brand text-chalk border-lit' : 'bg-turf text-dim border-chalk/[0.06]'}`}>
+                Αγωνιστικές
+              </Link>
+            </div>
+
+            {view === 'fixtures' ? (
+              !rounds.length ? <Empty>Δεν υπάρχουν αγωνιστικές.</Empty> : (
+                <div className="flex flex-col gap-4">
+                  {rounds.map(r => (
+                    <div key={r}>
+                      <p className="text-[9.5px] font-extrabold uppercase tracking-[0.16em]
+                        text-dim mb-2 px-1">Αγωνιστική {r}</p>
+                      <div className="bg-turf rounded-xl border border-chalk/[0.05] overflow-hidden">
+                        {byRound.get(r)!.map((m, i) => (
+                          <FixtureRow key={m.match_id} m={m} first={i === 0} />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : (
+            <>
             {/* Γραφικό για Instagram — μόνο speaker/admin */}
             <GraphicLink href={`/api/og/standings/${active.league_id}`}>
               📸 Γραφικό βαθμολογίας για Instagram
@@ -149,11 +199,59 @@ export default async function StandingsPage({
                 </div>
               </>
             )}
+            </>
+            )}
           </>
         )}
       </div>
 
       <BottomNav />
     </div>
+  )
+}
+
+function FixtureRow({ m, first }: { m: any; first: boolean }) {
+  const live = m.match_status === 'Live'
+  const done = ['Played', 'Forfeit'].includes(m.match_status)
+  return (
+    <Link href={`/match/${m.match_id}`}
+      className={`block px-3 py-3 active:bg-[#1C1C22] ${first ? '' : 'border-t border-chalk/[0.05]'}`}>
+      <div className="grid items-center gap-2 [grid-template-columns:1fr_54px_1fr]">
+        <div className="flex items-center justify-end gap-2 min-w-0">
+          <span className="text-[13px] font-semibold text-chalk truncate text-right">
+            {m.team_a_data?.name}
+          </span>
+          <Crest url={m.team_a_data?.logo_url} name={m.team_a_data?.name} size={22} />
+        </div>
+        <div className="flex flex-col items-center justify-center">
+          {live || done ? (
+            <span className="text-[15px] font-extrabold text-chalk tnum leading-none">
+              {m.goals_team_a} - {m.goals_team_b}
+            </span>
+          ) : (
+            <span className="text-[13px] font-extrabold text-silver tnum leading-none">
+              {m.match_date ? fmtTime(m.match_date) : 'VS'}
+            </span>
+          )}
+          {live
+            ? <span className="mt-1"><LiveDot /></span>
+            : done
+            ? <span className="text-[8px] font-extrabold text-dim tracking-[0.1em] mt-1">ΤΕΛ</span>
+            : null}
+        </div>
+        <div className="flex items-center justify-start gap-2 min-w-0">
+          <Crest url={m.team_b_data?.logo_url} name={m.team_b_data?.name} size={22} />
+          <span className="text-[13px] font-semibold text-chalk truncate">
+            {m.team_b_data?.name}
+          </span>
+        </div>
+      </div>
+      <div className="flex items-center justify-center gap-2 mt-1.5">
+        {m.match_date && (
+          <span className="text-[9.5px] text-off">{fmtDay(m.match_date)}</span>
+        )}
+        {m.field && <FieldBadge field={m.field} size="xs" />}
+      </div>
+    </Link>
   )
 }
