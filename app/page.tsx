@@ -80,7 +80,14 @@ export default async function Home({
             <p className="text-[9.5px] tracking-[0.22em] uppercase text-lit font-extrabold">Salonicup</p>
             <h1 className="text-2xl font-extrabold text-chalk mt-1 tracking-tight">Αγώνες</h1>
           </div>
-          <NotificationsBell />
+          <div className="flex items-center gap-2">
+            <Link href="/search" aria-label="Αναζήτηση"
+              className="relative z-10 w-[38px] h-[38px] rounded-full grid place-items-center
+                text-base bg-turf border border-chalk/[0.08] text-silver">
+              🔎
+            </Link>
+            <NotificationsBell />
+          </div>
         </div>
       </header>
 

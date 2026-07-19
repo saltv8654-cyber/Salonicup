@@ -37,6 +37,17 @@ export default async function TeamPage({
   const played = (matches ?? []).filter((m: any) => ['Played', 'Forfeit', 'Live'].includes(m.match_status))
   const upcoming = (matches ?? []).filter((m: any) => m.match_status === 'Scheduled')
 
+  // Φόρμα: τελευταία 5 ολοκληρωμένα, πιο πρόσφατο τελευταίο
+  const form: ('W' | 'D' | 'L')[] = (matches ?? [])
+    .filter((m: any) => ['Played', 'Forfeit'].includes(m.match_status))
+    .slice(-5)
+    .map((m: any) => {
+      const us = m.team_a === params.teamId
+      const gf = us ? m.goals_team_a : m.goals_team_b
+      const ga = us ? m.goals_team_b : m.goals_team_a
+      return gf > ga ? 'W' : gf < ga ? 'L' : 'D'
+    })
+
   return (
     <div className="min-h-screen bg-pitch pb-20">
       <div className="flex items-center gap-2.5 px-3.5 pt-3.5 pb-2.5">
@@ -58,6 +69,18 @@ export default async function TeamPage({
                 <Stat v={s.points} l="ΒΑΘΜΟΙ" hi />
                 <Stat v={`${s.wins}·${s.draws}·${s.losses}`} l="Ν·Ι·Η" />
                 <Stat v={s.goal_diff > 0 ? `+${s.goal_diff}` : s.goal_diff} l="ΔΙΑΦ." />
+              </div>
+            )}
+            {form.length > 0 && (
+              <div className="flex items-center gap-1.5 mt-3">
+                <span className="text-[7.5px] text-dim font-bold tracking-[0.08em] mr-0.5">ΦΟΡΜΑ</span>
+                {form.map((r, i) => (
+                  <span key={i}
+                    className={`w-5 h-5 rounded grid place-items-center text-[10px] font-black text-white
+                      ${r === 'W' ? 'bg-[#2FA84F]' : r === 'L' ? 'bg-[#D8483C]' : 'bg-[#6B6B75]'}`}>
+                    {r === 'W' ? 'Ν' : r === 'L' ? 'Η' : 'Ι'}
+                  </span>
+                ))}
               </div>
             )}
           </div>
