@@ -11,8 +11,13 @@ function urlB64ToUint8Array(base64: string) {
 
 export type PushState = 'unsupported' | 'default' | 'granted' | 'denied'
 
-/** Στέλνει ειδοποίηση σε όλους (fire-and-forget· ο server ελέγχει δικαιώματα). */
-export function notifyPush(payload: { title: string; body: string; url: string }) {
+export type NotifyType = 'goal' | 'start' | 'red' | 'final'
+
+/** Στέλνει ειδοποίηση σε όλους (fire-and-forget· ο server ελέγχει δικαιώματα & προτιμήσεις). */
+export function notifyPush(payload: {
+  title: string; body: string; url: string
+  type?: NotifyType; leagueId?: string | null
+}) {
   fetch('/api/push/send', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },

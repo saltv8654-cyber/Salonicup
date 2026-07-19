@@ -86,6 +86,11 @@ export default async function Home({
                 text-base bg-turf border border-chalk/[0.08] text-silver">
               🔎
             </Link>
+            <Link href="/settings/notifications" aria-label="Ρυθμίσεις ειδοποιήσεων"
+              className="relative z-10 w-[38px] h-[38px] rounded-full grid place-items-center
+                text-base bg-turf border border-chalk/[0.08] text-silver">
+              ⚙️
+            </Link>
             <NotificationsBell />
           </div>
         </div>

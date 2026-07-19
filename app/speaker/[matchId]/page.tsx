@@ -105,6 +105,7 @@ export default function SpeakerPanel() {
         title: '🟢 Έναρξη αγώνα',
         body: `${match.team_a_data?.name} εναντίον ${match.team_b_data?.name} — ${match.league?.name ?? ''}`.trim(),
         url: `/match/${match.match_id}`,
+        type: 'start', leagueId: match.league_id,
       })
     }
     toast.success('Συμμετοχές αποθηκεύτηκαν')
@@ -139,6 +140,7 @@ export default function SpeakerPanel() {
         title: `⚽ ΓΚΟΛ! ${teamName ?? ''}`.trim(),
         body: `${pname}${pname ? ' — ' : ''}${vs}`,
         url: `/match/${match.match_id}`,
+        type: 'goal', leagueId: match.league_id,
       })
       // Αλυσίδα: γκολ → ασίστ, ίδιο λεπτό, ίδια ομάδα
       setPending('ASSIST')
@@ -149,6 +151,7 @@ export default function SpeakerPanel() {
           title: '🟥 Κόκκινη κάρτα',
           body: `${pname} (${teamName}) — ${vs}`,
           url: `/match/${match.match_id}`,
+          type: 'red', leagueId: match.league_id,
         })
       }
       setPending(null)

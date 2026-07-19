@@ -404,5 +404,13 @@ alter table push_subscriptions enable row level security;
 drop policy if exists push_insert on push_subscriptions;
 create policy push_insert on push_subscriptions for insert with check (true);
 
+-- Προτιμήσεις ειδοποιήσεων ανά συσκευή
+alter table push_subscriptions add column if not exists notify_goal  boolean default true;
+alter table push_subscriptions add column if not exists notify_start boolean default true;
+alter table push_subscriptions add column if not exists notify_red   boolean default true;
+alter table push_subscriptions add column if not exists notify_final boolean default true;
+-- Λίστα πρωταθλημάτων· κενή/NULL = όλα
+alter table push_subscriptions add column if not exists league_ids   text[] default '{}';
+
 -- Ώστε τα DELETE των φάσεων να φτάνουν live στους θεατές
 alter table events replica identity full;

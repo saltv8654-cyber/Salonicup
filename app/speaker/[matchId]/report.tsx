@@ -72,6 +72,7 @@ export default function ReportSheet({ match, events, onClose, onFinished }: {
         title: '🏁 Τελικό σφύριγμα',
         body: `${match.team_a_data?.name} ${match.goals_team_a}-${match.goals_team_b} ${match.team_b_data?.name}`,
         url: `/match/${match.match_id}`,
+        type: 'final', leagueId: match.league_id,
       })
     }
     toast.success(done ? 'Αποθηκεύτηκε' : 'Ο αγώνας έληξε')

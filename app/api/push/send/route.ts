@@ -31,16 +31,30 @@ export async function POST(req: Request) {
     auth: { persistSession: false },
   })
 
-  const { title, body, url } = await req.json().catch(() => ({} as any))
+  const { title, body, url, type, leagueId } = await req.json().catch(() => ({} as any))
   const payload = JSON.stringify({
     title: title || 'Salonicup',
     body: body || '',
     url: url || '/',
   })
 
-  const { data: subs } = await admin.from('push_subscriptions').select('*')
+  const { data: allSubs } = await admin.from('push_subscriptions').select('*')
 
-  await Promise.all((subs ?? []).map((s: any) =>
+  // Φιλτράρισμα βάσει προτιμήσεων της κάθε συσκευής
+  const typeCol: Record<string, string> = {
+    goal: 'notify_goal', start: 'notify_start', red: 'notify_red', final: 'notify_final',
+  }
+  const col = type ? typeCol[type] : undefined
+  const subs = (allSubs ?? []).filter((s: any) => {
+    // Τύπος ειδοποίησης: true αν η στήλη λείπει (προεπιλογή) ή είναι true
+    if (col && s[col] === false) return false
+    // Πρωτάθλημα: αν έχει οριστεί λίστα και δεν περιλαμβάνει το leagueId, παράλειψε
+    if (leagueId && Array.isArray(s.league_ids) && s.league_ids.length > 0
+        && !s.league_ids.includes(leagueId)) return false
+    return true
+  })
+
+  await Promise.all(subs.map((s: any) =>
     webpush.sendNotification(
       { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
       payload
@@ -52,5 +66,5 @@ export async function POST(req: Request) {
     })
   ))
 
-  return NextResponse.json({ ok: true, sent: subs?.length ?? 0 })
+  return NextResponse.json({ ok: true, sent: subs.length })
 }
