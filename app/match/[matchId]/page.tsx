@@ -12,7 +12,7 @@ import type { Period } from '@/lib/types'
 export default function PublicMatch() {
   const { matchId } = useParams()
   const router = useRouter()
-  const { isSpeaker } = useAuth()
+  const { isSpeaker, isAdmin } = useAuth()
   const { match, events, loading } = useLiveMatch(matchId as string)
   const supabase = createClient()
 
@@ -98,8 +98,8 @@ export default function PublicMatch() {
         </div>
       </div>
 
-      {/* Γραφικό αποτελέσματος για Instagram — μόνο speaker/admin */}
-      {(live || done) && isSpeaker && (
+      {/* Γραφικό αποτελέσματος για Instagram — μόνο admin */}
+      {(live || done) && isAdmin && (
         <div className="px-3.5 pt-3.5">
           <a href={`/api/og/match/${matchId}`} target="_blank" rel="noopener"
             className="flex items-center justify-center gap-2 w-full py-3 rounded-xl
