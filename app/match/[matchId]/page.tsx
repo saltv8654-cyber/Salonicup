@@ -1,6 +1,8 @@
 'use client'
+import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 import { useLiveMatch } from '@/lib/hooks/useLiveMatch'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { Watermark, Crest, Avatar, LiveDot, SectionLabel, Loading, Empty } from '@/app/ui'
@@ -12,6 +14,19 @@ export default function PublicMatch() {
   const router = useRouter()
   const { isSpeaker } = useAuth()
   const { match, events, loading } = useLiveMatch(matchId as string)
+  const supabase = createClient()
+
+  // Συνθέσεις: φέρνουμε τα στοιχεία των παικτών από τα squad_a/squad_b
+  const [squad, setSquad] = useState<any[]>([])
+  const squadKey = [...(match?.squad_a ?? []), ...(match?.squad_b ?? [])].join(',')
+  useEffect(() => {
+    const ids = squadKey ? squadKey.split(',') : []
+    if (!ids.length) { setSquad([]); return }
+    supabase.from('players')
+      .select('player_id, full_name, number, photo_url, team_id')
+      .in('player_id', ids)
+      .then(({ data }) => setSquad(data ?? []))
+  }, [squadKey])
 
   if (loading) return <Loading />
   if (!match) return <div className="min-h-screen bg-pitch" />
@@ -20,6 +35,19 @@ export default function PublicMatch() {
   const done = ['Played', 'Forfeit'].includes(match.match_status)
   const hasPens = match.pens_team_a > 0 || match.pens_team_b > 0
   const place = [match.venue?.name, match.field].filter(Boolean).join(' · ')
+
+  // Γκολ ανά παίκτη (για σήμανση στη σύνθεση)
+  const goalsBy = new Map<string, number>()
+  for (const e of events) {
+    if (e.event_type === 'GOAL' && e.period !== 'PEN' && e.player_id) {
+      goalsBy.set(e.player_id, (goalsBy.get(e.player_id) ?? 0) + 1)
+    }
+  }
+  const squadA = squad.filter(p => p.team_id === match.team_a)
+    .sort((a, b) => (a.number ?? 99) - (b.number ?? 99))
+  const squadB = squad.filter(p => p.team_id === match.team_b)
+    .sort((a, b) => (a.number ?? 99) - (b.number ?? 99))
+  const hasSquads = squadA.length > 0 || squadB.length > 0
 
   return (
     <div className="min-h-screen bg-pitch pb-8">
@@ -122,9 +150,10 @@ export default function PublicMatch() {
                       const cfg  = EVENTS[e.event_type as keyof typeof EVENTS]
                       const home = e.team_id === match.team_a
                       return (
-                        <div key={e.event_id}
+                        <Link key={e.event_id}
+                          href={e.player?.player_id ? `/player/${e.player.player_id}` : '#'}
                           className="bg-turf rounded-lg px-3 py-2.5 flex items-center gap-3
-                            border border-chalk/[0.04]"
+                            border border-chalk/[0.04] active:bg-[#1C1C22]"
                           style={{ borderLeft: `3px solid ${home ? '#E05B1F' : '#63636E'}` }}>
                           <span className="text-xs font-extrabold text-silver w-9 shrink-0 tnum">
                             {fmtMinute(e.period as Period, e.minute)}
@@ -139,7 +168,8 @@ export default function PublicMatch() {
                               {cfg?.label} · {home ? match.team_a_data?.name : match.team_b_data?.name}
                             </p>
                           </div>
-                        </div>
+                          <span className="text-dim text-xs shrink-0">›</span>
+                        </Link>
                       )
                     })}
                   </div>
@@ -149,6 +179,27 @@ export default function PublicMatch() {
           </div>
         )}
       </div>
+
+      {/* Συνθέσεις */}
+      {hasSquads && (
+        <div className="px-3.5 pt-6">
+          <SectionLabel>Συνθέσεις</SectionLabel>
+          <div className="grid grid-cols-2 gap-2">
+            <SquadCol
+              team={match.team_a_data}
+              players={squadA}
+              goalsBy={goalsBy}
+              align="left"
+            />
+            <SquadCol
+              team={match.team_b_data}
+              players={squadB}
+              goalsBy={goalsBy}
+              align="right"
+            />
+          </div>
+        </div>
+      )}
 
       {/* MVP */}
       {match.mvp && (
@@ -189,13 +240,64 @@ export default function PublicMatch() {
   )
 }
 
-function Side({ team }: { team: any }) {
+function SquadCol({ team, players, goalsBy, align }: {
+  team: any; players: any[]; goalsBy: Map<string, number>; align: 'left' | 'right'
+}) {
   return (
-    <div className="flex-1 min-w-0 flex flex-col items-center gap-2">
+    <div className="bg-turf rounded-xl border border-chalk/[0.05] overflow-hidden">
+      <div className={`flex items-center gap-2 px-3 py-2.5 border-b border-chalk/[0.06]
+        ${align === 'right' ? 'flex-row-reverse text-right' : ''}`}>
+        <Crest url={team?.logo_url} name={team?.name} size={20} />
+        <span className="text-[11px] font-extrabold text-chalk truncate flex-1">{team?.name}</span>
+      </div>
+      {!players.length ? (
+        <p className="text-[10px] text-off text-center py-4">—</p>
+      ) : (
+        <div className="flex flex-col">
+          {players.map((p, i) => {
+            const g = goalsBy.get(p.player_id) ?? 0
+            return (
+              <Link key={p.player_id} href={`/player/${p.player_id}`}
+                className={`flex items-center gap-2 px-2.5 py-2 active:bg-[#1C1C22]
+                  ${i ? 'border-t border-chalk/[0.04]' : ''}
+                  ${align === 'right' ? 'flex-row-reverse text-right' : ''}`}>
+                <span className="w-4 text-[10px] font-extrabold text-dim tnum shrink-0 text-center">
+                  {p.number ?? '–'}
+                </span>
+                <Avatar url={p.photo_url} name={p.full_name} size={22} />
+                <span className="flex-1 min-w-0 text-[11.5px] font-semibold text-chalk truncate">
+                  {p.full_name}
+                </span>
+                {g > 0 && (
+                  <span className="text-[10px] shrink-0">
+                    ⚽{g > 1 ? g : ''}
+                  </span>
+                )}
+              </Link>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Side({ team }: { team: any }) {
+  const inner = (
+    <>
       <Crest url={team?.logo_url} name={team?.name} size={52} />
       <span className="text-xs font-bold text-chalk text-center leading-tight">
         {team?.name}
       </span>
-    </div>
+    </>
+  )
+  if (!team?.team_id) {
+    return <div className="flex-1 min-w-0 flex flex-col items-center gap-2">{inner}</div>
+  }
+  return (
+    <Link href={`/team/${team.team_id}`}
+      className="flex-1 min-w-0 flex flex-col items-center gap-2 active:opacity-70">
+      {inner}
+    </Link>
   )
 }
