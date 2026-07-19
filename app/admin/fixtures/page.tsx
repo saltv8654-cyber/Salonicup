@@ -26,6 +26,19 @@ function roundRobin(ids: string[]): [string, string][][] {
   return rounds
 }
 
+// Ελληνικές μέρες → getDay() (Κυρ=0 … Σαβ=6) — τα 2 πρώτα γράμματα αρκούν
+const DAY: Record<string, number> = {
+  κυ: 0, δε: 1, τρ: 2, τε: 3, πε: 4, πα: 5, σα: 6,
+}
+function parseDay(tok: string): number | null {
+  const t = tok.toLowerCase().slice(0, 2)
+  return t in DAY ? DAY[t] : null
+}
+
+interface Slot { date: Date }
+const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)
+const rotate = <T,>(a: T[], k: number) => a.map((_, i) => a[(i + k) % a.length])
+
 export default function AdminFixtures() {
   const supabase = createClient()
   const [leagues, setLeagues] = useState<League[]>([])
@@ -40,9 +53,11 @@ export default function AdminFixtures() {
   const iso = new Date(today.getTime() - today.getTimezoneOffset() * 60000)
     .toISOString().slice(0, 10)
   const [startDate, setStartDate] = useState(iso)
-  const [times, setTimes] = useState('18:00,19:00,20:00,21:00')
-  const [fields, setFields] = useState('Γήπ. 4,Γήπ. 3,Γήπ. 5')
-  const [daysPer, setDaysPer] = useState('7')
+  const [fields, setFields] = useState('Γήπ. 4, Γήπ. 3')
+  const [slotsText, setSlotsText] = useState(
+    'Πεμ 22:00\nΠαρ 19:00, 20:30, 22:00\nΣαβ 17:30, 19:00, 20:30, 22:00\nΚυρ 17:30, 19:00, 20:30, 22:00'
+  )
+  const [oneRoundPerWeek, setOneRoundPerWeek] = useState(true)
   const [double, setDouble] = useState(true)
 
   const [busy, setBusy] = useState(false)
@@ -53,14 +68,46 @@ export default function AdminFixtures() {
       .then(({ data }) => { setLeagues(data ?? []); setLoad(false) })
   }, [])
 
+  // Ανά μέρα εβδομάδας → πίνακας ωρών {h,m} ταξινομημένες
+  function parseSlots(): Record<number, { h: number; m: number }[]> {
+    const byDow: Record<number, { h: number; m: number }[]> = {}
+    for (const line of slotsText.split('\n')) {
+      const parts = line.trim().split(/[\s,]+/).filter(Boolean)
+      if (!parts.length) continue
+      const dow = parseDay(parts[0])
+      if (dow === null) continue
+      const times = parts.slice(1)
+        .map(t => {
+          const [h, m] = t.split(':').map(Number)
+          return Number.isFinite(h) ? { h, m: m || 0 } : null
+        })
+        .filter(Boolean) as { h: number; m: number }[]
+      if (times.length) byDow[dow] = (byDow[dow] ?? []).concat(times)
+    }
+    for (const k in byDow) byDow[+k].sort((a, b) => a.h * 60 + a.m - (b.h * 60 + b.m))
+    return byDow
+  }
+
+  // Χρονικά ταξινομημένα «παράθυρα ώρας» για ένα εύρος ημερών από την έναρξη
+  function groupsForWindow(start: Date, from: number, to: number,
+    byDow: Record<number, { h: number; m: number }[]>): Slot[] {
+    const out: Slot[] = []
+    for (let d = from; d <= to; d++) {
+      const date = addDays(start, d)
+      const times = byDow[date.getDay()]
+      if (!times) continue
+      for (const t of times) out.push({ date: new Date(date.getFullYear(), date.getMonth(), date.getDate(), t.h, t.m) })
+    }
+    return out
+  }
+
   async function generate() {
     setDoneInfo(null)
-    const timeList = times.split(',').map(s => s.trim()).filter(Boolean)
     const fieldList = fields.split(',').map(s => s.trim()).filter(Boolean)
-    if (!timeList.length) return toast.error('Βάλε ώρες')
     if (!fieldList.length) return toast.error('Βάλε γήπεδα')
     if (!startDate) return toast.error('Βάλε ημερομηνία έναρξης')
-    const gap = Math.max(1, parseInt(daysPer) || 7)
+    const byDow = parseSlots()
+    if (!Object.keys(byDow).length) return toast.error('Δεν διάβασα μέρες/ώρες — έλεγξε τη μορφή')
 
     setBusy(true)
     try {
@@ -71,21 +118,16 @@ export default function AdminFixtures() {
         const n = parseInt(count) || 0
         if (n < 2) throw new Error('Χρειάζονται τουλάχιστον 2 ομάδες')
         if (!newName.trim()) throw new Error('Βάλε όνομα πρωταθλήματος')
-
         const { data: lg, error: e1 } = await supabase.from('leagues')
           .insert({ name: newName.trim(), sort_order: 99, active: true })
           .select('league_id').single()
         if (e1 || !lg) throw new Error(e1?.message || 'Δεν δημιουργήθηκε το πρωτάθλημα')
         lid = lg.league_id
-
         const teamRows = Array.from({ length: n }, (_, i) => ({ league_id: lid, name: `Ομάδα ${i + 1}` }))
         const { error: e2 } = await supabase.from('teams').insert(teamRows)
         if (e2) throw new Error(e2.message)
-
-        const { data: ts } = await supabase.from('teams')
-          .select('team_id, name').eq('league_id', lid)
-        teamIds = (ts ?? [])
-          .slice()
+        const { data: ts } = await supabase.from('teams').select('team_id, name').eq('league_id', lid)
+        teamIds = (ts ?? []).slice()
           .sort((a, b) => (parseInt(a.name.replace(/\D/g, '')) || 0) - (parseInt(b.name.replace(/\D/g, '')) || 0))
           .map(t => t.team_id)
       } else {
@@ -96,30 +138,51 @@ export default function AdminFixtures() {
         if (teamIds.length < 2) throw new Error('Το πρωτάθλημα δεν έχει αρκετές ομάδες')
       }
 
-      // Γύροι
       const leg1 = roundRobin(teamIds)
       const leg2 = double ? leg1.map(rnd => rnd.map(([a, b]) => [b, a] as [string, string])) : []
       const allRounds = [...leg1, ...leg2]
 
-      // Ημερομηνία έναρξης (τοπική)
       const [Y, M, D] = startDate.split('-').map(Number)
-
+      const start = new Date(Y, M - 1, D)
       const rows: any[] = []
-      allRounds.forEach((rnd, ri) => {
-        const dayOffset = ri * gap
-        rnd.forEach(([a, b], mi) => {
-          const [hh, mm] = timeList[mi % timeList.length].split(':').map(Number)
-          const dt = new Date(Y, M - 1, D + dayOffset, hh || 0, mm || 0)
-          const field = fieldList[(mi + ri) % fieldList.length] // δίκαιη περιστροφή γηπέδων
-          rows.push({
-            league_id: lid, round: ri + 1,
-            match_date: dt.toISOString(), field,
-            team_a: a, team_b: b, match_status: 'Scheduled',
-          })
-        })
-      })
 
-      // Εισαγωγή σε παρτίδες
+      // Γεμίζει τους αγώνες ενός γύρου σε διαδοχικά «παράθυρα ώρας»
+      function fillRound(groups: Slot[], startGi: number, matches: [string, string][],
+        round: number): number | null {
+        const fo = rotate(fieldList, round) // δίκαιη περιστροφή γηπέδων ανά αγωνιστική
+        let gi = startGi, mi = 0
+        while (mi < matches.length) {
+          if (gi >= groups.length) return null
+          const g = groups[gi++]
+          for (let fi = 0; fi < fo.length && mi < matches.length; fi++) {
+            rows.push({
+              league_id: lid, round,
+              match_date: g.date.toISOString(), field: fo[fi],
+              team_a: matches[mi][0], team_b: matches[mi][1], match_status: 'Scheduled',
+            })
+            mi++
+          }
+        }
+        return gi
+      }
+
+      if (oneRoundPerWeek) {
+        for (let r = 0; r < allRounds.length; r++) {
+          const groups = groupsForWindow(start, r * 7, r * 7 + 6, byDow)
+          const res = fillRound(groups, 0, allRounds[r], r + 1)
+          if (res === null) throw new Error(`Δεν χωράνε τα ματς της αγωνιστικής ${r + 1} σε μία εβδομάδα`)
+        }
+      } else {
+        // Πυκνό: συνεχής ροή slots· κάθε αγωνιστική ξεκινά σε νέο παράθυρο ώρας
+        const groups = groupsForWindow(start, 0, 7 * allRounds.length + 40, byDow)
+        let gi = 0
+        for (let r = 0; r < allRounds.length; r++) {
+          const res = fillRound(groups, gi, allRounds[r], r + 1)
+          if (res === null) throw new Error('Δεν επαρκούν τα slots — βάλε περισσότερες μέρες/ώρες')
+          gi = res
+        }
+      }
+
       for (let i = 0; i < rows.length; i += 100) {
         const { error } = await supabase.from('matches').insert(rows.slice(i, i + 100))
         if (error) throw new Error(error.message)
@@ -141,11 +204,10 @@ export default function AdminFixtures() {
       <div>
         <h1 className="text-lg font-extrabold text-chalk">Γεννήτρια αγωνιστικών</h1>
         <p className="text-[11.5px] text-dim mt-1">
-          Δημιουργεί αυτόματα πλήρες πρόγραμμα (διπλός γύρος) με ημερομηνίες, ώρες και γήπεδα.
+          Δημιουργεί πλήρες πρόγραμμα (διπλός γύρος) στα διαθέσιμα γήπεδα, μέρες και ώρες.
         </p>
       </div>
 
-      {/* Λειτουργία */}
       <div className="flex gap-1.5">
         <TabBtn on={mode === 'new'} onClick={() => setMode('new')}>Νέο (Ομάδα 1…Ν)</TabBtn>
         <TabBtn on={mode === 'existing'} onClick={() => setMode('existing')}>Υπάρχον</TabBtn>
@@ -174,10 +236,28 @@ export default function AdminFixtures() {
             className="w-full bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-sm
               outline-none border border-chalk/[0.07] focus:border-lit/50" />
         </div>
-        <Field label="ΩΡΕΣ (χωρισμένες με κόμμα)" value={times} onChange={setTimes} />
-        <Field label="ΓΗΠΕΔΑ (χωρισμένα με κόμμα)" value={fields} onChange={setFields} />
-        <Field label="ΜΕΡΕΣ ΑΝΑ ΑΓΩΝΙΣΤΙΚΗ" value={daysPer} onChange={setDaysPer} numeric />
+
+        <Field label="ΓΗΠΕΔΑ — ΠΑΡΑΛΛΗΛΑ (κόμμα· το 1ο = «καλό»)" value={fields} onChange={setFields} />
+
+        <div>
+          <label className="block text-[8.5px] font-extrabold text-dim
+            tracking-[0.12em] mb-1.5 pl-0.5">ΜΕΡΕΣ & ΩΡΕΣ (μία γραμμή ανά μέρα)</label>
+          <textarea value={slotsText} onChange={e => setSlotsText(e.target.value)}
+            rows={5}
+            className="w-full bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-[13px]
+              font-mono leading-relaxed outline-none border border-chalk/[0.07] focus:border-lit/50" />
+          <p className="text-[10px] text-off mt-1.5">
+            π.χ. «Παρ 19:00, 20:30, 22:00». Μέρες: Δευ Τρι Τετ Πεμ Παρ Σαβ Κυρ.
+          </p>
+        </div>
+
         <label className="flex items-center gap-2.5 mt-1">
+          <input type="checkbox" checked={oneRoundPerWeek}
+            onChange={e => setOneRoundPerWeek(e.target.checked)}
+            className="w-4 h-4 accent-[#E05B1F]" />
+          <span className="text-[13px] text-silver font-semibold">Μία αγωνιστική ανά εβδομάδα</span>
+        </label>
+        <label className="flex items-center gap-2.5">
           <input type="checkbox" checked={double}
             onChange={e => setDouble(e.target.checked)}
             className="w-4 h-4 accent-[#E05B1F]" />
