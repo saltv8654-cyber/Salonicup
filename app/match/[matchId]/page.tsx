@@ -98,8 +98,8 @@ export default function PublicMatch() {
         </div>
       </div>
 
-      {/* Γραφικό αποτελέσματος για Instagram */}
-      {(live || done) && (
+      {/* Γραφικό αποτελέσματος για Instagram — μόνο speaker/admin */}
+      {(live || done) && isSpeaker && (
         <div className="px-3.5 pt-3.5">
           <a href={`/api/og/match/${matchId}`} target="_blank" rel="noopener"
             className="flex items-center justify-center gap-2 w-full py-3 rounded-xl

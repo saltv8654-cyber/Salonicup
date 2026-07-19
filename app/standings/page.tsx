@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Watermark, Crest, Postponements, BottomNav, Empty } from '../ui'
+import GraphicLink from '../graphic-link'
 import type { League, Standing } from '@/lib/types'
 
 export const revalidate = 30
@@ -78,13 +79,10 @@ export default async function StandingsPage({
               </div>
             </div>
 
-            {/* Γραφικό για Instagram */}
-            <a href={`/api/og/standings/${active.league_id}`} target="_blank" rel="noopener"
-              className="flex items-center justify-center gap-2 mb-4 py-3 rounded-xl
-                bg-turf border border-lit/25 text-lit text-[12.5px] font-extrabold
-                active:bg-[#1C1C22]">
+            {/* Γραφικό για Instagram — μόνο speaker/admin */}
+            <GraphicLink href={`/api/og/standings/${active.league_id}`}>
               📸 Γραφικό βαθμολογίας για Instagram
-            </a>
+            </GraphicLink>
 
             {!rows?.length ? <Empty /> : (
               <>
