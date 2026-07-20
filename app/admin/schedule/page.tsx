@@ -49,6 +49,36 @@ export default function AdminSchedule() {
     toast.success('Αντιγράφηκε το πρόγραμμα')
   }
 
+  // Καθαρισμός: σβήνει ματς & slots με «σκουπίδι»-ώρα (λεπτά εκτός :00/:30)
+  const [cleaning, setCleaning] = useState(false)
+  async function cleanupJunk() {
+    if (!confirm('Σβήσιμο ματς & γηπέδων με μη-καθαρές ώρες (εκτός :00 και :30);')) return
+    setCleaning(true)
+    try {
+      const badMin = (iso?: string | null) =>
+        !!iso && ![0, 30].includes(new Date(iso).getUTCMinutes())
+
+      const { data: ms } = await supabase.from('matches').select('match_id, match_date')
+      const badM = (ms ?? []).filter(m => badMin(m.match_date)).map(m => m.match_id)
+      const { data: ss } = await supabase.from('slots').select('slot_id, starts_at')
+      const badS = (ss ?? []).filter(s => badMin(s.starts_at)).map(s => s.slot_id)
+
+      for (let i = 0; i < badM.length; i += 100)
+        await supabase.from('matches').delete().in('match_id', badM.slice(i, i + 100))
+      for (let i = 0; i < badS.length; i += 100)
+        await supabase.from('slots').delete().in('slot_id', badS.slice(i, i + 100))
+
+      toast.success(`Σβήστηκαν ${badM.length} ματς & ${badS.length} γήπεδα`)
+      const { data } = await supabase.from('matches')
+        .select(`match_id, match_date, field, match_status,
+          team_a_data:team_a(name), team_b_data:team_b(name), league:league_id(name)`)
+        .not('match_date', 'is', null).order('match_date', { ascending: true })
+      setRows(data ?? [])
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Απέτυχε ο καθαρισμός')
+    } finally { setCleaning(false) }
+  }
+
   if (load) return <Loading />
 
   return (
@@ -58,10 +88,16 @@ export default function AdminSchedule() {
           <h1 className="text-lg font-extrabold text-chalk">Πρόγραμμα γηπέδων</h1>
           <p className="text-[11.5px] text-dim mt-1">Ανά ημέρα & ώρα — για αποστολή στα γήπεδα.</p>
         </div>
-        <button onClick={() => setShowPast(v => !v)}
-          className="px-3 py-2 rounded-lg bg-turf border border-chalk/[0.08] text-silver text-[11px] font-bold">
-          {showPast ? 'Μόνο επόμενα' : 'Όλα'}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={cleanupJunk} disabled={cleaning}
+            className="px-3 py-2 rounded-lg bg-danger/15 text-danger text-[11px] font-bold disabled:opacity-50">
+            {cleaning ? '…' : '🧹 Καθαρισμός'}
+          </button>
+          <button onClick={() => setShowPast(v => !v)}
+            className="px-3 py-2 rounded-lg bg-turf border border-chalk/[0.08] text-silver text-[11px] font-bold">
+            {showPast ? 'Μόνο επόμενα' : 'Όλα'}
+          </button>
+        </div>
       </div>
 
       {!days.length ? <Empty>Δεν υπάρχουν προγραμματισμένοι αγώνες.</Empty> : (

@@ -6,37 +6,50 @@ import { fmtTime, fmtDay, athensDateKey } from '@/lib/time'
 
 export const revalidate = 30
 
+const since = () => new Date(Date.now() - 86400000).toISOString()
+
 export default async function SchedulePage() {
   const supabase = createClient()
 
-  const { data: slots } = await supabase
-    .from('slots')
-    .select(`
-      slot_id, field, starts_at,
-      venue:venue_id(name),
-      match:match_id(
-        match_id, match_status,
-        league:league_id(name),
-        team_a_data:team_a(name),
-        team_b_data:team_b(name)
-      )
-    `)
-    .gte('starts_at', new Date(Date.now() - 86400000).toISOString())
-    .order('starts_at')
+  const [{ data: slots }, { data: matches }] = await Promise.all([
+    supabase.from('slots')
+      .select('slot_id, field, starts_at, venue:venue_id(name)')
+      .gte('starts_at', since()).order('starts_at'),
+    supabase.from('matches')
+      .select(`match_id, match_date, field, match_status,
+        league:league_id(name), team_a_data:team_a(name), team_b_data:team_b(name)`)
+      .not('match_date', 'is', null)
+      .gte('match_date', since()).order('match_date'),
+  ])
 
-  // Ομαδοποίηση ανά ημέρα (ζώνη Ελλάδας)
-  const byDay = new Map<string, any[]>()
+  // «Κλεισμένα» κλειδιά: γήπεδο + ώρα (από τα πραγματικά ματς)
+  const booked = new Set<string>()
+  const key = (f: string | null, iso: string) => `${f ?? ''}|${new Date(iso).getTime()}`
+  for (const m of matches ?? []) booked.add(key(m.field, m.match_date))
+
+  // Στοιχεία προς εμφάνιση: όλα τα ματς + όσα slots δεν έχουν ματς εκείνη την ώρα/γήπεδο
+  type Item = { iso: string; field: string; match?: any; venue?: string }
+  const items: Item[] = []
+  for (const m of matches ?? []) items.push({ iso: m.match_date, field: m.field, match: m })
   for (const s of slots ?? []) {
-    const k = athensDateKey(s.starts_at)
+    if (!booked.has(key(s.field, s.starts_at)))
+      items.push({ iso: s.starts_at, field: s.field, venue: (s.venue as any)?.name })
+  }
+
+  // Ομαδοποίηση ανά ημέρα
+  const byDay = new Map<string, Item[]>()
+  for (const it of items) {
+    const k = athensDateKey(it.iso)
     if (!byDay.has(k)) byDay.set(k, [])
-    byDay.get(k)!.push(s)
+    byDay.get(k)!.push(it)
   }
   const days = [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([key, list]) => ({
-      key,
-      label: fmtDay(list[0].starts_at),
-      list: list.slice().sort((a, b) => (a.starts_at ?? '').localeCompare(b.starts_at ?? '')),
-      free: list.filter(s => !s.match).length,
+    .map(([k, list]) => ({
+      key: k,
+      label: fmtDay(list[0].iso),
+      list: list.slice().sort((a, b) =>
+        a.iso.localeCompare(b.iso) || a.field.localeCompare(b.field)),
+      free: list.filter(x => !x.match).length,
     }))
 
   return (
@@ -62,8 +75,8 @@ export default async function SchedulePage() {
                 )}
               </div>
               <div className="bg-turf rounded-xl border border-chalk/[0.05] overflow-hidden">
-                {d.list.map((s, i) => {
-                  const m = s.match as any
+                {d.list.map((it, i) => {
+                  const m = it.match
                   const live = m?.match_status === 'Live'
                   const done = m && ['Played', 'Forfeit'].includes(m.match_status)
                   const inner = (
@@ -71,9 +84,9 @@ export default async function SchedulePage() {
                       ${i ? 'border-t border-chalk/[0.05]' : ''}
                       ${!m ? 'bg-lit/[0.05]' : ''}`}>
                       <span className="text-[13px] font-extrabold text-chalk tnum w-[46px] shrink-0">
-                        {fmtTime(s.starts_at)}
+                        {fmtTime(it.iso)}
                       </span>
-                      <div className="shrink-0"><FieldBadge field={s.field} size="xs" /></div>
+                      <div className="shrink-0"><FieldBadge field={it.field} size="xs" /></div>
                       <div className="flex-1 min-w-0">
                         {m ? (
                           <>
@@ -85,7 +98,7 @@ export default async function SchedulePage() {
                         ) : (
                           <>
                             <p className="text-[12.5px] font-extrabold text-lit tracking-[0.04em]">ΕΛΕΥΘΕΡΟ</p>
-                            {s.venue?.name && <p className="text-[9.5px] text-off truncate">{s.venue.name}</p>}
+                            {it.venue && <p className="text-[9.5px] text-off truncate">{it.venue}</p>}
                           </>
                         )}
                       </div>
@@ -95,8 +108,8 @@ export default async function SchedulePage() {
                     </div>
                   )
                   return m
-                    ? <Link key={s.slot_id} href={`/match/${m.match_id}`} className="block active:bg-[#1C1C22]">{inner}</Link>
-                    : <div key={s.slot_id}>{inner}</div>
+                    ? <Link key={m.match_id} href={`/match/${m.match_id}`} className="block active:bg-[#1C1C22]">{inner}</Link>
+                    : <div key={`f-${it.iso}-${it.field}`}>{inner}</div>
                 })}
               </div>
             </div>
