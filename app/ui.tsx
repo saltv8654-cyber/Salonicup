@@ -118,6 +118,8 @@ export function BottomNav() {
     ? { href: '/admin',      label: firstName ?? 'Admin',   icon: '🔑', avatar: initial }
     : isSpeaker
     ? { href: '/speaker',    label: firstName ?? 'Speaker', icon: '🎙️', avatar: initial }
+    : profile?.role === 'captain'
+    ? { href: '/auth/login', label: firstName ?? 'Αρχηγός', icon: '🅲', avatar: initial }
     : profile
     ? { href: '/auth/login', label: firstName ?? 'Προφίλ',  icon: '👤', avatar: initial }
     : { href: '/auth/login', label: 'Είσοδος',              icon: '👤', avatar: null as string | null }

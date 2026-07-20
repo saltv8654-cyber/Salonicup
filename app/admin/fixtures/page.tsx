@@ -69,6 +69,10 @@ export default function AdminFixtures() {
   const [slotsText, setSlotsText] = useState(
     'Πεμ 22:00\nΠαρ 19:00, 20:30, 22:00\nΣαβ 17:30, 19:00, 20:30, 22:00\nΚυρ 17:30, 19:00, 20:30, 22:00'
   )
+  // Σειρά προτεραιότητας (πάνω = γεμίζει πρώτο). Ό,τι λείπει → τελευταίο.
+  const [priorText, setPriorText] = useState(
+    'Παρ 20:30, 22:00\nΚυρ 19:00, 20:30, 22:00\nΣαβ 19:00, 20:30\nΠαρ 19:00\nΚυρ 17:30\nΣαβ 17:30, 22:00'
+  )
   const [oneWeek, setOneWeek] = useState(true)
   const [double, setDouble] = useState(true)
   const [clearFirst, setClearFirst] = useState(false)
@@ -104,6 +108,23 @@ export default function AdminFixtures() {
     }
     for (const k in byDow) byDow[+k].sort((a, b) => a.h * 60 + a.m - (b.h * 60 + b.m))
     return byDow
+  }
+
+  // Χάρτης προτεραιότητας: `${dow}|${λεπτά}` → rank (μικρότερο = πιο νωρίς γεμίζει)
+  function parsePriority(): Map<string, number> {
+    const map = new Map<string, number>()
+    let rank = 0
+    for (const line of priorText.split('\n')) {
+      const parts = line.trim().split(/[\s,]+/).filter(Boolean)
+      if (parts.length < 2) continue
+      const dow = parseDay(parts[0])
+      if (dow === null) continue
+      for (const t of parts.slice(1)) {
+        const [h, m] = t.split(':').map(Number)
+        if (Number.isFinite(h)) map.set(`${dow}|${h * 60 + (m || 0)}`, rank++)
+      }
+    }
+    return map
   }
 
   function toggle(id: string) {
@@ -175,57 +196,64 @@ export default function AdminFixtures() {
       const F = fieldList.length
       const rows: any[] = []
       const slotEntries: { iso: string; field: string }[] = [] // κάθε ώρα×γήπεδο (για ελεύθερα)
-      let cursor = 0, dtIndex = 0
+      let cursor = 0
 
       const allDone = () => states.every(L => L.done)
 
-      for (let dayOffset = 0; dayOffset < 800 && !allDone(); dayOffset++) {
+      // Υποψήφιες ώρες, ταξινομημένες ανά σαββατοκύριακο → προτεραιότητα → ώρα
+      const prio = parsePriority()
+      const cands: { iso: string; date: Date; week: number; rank: number; tmin: number }[] = []
+      for (let dayOffset = 0; dayOffset < 500; dayOffset++) {
         const date = addDays(start, dayOffset)
         const times = byDow[date.getDay()]
         if (!times) continue
         const week = weekendId(date)
-
         for (const tm of times) {
-          if (allDone()) break
           const dt = new Date(date.getFullYear(), date.getMonth(), date.getDate(), tm.h, tm.m)
-          const fieldOrder = rotate(fieldList, dtIndex) // δίκαιη περιστροφή «καλού» γηπέδου
-          dtIndex++
-          const used = new Set<string>()
-          // Κάθε γήπεδο αυτής της ώρας γίνεται slot (ελεύθερο ή με αγώνα)
-          for (const f of fieldList) slotEntries.push({ iso: dt.toISOString(), field: f })
+          const tmin = tm.h * 60 + tm.m
+          cands.push({ iso: dt.toISOString(), date: dt, week, rank: prio.get(`${date.getDay()}|${tmin}`) ?? 999, tmin })
+        }
+      }
+      cands.sort((a, b) => a.week - b.week || a.rank - b.rank || a.tmin - b.tmin)
 
-          for (let s = 0; s < F; s++) {
-            // Δοκίμασε τα πρωταθλήματα εναλλάξ
-            let placed = false
-            for (let k = 0; k < states.length; k++) {
-              const L = states[(cursor + k) % states.length]
-              if (L.done) continue
-              if (oneWeek) {
-                // Η αγωνιστική δεν σπάει σε δύο σαββατοκύριακα + μία/ΠΣΚ
-                if (L.roundWeek !== -1 && week !== L.roundWeek) continue
-                if (L.roundWeek === -1 && week < L.weekLock) continue
-              }
-              const idx = L.remaining.findIndex(([a, b]) => !used.has(a) && !used.has(b))
-              if (idx < 0) continue
-              const [a, b] = L.remaining.splice(idx, 1)[0]
-              if (oneWeek && L.roundWeek === -1) L.roundWeek = week
-              rows.push({
-                league_id: L.id, round: L.rPtr + 1,
-                match_date: dt.toISOString(), field: fieldOrder[s],
-                team_a: a, team_b: b, match_status: 'Scheduled',
-              })
-              used.add(a); used.add(b)
-              if (L.remaining.length === 0) {
-                if (oneWeek) { L.weekLock = L.roundWeek + 7; L.roundWeek = -1 } // επόμενο σαββατοκύριακο
-                if (L.rPtr < L.rounds.length - 1) { L.rPtr++; L.remaining = L.rounds[L.rPtr].slice() }
-                else L.done = true
-              }
-              cursor++
-              placed = true
-              break
+      for (const c of cands) {
+        if (allDone()) break
+        const week = c.week
+        const used = new Set<string>()
+        // Κάθε γήπεδο αυτής της ώρας γίνεται slot (ελεύθερο ή με αγώνα)
+        for (const f of fieldList) slotEntries.push({ iso: c.iso, field: f })
+
+        for (let s = 0; s < F; s++) {
+          const field = fieldList[s] // «καλό» πρώτο (Γήπ. 4) — μία ανοιχτή ώρα → στο καλό
+          let placed = false
+          for (let k = 0; k < states.length; k++) {
+            const L = states[(cursor + k) % states.length]
+            if (L.done) continue
+            if (oneWeek) {
+              // Η αγωνιστική δεν σπάει σε δύο σαββατοκύριακα + μία/ΠΣΚ
+              if (L.roundWeek !== -1 && week !== L.roundWeek) continue
+              if (L.roundWeek === -1 && week < L.weekLock) continue
             }
-            if (!placed) break // κανένα πρωτάθλημα δεν χωράει εδώ τώρα
+            const idx = L.remaining.findIndex(([a, b]) => !used.has(a) && !used.has(b))
+            if (idx < 0) continue
+            const [a, b] = L.remaining.splice(idx, 1)[0]
+            if (oneWeek && L.roundWeek === -1) L.roundWeek = week
+            rows.push({
+              league_id: L.id, round: L.rPtr + 1,
+              match_date: c.iso, field,
+              team_a: a, team_b: b, match_status: 'Scheduled',
+            })
+            used.add(a); used.add(b)
+            if (L.remaining.length === 0) {
+              if (oneWeek) { L.weekLock = L.roundWeek + 7; L.roundWeek = -1 } // επόμενο σαββατοκύριακο
+              if (L.rPtr < L.rounds.length - 1) { L.rPtr++; L.remaining = L.rounds[L.rPtr].slice() }
+              else L.done = true
+            }
+            cursor++
+            placed = true
+            break
           }
+          if (!placed) break // κανένα πρωτάθλημα δεν χωράει εδώ τώρα
         }
       }
 
@@ -356,6 +384,17 @@ export default function AdminFixtures() {
               font-mono leading-relaxed outline-none border border-chalk/[0.07] focus:border-lit/50" />
           <p className="text-[10px] text-off mt-1.5">
             Μέρες: Δευ Τρι Τετ Πεμ Παρ Σαβ Κυρ. Η αγωνιστική μπορεί να απλώνεται σε πολλές μέρες.
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-[8.5px] font-extrabold text-dim
+            tracking-[0.12em] mb-1.5 pl-0.5">ΠΡΟΤΕΡΑΙΟΤΗΤΑ ΩΡΩΝ (πάνω = γεμίζει πρώτο)</label>
+          <textarea value={priorText} onChange={e => setPriorText(e.target.value)} rows={5}
+            className="w-full bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-[13px]
+              font-mono leading-relaxed outline-none border border-chalk/[0.07] focus:border-lit/50" />
+          <p className="text-[10px] text-off mt-1.5">
+            Πρώτα μπαίνουν οι κορυφαίες ώρες· ό,τι λείπει πάει τελευταίο. Το «καλό» γήπεδο (1ο στη λίστα) προτιμάται όταν υπάρχει ελεύθερη ώρα.
           </p>
         </div>
 

@@ -37,7 +37,10 @@ function LoginForm() {
   // Ήδη συνδεδεμένος → κάρτα προφίλ με αποσύνδεση
   if (!loading && profile) {
     const initial = (profile.full_name?.trim()?.[0] ?? '?').toUpperCase()
-    const roleLabel = isAdmin ? 'Διαχειριστής' : isSpeaker ? 'Speaker' : 'Θεατής'
+    const roleLabel = isAdmin ? 'Διαχειριστής'
+      : isSpeaker ? 'Speaker'
+      : profile.role === 'captain' ? 'Αρχηγός'
+      : 'Θεατής'
     return (
       <div className="min-h-screen bg-pitch flex flex-col justify-center px-6 relative
         overflow-hidden">
