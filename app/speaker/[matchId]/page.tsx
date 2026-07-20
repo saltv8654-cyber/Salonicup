@@ -195,6 +195,16 @@ export default function SpeakerPanel() {
     refresh()   // άμεση ενημέρωση (το realtime DELETE δεν φτάνει πάντα)
   }
 
+  async function undoLast() {
+    if (!events.length) return
+    const last = [...events].sort((a, b) =>
+      (b.created_at ?? '').localeCompare(a.created_at ?? ''))[0]
+    const label = EVENTS[last.event_type as EventType]?.label ?? 'φάση'
+    if (!confirm(`Αναίρεση: ${label}${last.player?.full_name ? ` — ${last.player.full_name}` : ''};`)) return
+    await removeEvent(last.event_id)
+    toast.success('Αναιρέθηκε')
+  }
+
   return (
     <div className="min-h-screen bg-pitch flex flex-col">
       {/* Πίνακας σκορ */}
@@ -340,7 +350,16 @@ export default function SpeakerPanel() {
 
           {/* Περιγραφή */}
           <div className="flex-1 px-3.5 pb-3 overflow-y-auto">
-            <SectionLabel>Περιγραφή</SectionLabel>
+            <div className="flex items-center gap-2">
+              <div className="flex-1"><SectionLabel>Περιγραφή</SectionLabel></div>
+              {events.length > 0 && (
+                <button onClick={undoLast}
+                  className="mb-2.5 shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg
+                    bg-chalk/[0.05] text-silver text-[11px] font-bold active:bg-chalk/10">
+                  ↶ Αναίρεση
+                </button>
+              )}
+            </div>
             {!events.length ? (
               <p className="text-dim text-[13px] text-center py-9">
                 Διάλεξε φάση για να την καταχωρήσεις.

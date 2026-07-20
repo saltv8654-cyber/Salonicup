@@ -65,6 +65,16 @@ export default async function TeamPage({
     })
     .sort((a, b) => a.firstRound - b.firstRound)
 
+  // Επόμενος αγώνας (πλησιέστερος προγραμματισμένος)
+  const now = Date.now()
+  const nextMatch = (matches ?? [])
+    .filter((m: any) => m.match_status === 'Scheduled' && m.match_date &&
+      new Date(m.match_date).getTime() >= now)
+    .sort((a: any, b: any) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))[0]
+  const nextOpp = nextMatch
+    ? (nextMatch.team_a === params.teamId ? nextMatch.team_b_data : nextMatch.team_a_data)
+    : null
+
   return (
     <div className="min-h-screen bg-pitch pb-20">
       <div className="flex items-center gap-2.5 px-3.5 pt-3.5 pb-2.5">
@@ -103,6 +113,32 @@ export default async function TeamPage({
           </div>
         </div>
       </div>
+
+      {/* Επόμενος αγώνας */}
+      {nextMatch && (
+        <div className="px-3.5 pt-3.5">
+          <Link href={`/match/${nextMatch.match_id}`}
+            className="flex items-center gap-3 bg-gradient-to-r from-lit/[0.12] to-turf
+              rounded-xl px-3.5 py-3 border border-lit/25 active:bg-[#1C1C22]">
+            <div className="text-center shrink-0">
+              <div className="text-[8px] font-extrabold text-lit tracking-[0.12em]">ΕΠΟΜΕΝΟΣ</div>
+              <div className="text-[15px] font-extrabold text-chalk leading-tight mt-0.5 tnum">
+                {nextMatch.match_date ? fmtTime(nextMatch.match_date) : 'VS'}
+              </div>
+              {nextMatch.match_date && (
+                <div className="text-[9px] text-dim">{fmtDay(nextMatch.match_date)}</div>
+              )}
+            </div>
+            <div className="w-px self-stretch bg-chalk/[0.08]" />
+            <Crest url={nextOpp?.logo_url} name={nextOpp?.name} size={30} />
+            <div className="flex-1 min-w-0">
+              <p className="text-[9px] text-dim">εναντίον</p>
+              <p className="text-[14px] font-bold text-chalk truncate">{nextOpp?.name}</p>
+            </div>
+            {nextMatch.field && <FieldBadge field={nextMatch.field} size="xs" />}
+          </Link>
+        </div>
+      )}
 
       {/* Καρτέλες */}
       <div className="flex gap-1.5 px-3.5 pt-3.5">
