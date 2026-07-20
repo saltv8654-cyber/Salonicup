@@ -124,6 +124,7 @@ create table matches (
   mvp_player_id   uuid references players on delete set null,  -- MVP (χειροκίνητα από speaker)
   squad_a         uuid[] not null default '{}',   -- όσοι συμμετείχαν
   squad_b         uuid[] not null default '{}',
+  player_notes    jsonb not null default '{}',     -- σχόλια σπίκερ ανά παίκτη (μόνο γι' αυτό το ματς)
   squad_set_at    timestamptz,
   squad_set_by    uuid references profiles,
   updated_at      timestamptz default now(),

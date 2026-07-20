@@ -27,6 +27,7 @@ export default function SpeakerPanel() {
   const [rosterB, setRosterB] = useState<Player[]>([])
   const [inA, setInA]         = useState<Set<string>>(new Set())
   const [inB, setInB]         = useState<Set<string>>(new Set())
+  const [notes, setNotes]     = useState<Record<string, string>>({})
 
   const [period, setPeriod]   = useState<Period>('H1')
   const [minute, setMinute]   = useState('')
@@ -39,6 +40,19 @@ export default function SpeakerPanel() {
   useEffect(() => {
     if (!authLoading && !isSpeaker) router.replace('/')
   }, [authLoading, isSpeaker])
+
+  // Σχόλια παικτών (μόνο γι' αυτό το ματς) — αρχικοποίηση μία φορά ανά ματς
+  useEffect(() => {
+    if (match) setNotes(match.player_notes ?? {})
+  }, [match?.match_id])
+
+  async function saveNote(playerId: string, text: string) {
+    const t = text.trim()
+    const nn = { ...notes }
+    if (t) nn[playerId] = t; else delete nn[playerId]
+    setNotes(nn)
+    if (match) await supabase.from('matches').update({ player_notes: nn }).eq('match_id', match.match_id)
+  }
 
   useEffect(() => {
     if (!match) return
@@ -228,6 +242,7 @@ export default function SpeakerPanel() {
           rosterA={rosterA} rosterB={rosterB}
           setRosterA={setRosterA} setRosterB={setRosterB}
           inA={inA} inB={inB} setInA={setInA} setInB={setInB}
+          notes={notes} saveNote={saveNote}
           onSave={saveSquad} saving={saving}
         />
       ) : (
@@ -397,6 +412,7 @@ export default function SpeakerPanel() {
         <PlayerSheet
           type={pending}
           players={roster}
+          notes={notes}
           teamName={side === 'a' ? match.team_a_data?.name : match.team_b_data?.name}
           minuteLabel={period === 'PEN' ? '' : (minute ? fmtMinute(period, toRelativeMinute(period, parseInt(minute))) : '')}
           chained={chained}
@@ -437,7 +453,7 @@ function Badge({ team, n }: { team: any; n: number }) {
 /* ── Συμμετοχές: μέσα / έξω ── */
 function SquadPicker({
   teamA, teamB, teamIdA, teamIdB, rosterA, rosterB, setRosterA, setRosterB,
-  inA, inB, setInA, setInB, onSave, saving,
+  inA, inB, setInA, setInB, notes, saveNote, onSave, saving,
 }: any) {
   const supabase = createClient()
   const [tab, setTab]       = useState<Side>('a')
@@ -560,9 +576,12 @@ function SquadPicker({
                     {p.number ?? '—'}
                   </span>
                   <Avatar url={p.photo_url} name={p.full_name} size={28} />
-                  <span className={`flex-1 text-left text-[14.5px] font-semibold truncate
+                  <span className={`flex-1 text-left min-w-0
                     ${on ? 'text-chalk' : 'text-chalk/[0.28]'}`}>
-                    {p.full_name}
+                    <span className="block text-[14.5px] font-semibold truncate">{p.full_name}</span>
+                    {notes?.[p.player_id] && (
+                      <span className="block text-[10.5px] text-lit truncate">📝 {notes[p.player_id]}</span>
+                    )}
                   </span>
                   <span className="text-[9px] font-bold text-dim tracking-[0.06em] shrink-0">
                     {on ? 'ΣΥΜΜΕΤΟΧΗ' : 'ΕΚΤΟΣ'}
@@ -596,6 +615,8 @@ function SquadPicker({
       {editing && (
         <EditPlayerSheet
           player={editing} busy={busy}
+          note={notes?.[editing.player_id] ?? ''}
+          onSaveNote={(t: string) => saveNote(editing.player_id, t)}
           onSave={savePlayer} onDelete={deletePlayer}
           onClose={() => setEditing(null)}
         />
@@ -605,14 +626,17 @@ function SquadPicker({
 }
 
 /* ── Επεξεργασία / αφαίρεση παίκτη ── */
-function EditPlayerSheet({ player, busy, onSave, onDelete, onClose }: {
+function EditPlayerSheet({ player, busy, note, onSaveNote, onSave, onDelete, onClose }: {
   player: Player; busy: boolean
+  note: string
+  onSaveNote: (t: string) => void
   onSave: (p: Player, name: string, number: string) => void
   onDelete: (p: Player) => void
   onClose: () => void
 }) {
   const [name, setName] = useState(player.full_name)
   const [num, setNum]   = useState(player.number != null ? String(player.number) : '')
+  const [noteVal, setNoteVal] = useState(note)
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col justify-end" onClick={onClose}>
@@ -644,7 +668,21 @@ function EditPlayerSheet({ player, busy, onSave, onDelete, onClose }: {
               outline-none border border-chalk/[0.07] focus:border-lit/50" />
         </div>
 
-        <button onClick={() => onSave(player, name, num)} disabled={busy || !name.trim()}
+        {/* Σχόλιο μόνο γι' αυτό το ματς (π.χ. ροζ παπούτσια) */}
+        <div>
+          <label className="block text-[8.5px] font-extrabold text-lit
+            tracking-[0.12em] mb-1.5 pl-0.5">ΣΗΜΕΙΩΣΗ ΓΙΑ ΤΟ ΜΑΤΣ</label>
+          <input value={noteVal}
+            onChange={e => setNoteVal(e.target.value)}
+            onBlur={() => { if (noteVal !== note) onSaveNote(noteVal) }}
+            placeholder="π.χ. ροζ παπούτσια, κοτσίδα…"
+            className="w-full bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-sm
+              outline-none border border-lit/25 focus:border-lit/50 placeholder:text-off" />
+          <p className="text-[10px] text-off mt-1 pl-0.5">Μένει μόνο γι' αυτόν τον αγώνα.</p>
+        </div>
+
+        <button onClick={() => { if (noteVal !== note) onSaveNote(noteVal); onSave(player, name, num) }}
+          disabled={busy || !name.trim()}
           className="w-full py-3.5 rounded-xl bg-gradient-to-b from-lit to-brand
             text-white font-extrabold text-[15px] disabled:opacity-40">
           {busy ? 'Αποθήκευση…' : 'Αποθήκευση'}
@@ -715,9 +753,9 @@ function AddPlayerSheet({ teamName, busy, onAdd, onClose }: {
 
 /* ── Επιλογή παίκτη ── */
 function PlayerSheet({
-  type, players, teamName, minuteLabel, chained, onPick, onSkip, onClose,
+  type, players, notes, teamName, minuteLabel, chained, onPick, onSkip, onClose,
 }: {
-  type: EventType; players: Player[]; teamName?: string
+  type: EventType; players: Player[]; notes?: Record<string, string>; teamName?: string
   minuteLabel: string; chained: boolean
   onPick: (id: string) => void; onSkip: () => void; onClose: () => void
 }) {
@@ -774,8 +812,13 @@ function PlayerSheet({
                   {p.number ?? '—'}
                 </span>
                 <Avatar url={p.photo_url} name={p.full_name} size={30} />
-                <span className="text-[14.5px] font-semibold text-chalk truncate">
-                  {p.full_name}
+                <span className="flex-1 min-w-0 text-left">
+                  <span className="block text-[14.5px] font-semibold text-chalk truncate">
+                    {p.full_name}
+                  </span>
+                  {notes?.[p.player_id] && (
+                    <span className="block text-[11px] text-lit truncate">📝 {notes[p.player_id]}</span>
+                  )}
                 </span>
               </button>
             ))}
