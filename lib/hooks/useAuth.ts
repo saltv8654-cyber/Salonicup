@@ -47,5 +47,7 @@ export function useAuth() {
     signOut,
     isAdmin:   profile?.role === 'admin',
     isSpeaker: profile?.role === 'admin' || profile?.role === 'speaker',
+    // Captain: βλέπει τα κενά γήπεδα (και όποιος είναι πιο πάνω)
+    isCaptain: profile?.role === 'admin' || profile?.role === 'speaker' || profile?.role === 'captain',
   }
 }

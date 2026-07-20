@@ -9,6 +9,7 @@ import type { Profile } from '@/lib/types'
 const ROLES = [
   { value: 'admin',   label: 'Διαχειριστής' },
   { value: 'speaker', label: 'Speaker' },
+  { value: 'captain', label: 'Αρχηγός' },
   { value: 'viewer',  label: 'Θεατής' },
 ]
 
@@ -66,7 +67,6 @@ export default function AdminUsers() {
                 className="bg-chalk/[0.05] rounded-lg px-2.5 py-2 text-silver
                   text-[11px] font-bold outline-none border border-chalk/[0.06]">
                 {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                <option value="captain">Αρχηγός</option>
               </select>
             </div>
           ))}

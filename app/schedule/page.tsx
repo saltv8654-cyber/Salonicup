@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Watermark, BottomNav, Empty } from '@/app/ui'
+import CaptainGate from '@/app/captain-gate'
 import { fmtTime as time, fmtDay as dayLabel, athensDateKey as dayKey } from '@/lib/time'
 
 export const revalidate = 30
@@ -36,6 +37,7 @@ export default async function SchedulePage() {
   }
 
   return (
+    <CaptainGate>
     <div className="min-h-screen bg-pitch pb-20">
       <header className="relative px-4 pt-6 pb-4 overflow-hidden">
         <div className="absolute -right-6 -top-4 w-32 h-36">
@@ -44,7 +46,7 @@ export default async function SchedulePage() {
         <p className="text-[9.5px] tracking-[0.22em] uppercase text-lit font-extrabold">
           Salonicup
         </p>
-        <h1 className="text-2xl font-extrabold text-chalk mt-1 tracking-tight">Πρόγραμμα</h1>
+        <h1 className="text-2xl font-extrabold text-chalk mt-1 tracking-tight">Ελεύθερα γήπεδα</h1>
       </header>
 
       <div className="px-3.5 pb-6">
@@ -122,5 +124,6 @@ export default async function SchedulePage() {
 
       <BottomNav />
     </div>
+    </CaptainGate>
   )
 }

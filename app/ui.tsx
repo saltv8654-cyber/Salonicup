@@ -108,7 +108,7 @@ const TABS = [
 
 export function BottomNav() {
   const path = usePathname()
-  const { isAdmin, isSpeaker, profile } = useAuth()
+  const { isAdmin, isSpeaker, isCaptain, profile } = useAuth()
 
   const firstName = profile?.full_name?.trim().split(/\s+/)[0]
   const initial = (profile?.full_name?.trim()?.[0] ?? '?').toUpperCase()
@@ -122,7 +122,10 @@ export function BottomNav() {
     ? { href: '/auth/login', label: firstName ?? 'Προφίλ',  icon: '👤', avatar: initial }
     : { href: '/auth/login', label: 'Είσοδος',              icon: '👤', avatar: null as string | null }
 
-  const tabs = [...TABS.map(t => ({ ...t, avatar: null as string | null })), authTab]
+  const baseTabs = TABS.map(t => ({ ...t, avatar: null as string | null }))
+  // Captains (και πάνω) βλέπουν τα ελεύθερα γήπεδα
+  if (isCaptain) baseTabs.push({ href: '/schedule', label: 'Γήπεδα', icon: '📍', avatar: null })
+  const tabs = [...baseTabs, authTab]
 
   return (
     <nav className="fixed bottom-0 inset-x-0 h-16 pb-2 flex z-40
