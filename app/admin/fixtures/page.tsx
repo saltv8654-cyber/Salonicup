@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Loading } from '@/app/ui'
-import { Field, SaveBtn } from '../ui'
+import { Field, Select, SaveBtn } from '../ui'
 import toast from 'react-hot-toast'
 import type { League } from '@/lib/types'
 
@@ -72,13 +72,21 @@ export default function AdminFixtures() {
   const [oneWeek, setOneWeek] = useState(true)
   const [double, setDouble] = useState(true)
   const [clearFirst, setClearFirst] = useState(false)
+  const [venues, setVenues] = useState<{ venue_id: string; name: string }[]>([])
+  const [venueId, setVenueId] = useState('')
 
   const [busy, setBusy] = useState(false)
   const [doneInfo, setDoneInfo] = useState<{ matches: number } | null>(null)
 
   useEffect(() => {
-    supabase.from('leagues').select('*').order('sort_order')
-      .then(({ data }) => { setLeagues(data ?? []); setLoad(false) })
+    Promise.all([
+      supabase.from('leagues').select('*').order('sort_order'),
+      supabase.from('venues').select('venue_id, name').order('name'),
+    ]).then(([l, v]) => {
+      setLeagues(l.data ?? [])
+      setVenues(v.data ?? [])
+      setLoad(false)
+    })
   }, [])
 
   function parseSlots(): Record<number, { h: number; m: number }[]> {
@@ -166,6 +174,7 @@ export default function AdminFixtures() {
       const start = new Date(Y, M - 1, D)
       const F = fieldList.length
       const rows: any[] = []
+      const slotEntries: { iso: string; field: string }[] = [] // κάθε ώρα×γήπεδο (για ελεύθερα)
       let cursor = 0, dtIndex = 0
 
       const allDone = () => states.every(L => L.done)
@@ -182,6 +191,8 @@ export default function AdminFixtures() {
           const fieldOrder = rotate(fieldList, dtIndex) // δίκαιη περιστροφή «καλού» γηπέδου
           dtIndex++
           const used = new Set<string>()
+          // Κάθε γήπεδο αυτής της ώρας γίνεται slot (ελεύθερο ή με αγώνα)
+          for (const f of fieldList) slotEntries.push({ iso: dt.toISOString(), field: f })
 
           for (let s = 0; s < F; s++) {
             // Δοκίμασε τα πρωταθλήματα εναλλάξ
@@ -222,13 +233,36 @@ export default function AdminFixtures() {
         throw new Error(`Δεν επαρκούν τα slots (μπήκαν ${rows.length}/${totalMatches}). Βάλε περισσότερες μέρες/ώρες ή ξετσέκαρε «μία/εβδομάδα».`)
       }
 
+      const inserted: any[] = []
       for (let i = 0; i < rows.length; i += 100) {
-        const { error } = await supabase.from('matches').insert(rows.slice(i, i + 100))
+        const { data, error } = await supabase.from('matches')
+          .insert(rows.slice(i, i + 100))
+          .select('match_id, match_date, field')
         if (error) throw new Error(error.message)
+        inserted.push(...(data ?? []))
+      }
+
+      // Δημιουργία slots (ελεύθερα γήπεδα) — μόνο αν επιλέχθηκε γήπεδο
+      if (venueId && slotEntries.length) {
+        // καθάρισε τυχόν παλιά μελλοντικά slots του γηπέδου
+        await supabase.from('slots').delete()
+          .eq('venue_id', venueId).gte('starts_at', start.toISOString())
+        const key = (iso: string, f: string) => `${new Date(iso).getTime()}|${f}`
+        const mMap = new Map<string, string>()
+        for (const m of inserted) mMap.set(key(m.match_date, m.field), m.match_id)
+        const slotRows = slotEntries.map(s => ({
+          venue_id: venueId, field: s.field, starts_at: s.iso,
+          match_id: mMap.get(key(s.iso, s.field)) ?? null,
+        }))
+        for (let i = 0; i < slotRows.length; i += 200) {
+          const { error } = await supabase.from('slots')
+            .upsert(slotRows.slice(i, i + 200), { onConflict: 'venue_id,field,starts_at' })
+          if (error) throw new Error('Slots: ' + error.message)
+        }
       }
 
       setDoneInfo({ matches: rows.length })
-      toast.success(`Δημιουργήθηκαν ${rows.length} αγώνες σε ${targets.length} πρωτάθλημα(τα)`)
+      toast.success(`Δημιουργήθηκαν ${rows.length} αγώνες${venueId ? ' + ελεύθερα γήπεδα' : ''}`)
     } catch (e: any) {
       toast.error(e?.message ?? 'Κάτι πήγε στραβά')
     } finally {
@@ -305,6 +339,14 @@ export default function AdminFixtures() {
         </div>
 
         <Field label="ΓΗΠΕΔΑ — ΠΑΡΑΛΛΗΛΑ (κόμμα· το 1ο = «καλό»)" value={fields} onChange={setFields} />
+
+        <div>
+          <Select label="ΓΗΠΕΔΟ ΓΙΑ «ΕΛΕΥΘΕΡΑ» (προαιρετικό)" value={venueId} onChange={setVenueId}
+            options={venues.map(v => ({ value: v.venue_id, label: v.name }))} />
+          <p className="text-[10px] text-off mt-1 pl-0.5">
+            Αν το επιλέξεις, δημιουργούνται slots ώστε οι κενές ώρες να φαίνονται «ΕΛΕΥΘΕΡΟ» στους αρχηγούς.
+          </p>
+        </div>
 
         <div>
           <label className="block text-[8.5px] font-extrabold text-dim
