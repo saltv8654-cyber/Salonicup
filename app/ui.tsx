@@ -12,7 +12,7 @@ export function Watermark({ opacity = 0.055 }: { opacity?: number }) {
       aria-hidden
       className="absolute inset-0 w-full h-full object-contain object-center
         pointer-events-none select-none"
-      style={{ opacity }}
+      style={{ opacity: Math.min(1, opacity * 2.4) }}
     />
   )
 }
