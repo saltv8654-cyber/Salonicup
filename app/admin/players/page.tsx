@@ -13,6 +13,7 @@ export default function AdminPlayers() {
   const [team, setTeam]   = useState('')
   const [load, setLoad]   = useState(true)
   const [open, setOpen]   = useState(false)
+  const [bulk, setBulk]   = useState(false)
   const [edit, setEdit]   = useState<Player | null>(null)
 
   async function fetchTeams() {
@@ -45,12 +46,19 @@ export default function AdminPlayers() {
     <div className="p-4 max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-3">
         <h1 className="text-lg font-extrabold text-chalk">Παίκτες</h1>
-        <button onClick={() => { setEdit(null); setOpen(true) }}
-          disabled={!team}
-          className="px-4 py-2 rounded-lg bg-gradient-to-b from-lit to-brand
-            text-white text-[12.5px] font-extrabold disabled:opacity-40">
-          + Νέος
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setBulk(true)} disabled={!team}
+            className="px-3.5 py-2 rounded-lg bg-turf border border-lit/25 text-lit
+              text-[12.5px] font-extrabold disabled:opacity-40">
+            Μαζική
+          </button>
+          <button onClick={() => { setEdit(null); setOpen(true) }}
+            disabled={!team}
+            className="px-4 py-2 rounded-lg bg-gradient-to-b from-lit to-brand
+              text-white text-[12.5px] font-extrabold disabled:opacity-40">
+            + Νέος
+          </button>
+        </div>
       </div>
 
       <div className="mb-4">
@@ -91,7 +99,88 @@ export default function AdminPlayers() {
           onClose={() => setOpen(false)}
           onSaved={() => { setOpen(false); fetchPlayers(team) }} />
       )}
+
+      {bulk && (
+        <BulkImport teamId={team}
+          teamName={teams.find(t => t.team_id === team)?.name ?? ''}
+          onClose={() => setBulk(false)}
+          onSaved={() => { setBulk(false); fetchPlayers(team) }} />
+      )}
     </div>
+  )
+}
+
+/** Ανάλυση μιας γραμμής → { name, number } */
+function parseLine(line: string): { name: string; number: number | null } | null {
+  const raw = line.trim()
+  if (!raw) return null
+  // Excel/CSV: tab, κόμμα ή 2+ κενά χωρίζουν όνομα/νούμερο
+  const parts = raw.split(/\t|,|\s{2,}/).map(s => s.trim()).filter(Boolean)
+  if (parts.length >= 2) {
+    const numPart = parts.find(p => /^\d{1,3}$/.test(p))
+    const namePart = parts.filter(p => !/^\d{1,3}$/.test(p)).join(' ')
+    if (namePart) return { name: namePart, number: numPart ? parseInt(numPart) : null }
+  }
+  // «10 Όνομα»
+  let m = raw.match(/^(\d{1,3})\s+(.+)$/)
+  if (m) return { name: m[2].trim(), number: parseInt(m[1]) }
+  // «Όνομα 10»
+  m = raw.match(/^(.+?)\s+(\d{1,3})$/)
+  if (m) return { name: m[1].trim(), number: parseInt(m[2]) }
+  return { name: raw, number: null }
+}
+
+function BulkImport({ teamId, teamName, onClose, onSaved }: {
+  teamId: string; teamName: string; onClose: () => void; onSaved: () => void
+}) {
+  const supabase = createClient()
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const parsed = text.split('\n').map(parseLine).filter(Boolean) as { name: string; number: number | null }[]
+
+  async function run() {
+    if (!parsed.length) return toast.error('Δεν βρέθηκαν ονόματα')
+    setBusy(true)
+    const payload = parsed.map(p => ({
+      team_id: teamId, full_name: p.name, number: p.number, active: true,
+    }))
+    const { error } = await supabase.from('players').insert(payload)
+    setBusy(false)
+    if (error) return toast.error('Δεν αποθηκεύτηκαν: ' + error.message)
+    toast.success(`Προστέθηκαν ${parsed.length} παίκτες`)
+    onSaved()
+  }
+
+  return (
+    <Modal title={`Μαζική εισαγωγή — ${teamName}`} onClose={onClose}>
+      <p className="text-[11.5px] text-dim -mt-1 mb-1">
+        Επικόλλησε ονόματα, ένα ανά γραμμή. Προαιρετικά νούμερο («10 Όνομα», «Όνομα 10», ή από Excel).
+      </p>
+      <textarea value={text} onChange={e => setText(e.target.value)}
+        rows={9} autoFocus
+        placeholder={'Γιώργος Παπαδόπουλος\n10 Νίκος Ιωάννου\nΚώστας Δήμου, 7'}
+        className="w-full bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-[13.5px]
+          leading-relaxed outline-none border border-chalk/[0.07] focus:border-lit/50
+          placeholder:text-off" />
+
+      {parsed.length > 0 && (
+        <div className="bg-turf rounded-xl border border-chalk/[0.05] max-h-40 overflow-y-auto mt-1">
+          {parsed.map((p, i) => (
+            <div key={i} className="flex items-center gap-2.5 px-3 py-2
+              border-b border-chalk/[0.04] last:border-b-0">
+              <span className="w-6 text-[11px] font-extrabold text-dim text-center tnum">
+                {p.number ?? '—'}
+              </span>
+              <span className="flex-1 text-[13px] text-chalk truncate">{p.name}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <SaveBtn busy={busy} onClick={run}
+        label={parsed.length ? `Εισαγωγή ${parsed.length} παικτών` : 'Εισαγωγή'} />
+    </Modal>
   )
 }
 
