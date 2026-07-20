@@ -28,6 +28,22 @@ function buildRounds(ids: string[], double: boolean): [string, string][][] {
 }
 
 const DAY: Record<string, number> = { κυ: 0, δε: 1, τρ: 2, τε: 3, πε: 4, πα: 5, σα: 6 }
+
+// Έτοιμα προγράμματα ανά γήπεδο (φορτώνονται όταν επιλέγεις venue)
+const VENUE_PRESETS: { match: RegExp; fields: string; slots: string; prio: string }[] = [
+  {
+    match: /νικολ/i,
+    fields: 'Γήπ. 4, Γήπ. 3',
+    slots: 'Πεμ 22:00\nΠαρ 19:00, 20:30, 22:00\nΣαβ 17:30, 19:00, 20:30, 22:00\nΚυρ 17:30, 19:00, 20:30, 22:00',
+    prio: 'Πεμ 22:00\nΠαρ 20:30, 22:00\nΚυρ 19:00, 20:30, 22:00\nΣαβ 19:00, 20:30\nΠαρ 19:00\nΚυρ 17:30\nΣαβ 17:30, 22:00',
+  },
+  {
+    match: /ζαγορ/i,
+    fields: 'Γήπ. 1, Γήπ. 2',
+    slots: 'Δευ 20:00, 21:30\nΤετ 20:00, 21:30',
+    prio: 'Δευ 20:00, 21:30\nΤετ 20:00, 21:30',
+  },
+]
 const parseDay = (tok: string) => {
   const t = tok.toLowerCase().slice(0, 2)
   return t in DAY ? DAY[t] : null
@@ -133,6 +149,14 @@ export default function AdminFixtures() {
       if (n.has(id)) n.delete(id); else n.add(id)
       return n
     })
+  }
+
+  // Επιλογή venue → φόρτωσε το έτοιμο πρόγραμμά του (γήπεδα/μέρες-ώρες/προτεραιότητα)
+  function onVenue(v: string) {
+    setVenueId(v)
+    const name = (venues.find(x => x.venue_id === v)?.name ?? '').toLowerCase()
+    const preset = VENUE_PRESETS.find(p => p.match.test(name))
+    if (preset) { setFields(preset.fields); setSlotsText(preset.slots); setPriorText(preset.prio) }
   }
 
   async function generate() {
@@ -366,15 +390,15 @@ export default function AdminFixtures() {
               outline-none border border-chalk/[0.07] focus:border-lit/50" />
         </div>
 
-        <Field label="ΓΗΠΕΔΑ — ΠΑΡΑΛΛΗΛΑ (κόμμα· το 1ο = «καλό»)" value={fields} onChange={setFields} />
-
         <div>
-          <Select label="ΓΗΠΕΔΟ ΓΙΑ «ΕΛΕΥΘΕΡΑ» (προαιρετικό)" value={venueId} onChange={setVenueId}
+          <Select label="ΓΗΠΕΔΟ (φορτώνει πρόγραμμα & ελεύθερα)" value={venueId} onChange={onVenue}
             options={venues.map(v => ({ value: v.venue_id, label: v.name }))} />
           <p className="text-[10px] text-off mt-1 pl-0.5">
-            Αν το επιλέξεις, δημιουργούνται slots ώστε οι κενές ώρες να φαίνονται «ΕΛΕΥΘΕΡΟ» στους αρχηγούς.
+            Επίλεξέ το: φορτώνει αυτόματα γήπεδα/μέρες/ώρες του γηπέδου (Νικολούδη = ΠΣΚ, Ζαγοράκη = Δευ/Τετ) και δημιουργεί τα «ΕΛΕΥΘΕΡΑ».
           </p>
         </div>
+
+        <Field label="ΓΗΠΕΔΑ — ΠΑΡΑΛΛΗΛΑ (κόμμα· το 1ο = «καλό»)" value={fields} onChange={setFields} />
 
         <div>
           <label className="block text-[8.5px] font-extrabold text-dim
