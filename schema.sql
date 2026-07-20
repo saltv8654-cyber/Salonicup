@@ -100,6 +100,7 @@ create table players (
   full_name   text not null,
   number      int,
   photo_url   text,
+  sort_order  int,                          -- σειρά εμφάνισης (drag στον σπίκερ)
   active      bool not null default true,
   created_at  timestamptz default now()
 );

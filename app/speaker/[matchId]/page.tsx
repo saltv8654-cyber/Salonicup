@@ -12,6 +12,14 @@ import ReportSheet from './report'
 import { notifyPush } from '@/lib/push'
 import toast from 'react-hot-toast'
 import type { Period, EventType, Player } from '@/lib/types'
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 type Side = 'a' | 'b'
 
@@ -62,8 +70,11 @@ export default function SpeakerPanel() {
       supabase.from('players').select('*').eq('team_id', match.team_b)
         .eq('active', true).order('number', { nullsFirst: false }),
     ]).then(([a, b]) => {
-      const ra = a.data ?? []
-      const rb = b.data ?? []
+      const byOrder = (x: any, y: any) =>
+        (x.sort_order ?? 1e9) - (y.sort_order ?? 1e9) ||
+        (x.number ?? 999) - (y.number ?? 999)
+      const ra = (a.data ?? []).slice().sort(byOrder)
+      const rb = (b.data ?? []).slice().sort(byOrder)
       setRosterA(ra)
       setRosterB(rb)
 
@@ -449,6 +460,47 @@ function Badge({ team, n }: { team: any; n: number }) {
 }
 
 /* ── Συμμετοχές: μέσα / έξω ── */
+/* ── Γραμμή παίκτη με drag ── */
+function SortableRow({ p, on, note, onToggle, onEdit }: {
+  p: Player; on: boolean; note?: string; onToggle: () => void; onEdit: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: p.player_id })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.7 : 1,
+    zIndex: isDragging ? 20 : undefined,
+  }
+  return (
+    <div ref={setNodeRef} style={style}
+      className={`rounded-xl flex items-center border
+        ${on ? 'bg-lit/[0.07] border-lit/[0.28]' : 'bg-turf border-transparent'}
+        ${isDragging ? 'ring-1 ring-lit/40 bg-turf' : ''}`}>
+      <button {...attributes} {...listeners} aria-label="Μετακίνηση"
+        className="w-9 self-stretch shrink-0 grid place-items-center text-off text-lg
+          touch-none cursor-grab active:cursor-grabbing">⠿</button>
+      <button onClick={onToggle}
+        className="flex-1 min-w-0 pr-1 py-3 flex items-center gap-3">
+        <span className="w-6 text-[12.5px] font-extrabold text-dim text-center shrink-0 tnum">
+          {p.number ?? '—'}
+        </span>
+        <Avatar url={p.photo_url} name={p.full_name} size={28} />
+        <span className={`flex-1 text-left min-w-0 ${on ? 'text-chalk' : 'text-chalk/[0.28]'}`}>
+          <span className="block text-[14.5px] font-semibold truncate">{p.full_name}</span>
+          {note && <span className="block text-[10.5px] text-lit truncate">📝 {note}</span>}
+        </span>
+        <span className="text-[9px] font-bold text-dim tracking-[0.06em] shrink-0">
+          {on ? 'ΣΥΜΜΕΤΟΧΗ' : 'ΕΚΤΟΣ'}
+        </span>
+      </button>
+      <button onClick={onEdit} aria-label="Επεξεργασία"
+        className="w-11 self-stretch shrink-0 grid place-items-center text-silver
+          text-[15px] active:bg-chalk/[0.06] rounded-r-xl">✎</button>
+    </div>
+  )
+}
+
 function SquadPicker({
   teamA, teamB, teamIdA, teamIdB, rosterA, rosterB, setRosterA, setRosterB,
   inA, inB, setInA, setInB, notes, saveNote, onSave, saving,
@@ -470,6 +522,28 @@ function SquadPicker({
     const next = new Set(set)
     next.has(id) ? next.delete(id) : next.add(id)
     setSet(next)
+  }
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
+  )
+
+  async function persistOrder(list: Player[]) {
+    await Promise.all(list.map((p, i) =>
+      supabase.from('players').update({ sort_order: i }).eq('player_id', p.player_id)
+    )).catch(() => {})
+  }
+
+  function handleDragEnd(e: DragEndEvent) {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    const oldIndex = roster.findIndex((p: Player) => p.player_id === active.id)
+    const newIndex = roster.findIndex((p: Player) => p.player_id === over.id)
+    if (oldIndex < 0 || newIndex < 0) return
+    const next = arrayMove(roster as Player[], oldIndex, newIndex)
+    setRoster(next)
+    persistOrder(next)
   }
 
   async function addPlayer(name: string, number: string) {
@@ -559,39 +633,20 @@ function SquadPicker({
       </div>
 
       <div className="flex-1 overflow-y-auto px-3.5">
-        <div className="flex flex-col gap-1">
-          {roster.map((p: Player) => {
-            const on = set.has(p.player_id)
-            return (
-              <div key={p.player_id} className={`rounded-xl flex items-center border
-                ${on ? 'bg-lit/[0.07] border-lit/[0.28]' : 'bg-turf border-transparent'}`}>
-                <button onClick={() => toggle(p.player_id)}
-                  className="flex-1 min-w-0 px-3.5 py-3 flex items-center gap-3">
-                  <span className={`w-[3px] h-6 rounded-sm shrink-0
-                    ${on ? 'bg-lit' : 'bg-off'}`} />
-                  <span className="w-6 text-[12.5px] font-extrabold text-dim
-                    text-center shrink-0 tnum">
-                    {p.number ?? '—'}
-                  </span>
-                  <Avatar url={p.photo_url} name={p.full_name} size={28} />
-                  <span className={`flex-1 text-left min-w-0
-                    ${on ? 'text-chalk' : 'text-chalk/[0.28]'}`}>
-                    <span className="block text-[14.5px] font-semibold truncate">{p.full_name}</span>
-                    {notes?.[p.player_id] && (
-                      <span className="block text-[10.5px] text-lit truncate">📝 {notes[p.player_id]}</span>
-                    )}
-                  </span>
-                  <span className="text-[9px] font-bold text-dim tracking-[0.06em] shrink-0">
-                    {on ? 'ΣΥΜΜΕΤΟΧΗ' : 'ΕΚΤΟΣ'}
-                  </span>
-                </button>
-                <button onClick={() => setEditing(p)} aria-label="Επεξεργασία"
-                  className="w-11 h-11 shrink-0 grid place-items-center text-silver
-                    text-[15px] active:bg-chalk/[0.06] rounded-r-xl">✎</button>
-              </div>
-            )
-          })}
-        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={roster.map((p: Player) => p.player_id)}
+            strategy={verticalListSortingStrategy}>
+            <div className="flex flex-col gap-1">
+              {roster.map((p: Player) => (
+                <SortableRow key={p.player_id} p={p}
+                  on={set.has(p.player_id)}
+                  note={notes?.[p.player_id]}
+                  onToggle={() => toggle(p.player_id)}
+                  onEdit={() => setEditing(p)} />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       </div>
 
       <div className="p-3.5">
