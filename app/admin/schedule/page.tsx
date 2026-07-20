@@ -49,6 +49,25 @@ export default function AdminSchedule() {
     toast.success('Αντιγράφηκε το πρόγραμμα')
   }
 
+  // Σβήσιμο παλιών ελεύθερων γηπέδων (slots) πριν από ημερομηνία
+  const todayIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+    .toISOString().slice(0, 10)
+  const [cutoff, setCutoff] = useState(todayIso)
+  const [delBusy, setDelBusy] = useState(false)
+  async function deleteOldSlots() {
+    if (!cutoff) return
+    if (!confirm(`Σβήσιμο όλων των γηπέδων (slots) πριν τις ${cutoff};`)) return
+    setDelBusy(true)
+    try {
+      const iso = new Date(`${cutoff}T00:00:00`).toISOString()
+      const { error } = await supabase.from('slots').delete().lt('starts_at', iso)
+      if (error) throw error
+      toast.success('Σβήστηκαν τα παλιά γήπεδα')
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Απέτυχε')
+    } finally { setDelBusy(false) }
+  }
+
   // Καθαρισμός: σβήνει ματς & slots με «σκουπίδι»-ώρα (λεπτά εκτός :00/:30)
   const [cleaning, setCleaning] = useState(false)
   async function cleanupJunk() {
@@ -98,6 +117,18 @@ export default function AdminSchedule() {
             {showPast ? 'Μόνο επόμενα' : 'Όλα'}
           </button>
         </div>
+      </div>
+
+      {/* Σβήσιμο παλιών ελεύθερων γηπέδων */}
+      <div className="bg-turf rounded-xl p-3 border border-chalk/[0.05] flex items-center gap-2 flex-wrap">
+        <span className="text-[11px] text-dim font-semibold shrink-0">Σβήσε γήπεδα πριν:</span>
+        <input type="date" value={cutoff} onChange={e => setCutoff(e.target.value)}
+          className="flex-1 min-w-[130px] bg-chalk/[0.04] rounded-lg px-3 py-2 text-chalk text-[13px]
+            outline-none border border-chalk/[0.07]" />
+        <button onClick={deleteOldSlots} disabled={delBusy}
+          className="px-3 py-2 rounded-lg bg-danger/15 text-danger text-[11px] font-bold disabled:opacity-50">
+          {delBusy ? '…' : 'Σβήσε'}
+        </button>
       </div>
 
       {!days.length ? <Empty>Δεν υπάρχουν προγραμματισμένοι αγώνες.</Empty> : (
