@@ -3,25 +3,17 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/hooks/useAuth'
 
-/* ── Σήμα Salonicup ως υδατογράφημα ── */
+/* ── Λογότυπο Salonicup ως υδατογράφημα ── */
 export function Watermark({ opacity = 0.055 }: { opacity?: number }) {
   return (
-    <svg
-      viewBox="0 0 200 240"
-      preserveAspectRatio="xMidYMid slice"
-      className="absolute inset-0 w-full h-full pointer-events-none"
+    <img
+      src="/logo.png"
+      alt=""
+      aria-hidden
+      className="absolute inset-0 w-full h-full object-contain object-center
+        pointer-events-none select-none"
       style={{ opacity }}
-    >
-      <path
-        d="M100 8L188 44v104c0 44-38 68-88 84-50-16-88-40-88-84V44L100 8z"
-        fill="none" stroke="#FF7A2F" strokeWidth="6"
-      />
-      <path
-        d="M100 24L172 54v92c0 36-31 56-72 70-41-14-72-34-72-70V54L100 24z"
-        fill="#FF7A2F" opacity="0.3"
-      />
-      <circle cx="100" cy="110" r="26" fill="none" stroke="#EDEDF0" strokeWidth="3" />
-    </svg>
+    />
   )
 }
 
