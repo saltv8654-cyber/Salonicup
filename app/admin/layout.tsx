@@ -41,12 +41,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
         <div className="flex items-center gap-2">
           <div className="flex bg-turf rounded-lg p-[3px] border border-chalk/[0.06]">
-            <span className="px-2.5 py-1.5 rounded-md text-[11px] font-extrabold
+            <span className="px-2 py-1.5 rounded-md text-[10.5px] font-extrabold
               bg-brand text-chalk">Admin</span>
             <Link href="/speaker"
-              className="px-2.5 py-1.5 rounded-md text-[11px] font-bold text-dim">Speaker</Link>
+              className="px-2 py-1.5 rounded-md text-[10.5px] font-bold text-dim">Speaker</Link>
+            <Link href="/schedule"
+              className="px-2 py-1.5 rounded-md text-[10.5px] font-bold text-dim">Captain</Link>
             <Link href="/"
-              className="px-2.5 py-1.5 rounded-md text-[11px] font-bold text-dim">Θεατής</Link>
+              className="px-2 py-1.5 rounded-md text-[10.5px] font-bold text-dim">Θεατής</Link>
           </div>
           <button onClick={async () => { await signOut(); router.push('/') }}
             aria-label="Έξοδος"
