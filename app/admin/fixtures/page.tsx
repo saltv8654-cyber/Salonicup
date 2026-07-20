@@ -71,7 +71,7 @@ export default function AdminFixtures() {
   )
   // Σειρά προτεραιότητας (πάνω = γεμίζει πρώτο). Ό,τι λείπει → τελευταίο.
   const [priorText, setPriorText] = useState(
-    'Παρ 20:30, 22:00\nΚυρ 19:00, 20:30, 22:00\nΣαβ 19:00, 20:30\nΠαρ 19:00\nΚυρ 17:30\nΣαβ 17:30, 22:00'
+    'Πεμ 22:00\nΠαρ 20:30, 22:00\nΚυρ 19:00, 20:30, 22:00\nΣαβ 19:00, 20:30\nΠαρ 19:00\nΚυρ 17:30\nΣαβ 17:30, 22:00'
   )
   const [oneWeek, setOneWeek] = useState(true)
   const [double, setDouble] = useState(true)
