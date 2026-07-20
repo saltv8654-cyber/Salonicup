@@ -7,6 +7,7 @@ import { useLiveMatch } from '@/lib/hooks/useLiveMatch'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { Watermark, Crest, Avatar, LiveDot, SectionLabel, Loading, Empty } from '@/app/ui'
 import { PERIODS, EVENTS, fmtMinute, absMinute } from '@/lib/match'
+import toast from 'react-hot-toast'
 import type { Period } from '@/lib/types'
 
 export default function PublicMatch() {
@@ -72,6 +73,20 @@ export default function PublicMatch() {
   const nameOf = (id: string) =>
     id === match.team_a ? match.team_a_data?.name : match.team_b_data?.name
 
+  async function share() {
+    const url = typeof window !== 'undefined' ? window.location.href : ''
+    const score = (live || done) ? ` ${match.goals_team_a}-${match.goals_team_b} ` : ' – '
+    const text = `${match.team_a_data?.name}${score}${match.team_b_data?.name} · Salonicup`
+    try {
+      if (typeof navigator !== 'undefined' && (navigator as any).share) {
+        await (navigator as any).share({ title: 'Salonicup', text, url })
+      } else {
+        await navigator.clipboard.writeText(`${text}\n${url}`)
+        toast.success('Αντιγράφηκε ο σύνδεσμος')
+      }
+    } catch { /* ακύρωση κοινοποίησης */ }
+  }
+
   return (
     <div className="min-h-screen bg-pitch pb-8">
       {/* Πίνακας σκορ */}
@@ -87,7 +102,9 @@ export default function PublicMatch() {
             <span className="text-[9.5px] text-dim font-bold">
               {match.league?.name} · Αγ. {match.round}
             </span>
-            <div className="w-[30px]" />
+            <button onClick={share} aria-label="Κοινοποίηση"
+              className="w-[30px] h-[30px] rounded-lg bg-chalk/[0.06] grid place-items-center
+                text-silver text-sm">↗</button>
           </div>
 
           <div className="flex items-start gap-2.5">

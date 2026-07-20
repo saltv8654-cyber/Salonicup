@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Crest, LiveDot, BottomNav, Empty, Watermark, FieldBadge } from './ui'
 import NotificationsBell from './notifications-bell'
+import LiveTicker from './live-ticker'
 import { athensDateKey, fmtDay, fmtTime } from '@/lib/time'
 
 export const revalidate = 15
@@ -95,6 +96,8 @@ export default async function Home({
           </div>
         </div>
       </header>
+
+      <LiveTicker />
 
       {/* Καρτέλες ημερών */}
       {tabs.length > 0 && (
