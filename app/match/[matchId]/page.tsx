@@ -28,6 +28,19 @@ export default function PublicMatch() {
       .then(({ data }) => setSquad(data ?? []))
   }, [squadKey])
 
+  // Ιστορικό αναμετρήσεων (head-to-head)
+  const [h2h, setH2h] = useState<any[]>([])
+  const a = match?.team_a, b = match?.team_b
+  useEffect(() => {
+    if (!a || !b) { setH2h([]); return }
+    supabase.from('matches')
+      .select('match_id, match_date, goals_team_a, goals_team_b, team_a, team_b')
+      .or(`and(team_a.eq.${a},team_b.eq.${b}),and(team_a.eq.${b},team_b.eq.${a})`)
+      .in('match_status', ['Played', 'Forfeit'])
+      .order('match_date', { ascending: false })
+      .then(({ data }) => setH2h((data ?? []).filter(m => m.match_id !== match?.match_id)))
+  }, [a, b, match?.match_id])
+
   if (loading) return <Loading />
   if (!match) return <div className="min-h-screen bg-pitch" />
 
@@ -48,6 +61,16 @@ export default function PublicMatch() {
   const squadB = squad.filter(p => p.team_id === match.team_b)
     .sort((a, b) => (a.number ?? 99) - (b.number ?? 99))
   const hasSquads = squadA.length > 0 || squadB.length > 0
+
+  // Head-to-head σύνοψη (από τη σκοπιά της γηπεδούχου του τρέχοντος αγώνα)
+  let hA = 0, hD = 0, hB = 0
+  for (const m of h2h) {
+    const ga = m.team_a === match.team_a ? m.goals_team_a : m.goals_team_b
+    const gb = m.team_a === match.team_a ? m.goals_team_b : m.goals_team_a
+    if (ga > gb) hA++; else if (ga < gb) hB++; else hD++
+  }
+  const nameOf = (id: string) =>
+    id === match.team_a ? match.team_a_data?.name : match.team_b_data?.name
 
   return (
     <div className="min-h-screen bg-pitch pb-8">
@@ -197,6 +220,46 @@ export default function PublicMatch() {
               goalsBy={goalsBy}
               align="right"
             />
+          </div>
+        </div>
+      )}
+
+      {/* Head-to-head */}
+      {h2h.length > 0 && (
+        <div className="px-3.5 pt-6">
+          <SectionLabel>Ιστορικό αναμετρήσεων</SectionLabel>
+          <div className="bg-turf rounded-xl border border-chalk/[0.05] p-3.5 mb-2">
+            <div className="grid grid-cols-3 items-center text-center">
+              <div>
+                <div className="text-xl font-extrabold text-lit tnum leading-none">{hA}</div>
+                <div className="text-[9px] text-dim mt-1 truncate">{match.team_a_data?.name}</div>
+              </div>
+              <div>
+                <div className="text-xl font-extrabold text-silver tnum leading-none">{hD}</div>
+                <div className="text-[9px] text-dim mt-1">ΙΣΟΠ.</div>
+              </div>
+              <div>
+                <div className="text-xl font-extrabold text-lit tnum leading-none">{hB}</div>
+                <div className="text-[9px] text-dim mt-1 truncate">{match.team_b_data?.name}</div>
+              </div>
+            </div>
+          </div>
+          <div className="bg-turf rounded-xl border border-chalk/[0.05] overflow-hidden">
+            {h2h.slice(0, 6).map((m, i) => (
+              <Link key={m.match_id} href={`/match/${m.match_id}`}
+                className={`grid items-center gap-2 px-3 py-2.5 active:bg-[#1C1C22]
+                  [grid-template-columns:1fr_auto_1fr] ${i ? 'border-t border-chalk/[0.05]' : ''}`}>
+                <span className="text-[12px] font-semibold text-silver truncate text-right">
+                  {nameOf(m.team_a)}
+                </span>
+                <span className="text-[13px] font-extrabold text-chalk tnum px-2">
+                  {m.goals_team_a}-{m.goals_team_b}
+                </span>
+                <span className="text-[12px] font-semibold text-silver truncate">
+                  {nameOf(m.team_b)}
+                </span>
+              </Link>
+            ))}
           </div>
         </div>
       )}
