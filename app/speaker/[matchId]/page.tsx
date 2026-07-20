@@ -67,12 +67,10 @@ export default function SpeakerPanel() {
       setRosterA(ra)
       setRosterB(rb)
 
-      const setA = match.squad_a?.length
-        ? new Set<string>(match.squad_a)
-        : new Set<string>(ra.map(p => p.player_id))
-      const setB = match.squad_b?.length
-        ? new Set<string>(match.squad_b)
-        : new Set<string>(rb.map(p => p.player_id))
+      // Ξεκινά άδειο· ο σπίκερ προσθέτει όσους συμμετέχουν
+      // (αν έχει ήδη αποθηκευτεί σύνθεση, τη φορτώνει)
+      const setA = new Set<string>(match.squad_a ?? [])
+      const setB = new Set<string>(match.squad_b ?? [])
 
       setInA(setA)
       setInB(setB)
@@ -524,7 +522,7 @@ function SquadPicker({
       <div className="px-3.5 pt-4 pb-3">
         <h2 className="text-base font-bold text-chalk tracking-tight">Συμμετοχές</h2>
         <p className="text-xs text-dim mt-0.5">
-          Πάτα παίκτη για να τον βγάλεις εκτός
+          Πάτα παίκτη για να τον βάλεις στη σύνθεση
         </p>
       </div>
 
