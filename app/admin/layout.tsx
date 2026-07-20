@@ -40,15 +40,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <p className="text-sm font-bold text-chalk">Διαχείριση</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/"
-            className="text-[11px] text-dim font-semibold px-3 py-2
-              bg-turf rounded-lg">
-            Δημόσιο
-          </Link>
+          <div className="flex bg-turf rounded-lg p-[3px] border border-chalk/[0.06]">
+            <span className="px-2.5 py-1.5 rounded-md text-[11px] font-extrabold
+              bg-brand text-chalk">Admin</span>
+            <Link href="/speaker"
+              className="px-2.5 py-1.5 rounded-md text-[11px] font-bold text-dim">Speaker</Link>
+            <Link href="/"
+              className="px-2.5 py-1.5 rounded-md text-[11px] font-bold text-dim">Θεατής</Link>
+          </div>
           <button onClick={async () => { await signOut(); router.push('/') }}
-            className="text-[11px] text-dim font-semibold px-3 py-2
-              bg-turf rounded-lg">
-            Έξοδος
+            aria-label="Έξοδος"
+            className="text-[13px] text-dim font-semibold px-2.5 py-2 bg-turf rounded-lg">
+            ⎋
           </button>
         </div>
       </header>
