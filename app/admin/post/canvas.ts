@@ -101,9 +101,11 @@ function crest(ctx: any, img: HTMLImageElement | null, name: string, cx: number,
 }
 
 /* ── main ── */
-export async function drawPost(canvas: HTMLCanvasElement, d: PostData) {
-  canvas.width = S
-  canvas.height = S
+export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { w: number; h: number }) {
+  const W = size?.w ?? S
+  const H = size?.h ?? S
+  canvas.width = W
+  canvas.height = H
   const ctx = canvas.getContext('2d')!
   ctx.textBaseline = 'alphabetic'
 
@@ -123,18 +125,18 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData) {
   const L = (u: string | null) => (u ? map.get(u) ?? null : null)
 
   /* φόντο */
-  const bg = ctx.createLinearGradient(0, 0, 0, S)
+  const bg = ctx.createLinearGradient(0, 0, 0, H)
   bg.addColorStop(0, COL.bgTop)
   bg.addColorStop(1, COL.bgBottom)
   ctx.fillStyle = bg
-  ctx.fillRect(0, 0, S, S)
+  ctx.fillRect(0, 0, W, H)
 
   /* πορτοκαλί λωρίδα κορυφής */
-  const strip = ctx.createLinearGradient(0, 0, S, 0)
+  const strip = ctx.createLinearGradient(0, 0, W, 0)
   strip.addColorStop(0, COL.orange1)
   strip.addColorStop(1, COL.orange2)
   ctx.fillStyle = strip
-  ctx.fillRect(0, 0, S, 12)
+  ctx.fillRect(0, 0, W, 12)
 
   /* ── κεφαλίδα ── */
   const PAD = 60
@@ -158,7 +160,7 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData) {
   const lw = ctx.measureText(label).width
   const pillW = lw + 44
   const pillH = 52
-  const pillX = S - PAD - pillW
+  const pillX = W - PAD - pillW
   const pill = ctx.createLinearGradient(pillX, 0, pillX + pillW, 0)
   pill.addColorStop(0, COL.orange1)
   pill.addColorStop(1, COL.orange2)
@@ -174,12 +176,12 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData) {
   ctx.lineWidth = 2
   ctx.beginPath()
   ctx.moveTo(PAD, 210)
-  ctx.lineTo(S - PAD, 210)
+  ctx.lineTo(W - PAD, 210)
   ctx.stroke()
 
   /* ── σώμα ── */
   if (d.type === 'standings') drawStandings(ctx, d, L)
-  else if (d.type === 'versus') drawVersus(ctx, d, L)
+  else if (d.type === 'versus') drawVersus(ctx, d, L, W, H)
   else drawMatches(ctx, d, L)
 
   /* υποσέλιδο */
@@ -189,17 +191,20 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData) {
   ctx.textBaseline = 'alphabetic'
   ctx.save()
   ;(ctx as any).letterSpacing = '4px'
-  ctx.fillText('SALONICUP.GR', S / 2, S - 40)
+  ctx.fillText('SALONICUP.GR', W / 2, H - 40)
   ctx.restore()
 }
 
-function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageElement | null) {
+function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageElement | null, W: number, H: number) {
   const v = d.versus
   if (!v) return
-  const cy = 500
-  const size = 290
-  const leftX = 300
-  const rightX = S - 300
+  const cx = W / 2
+  const size = Math.min(W, H) * 0.27          // ίδιο μέγεθος σήματος σε όλα τα φορμά
+  const cy = 260 + (H - 260) * 0.40           // κέντρο σημάτων κάτω από κεφαλίδα
+  const gap = Math.min(W * 0.25, 540)         // απόσταση αριστερά/δεξιά
+  const leftX = cx - gap
+  const rightX = cx + gap
+  const nameMax = gap * 1.7
 
   // Θυρεοί
   crest(ctx, L(v.homeLogo), v.homeName, leftX, cy, size)
@@ -209,44 +214,45 @@ function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEle
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillStyle = COL.orange1
-  ctx.font = font(700, 128)
-  ctx.fillText('VS', S / 2, cy)
+  ctx.font = font(700, size * 0.46)
+  ctx.fillText('VS', cx, cy)
 
   // Ονόματα ομάδων
   ctx.textBaseline = 'alphabetic'
   ctx.fillStyle = COL.white
-  ctx.font = font(700, 50)
+  ctx.font = font(700, Math.min(size * 0.2, 58))
   ctx.textAlign = 'center'
-  ctx.fillText(fit(ctx, v.homeName.toUpperCase(), 400), leftX, cy + 240)
-  ctx.fillText(fit(ctx, v.awayName.toUpperCase(), 400), rightX, cy + 240)
+  const nameY = cy + size * 0.62 + 60
+  ctx.fillText(fit(ctx, v.homeName.toUpperCase(), nameMax), leftX, nameY)
+  ctx.fillText(fit(ctx, v.awayName.toUpperCase(), nameMax), rightX, nameY)
 
   // Πλαίσιο ημέρας/ώρας
   const info = [v.day, v.time].filter(Boolean).join('  ·  ').toUpperCase()
+  const infoY = nameY + 80
   if (info) {
-    ctx.font = font(700, 44)
+    ctx.font = font(700, 46)
     const w = ctx.measureText(info).width + 80
-    const h = 84
-    const x = S / 2 - w / 2
-    const y = 840
+    const h = 88
+    const x = cx - w / 2
     const g = ctx.createLinearGradient(x, 0, x + w, 0)
     g.addColorStop(0, COL.orange1)
     g.addColorStop(1, COL.orange2)
     ctx.fillStyle = g
-    roundRect(ctx, x, y, w, h, h / 2)
+    roundRect(ctx, x, infoY, w, h, h / 2)
     ctx.fill()
     ctx.fillStyle = COL.white
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText(info, S / 2, y + h / 2 + 2)
+    ctx.fillText(info, cx, infoY + h / 2 + 2)
   }
 
   // Γήπεδο
   if (v.field) {
     ctx.fillStyle = COL.blue
-    ctx.font = font(500, 36)
+    ctx.font = font(500, 38)
     ctx.textAlign = 'center'
     ctx.textBaseline = 'alphabetic'
-    ctx.fillText(`📍 ${v.field}`, S / 2, 972)
+    ctx.fillText(`📍 ${v.field}`, cx, infoY + 150)
   }
 }
 

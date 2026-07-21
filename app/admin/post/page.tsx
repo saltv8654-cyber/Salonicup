@@ -46,6 +46,7 @@ export default function AdminPost() {
   const [scope, setScope]         = useState<'round' | 'day'>('round')
   const [day, setDay]             = useState(() => athensDateKey(new Date().toISOString()))
   const [matchId, setMatchId]     = useState('')
+  const [format, setFormat]       = useState<'square' | 'story' | 'yt'>('square')
   const [busy, setBusy]           = useState(false)
   const [ready, setReady]         = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -159,7 +160,7 @@ export default function AdminPost() {
           : [],
         versus,
       }
-      await drawPost(canvasRef.current, data)
+      await drawPost(canvasRef.current, data, type === 'versus' ? { w: size.w, h: size.h } : undefined)
       setReady(true)
       toast.success('Έτοιμο! Κατέβασέ το.')
     } catch (e: any) {
@@ -185,6 +186,12 @@ export default function AdminPost() {
 
   if (load) return <Loading />
 
+  const SIZES = {
+    square: { w: 1080, h: 1080, label: 'Τετράγωνο' },
+    story:  { w: 1080, h: 1920, label: 'Story' },
+    yt:     { w: 1920, h: 1080, label: 'YouTube' },
+  } as const
+  const size = SIZES[format]
   const needsRound = type === 'schedule' || type === 'results'
   const matchOptions = matches.map((m: any) => ({
     value: m.match_id,
@@ -245,8 +252,23 @@ export default function AdminPost() {
         )}
 
         {type === 'versus' && (
-          <Select label="ΑΓΩΝΑΣ" value={matchId} onChange={setMatchId}
-            options={matchOptions} />
+          <>
+            <Select label="ΑΓΩΝΑΣ" value={matchId} onChange={setMatchId}
+              options={matchOptions} />
+            <div>
+              <label className="block text-[8.5px] font-extrabold text-dim
+                tracking-[0.12em] mb-1.5 pl-0.5">ΜΕΓΕΘΟΣ</label>
+              <div className="flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
+                {(['square', 'story', 'yt'] as const).map(f => (
+                  <button key={f} onClick={() => { setFormat(f); setReady(false) }}
+                    className={`flex-1 py-2.5 rounded-lg text-[12px] font-bold transition-colors
+                      ${format === f ? 'bg-brand text-chalk' : 'text-dim'}`}>
+                    {SIZES[f].label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
         )}
       </div>
 
@@ -264,7 +286,7 @@ export default function AdminPost() {
       <div className="mt-5">
         <canvas ref={canvasRef}
           className={`w-full rounded-2xl border border-chalk/[0.08] ${ready ? 'block' : 'hidden'}`}
-          style={{ aspectRatio: '1 / 1' }} />
+          style={{ aspectRatio: type === 'versus' ? `${size.w} / ${size.h}` : '1 / 1' }} />
         {ready && (
           <button onClick={download}
             className="w-full mt-3 py-3.5 rounded-xl bg-chalk/[0.06] text-chalk
