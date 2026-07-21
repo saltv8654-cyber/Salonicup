@@ -32,6 +32,7 @@ export interface Versus {
   homePos?: number; homePts?: number; homeForm?: ('W' | 'D' | 'L')[]
   awayPos?: number; awayPts?: number; awayForm?: ('W' | 'D' | 'L')[]
   theme?: ThemeId
+  sponsors?: string[]
 }
 
 export interface MatchRow {
@@ -129,6 +130,7 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
   d.standings.forEach((s) => { if (s.logo) teamUrls.add(s.logo) })
   if (d.versus?.homeLogo) teamUrls.add(d.versus.homeLogo)
   if (d.versus?.awayLogo) teamUrls.add(d.versus.awayLogo)
+  d.versus?.sponsors?.forEach((u) => { if (u) teamUrls.add(u) })
   const urls = [d.leagueLogo, ...Array.from(teamUrls)]
   const imgs = await Promise.all(urls.map(loadImg))
   const map = new Map<string, HTMLImageElement | null>()
@@ -292,12 +294,12 @@ function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEle
   const v = d.versus
   if (!v) return
   const cx = W / 2
-  const box = Math.min(W, H) * 0.26
+  const box = Math.min(W, H) * 0.24
   const offset = Math.min(W * 0.26, box + 100)
   const leftX = cx - offset
   const rightX = cx + offset
   const nameMax = offset * 1.55
-  const cy = H * 0.42
+  const cy = H * 0.37
 
   // Σήματα σε άσπρα πλαίσια + VS
   logoBox(ctx, L(v.homeLogo), v.homeName, leftX, cy, box, pal)
@@ -311,8 +313,8 @@ function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEle
   // Ονόματα + θέση
   ctx.textBaseline = 'alphabetic'
   ctx.textAlign = 'center'
-  const nameY = cy + box / 2 + 66
-  const nameSize = Math.min(box * 0.2, 54)
+  const nameY = cy + box / 2 + 62
+  const nameSize = Math.min(box * 0.22, 54)
 
   const team = (name: string, pos: number | undefined, x: number) => {
     ctx.fillStyle = COL.white
@@ -326,12 +328,13 @@ function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEle
   }
   team(v.homeName, v.homePos, leftX)
   team(v.awayName, v.awayPos, rightX)
+  const bottomOfTeams = nameY + (v.homePos != null || v.awayPos != null ? 48 : 0)
 
   // Γήπεδο · μέρα · ώρα ανάμεσα σε δύο οριζόντιες γραμμές
   const parts = [v.field ? `📍 ${v.field}` : '', v.day, v.time].filter(Boolean)
   const line = parts.join('   ·   ').toUpperCase()
+  const venueY = H - 150
   if (line) {
-    const vy = H - 170
     ctx.font = font(600, 38)
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
@@ -339,10 +342,45 @@ function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEle
     const ruleW = Math.min(W - 160, tw + 140)
     ctx.strokeStyle = pal.accent
     ctx.lineWidth = 3
-    ctx.beginPath(); ctx.moveTo(cx - ruleW / 2, vy - 40); ctx.lineTo(cx + ruleW / 2, vy - 40); ctx.stroke()
-    ctx.beginPath(); ctx.moveTo(cx - ruleW / 2, vy + 40); ctx.lineTo(cx + ruleW / 2, vy + 40); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(cx - ruleW / 2, venueY - 38); ctx.lineTo(cx + ruleW / 2, venueY - 38); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(cx - ruleW / 2, venueY + 38); ctx.lineTo(cx + ruleW / 2, venueY + 38); ctx.stroke()
     ctx.fillStyle = COL.white
-    ctx.fillText(line, cx, vy + 2)
+    ctx.fillText(line, cx, venueY + 2)
+  }
+
+  // Powered by — χορηγοί (λογότυπα σε άσπρα chips, το ένα κάτω από το άλλο)
+  const sImgs = (v.sponsors ?? []).map((u) => L(u)).filter(Boolean) as HTMLImageElement[]
+  if (sImgs.length) {
+    const chipH = 62, pad = 12, gap = 14, logoH = chipH - pad * 2
+    const labelGap = 18
+    const blockH = 22 + labelGap + sImgs.length * chipH + (sImgs.length - 1) * gap
+    const regionTop = bottomOfTeams + 40
+    const regionBottom = line ? venueY - 38 - 30 : venueY + 30
+    let y = regionTop + Math.max(0, (regionBottom - regionTop - blockH) / 2)
+
+    ctx.fillStyle = COL.dim
+    ctx.font = font(600, 20)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.save(); ;(ctx as any).letterSpacing = '4px'
+    ctx.fillText('POWERED BY', cx, y + 11)
+    ctx.restore()
+    y += 22 + labelGap
+
+    const maxChipW = W * 0.52
+    for (const img of sImgs) {
+      const ar = (img.width || 1) / (img.height || 1)
+      let lw = logoH * ar, lh = logoH
+      const maxLogoW = maxChipW - pad * 2
+      if (lw > maxLogoW) { lw = maxLogoW; lh = lw / ar }
+      const chipW = lw + pad * 2
+      const chipX = cx - chipW / 2
+      ctx.fillStyle = COL.white
+      roundRect(ctx, chipX, y, chipW, chipH, 14)
+      ctx.fill()
+      ctx.drawImage(img, cx - lw / 2, y + (chipH - lh) / 2, lw, lh)
+      y += chipH + gap
+    }
   }
 }
 

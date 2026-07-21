@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Loading } from '@/app/ui'
-import { Select } from '../ui'
+import { Select, LogoUpload } from '../ui'
 import { athensDateKey, fmtDay } from '@/lib/time'
 import toast from 'react-hot-toast'
 import { drawPost, THEMES, type PostType, type PostData, type DayGroup, type MatchRow, type ThemeId } from './canvas'
@@ -48,6 +48,17 @@ export default function AdminPost() {
   const [matchId, setMatchId]     = useState('')
   const [format, setFormat]       = useState<'square' | 'story' | 'yt'>('square')
   const [theme, setTheme]         = useState<ThemeId>('orange')
+  const [showSponsors, setShowSponsors] = useState(true)
+  const [sponsorA, setSponsorA]   = useState('')
+  const [sponsorB, setSponsorB]   = useState('')
+
+  // Λογότυπα χορηγών — αποθηκεύονται τοπικά ανά συσκευή
+  useEffect(() => {
+    setSponsorA(localStorage.getItem('sponsorA') || '')
+    setSponsorB(localStorage.getItem('sponsorB') || '')
+  }, [])
+  const saveSponsorA = (u: string) => { setSponsorA(u); localStorage.setItem('sponsorA', u); setReady(false) }
+  const saveSponsorB = (u: string) => { setSponsorB(u); localStorage.setItem('sponsorB', u); setReady(false) }
   const [busy, setBusy]           = useState(false)
   const [ready, setReady]         = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -155,6 +166,7 @@ export default function AdminPost() {
           homePos: sa?.position, homePts: sa?.points, homeForm: formOf(m.team_a),
           awayPos: sb?.position, awayPts: sb?.points, awayForm: formOf(m.team_b),
           theme,
+          sponsors: showSponsors ? [sponsorA, sponsorB].filter(Boolean) : [],
         }
       }
 
@@ -302,6 +314,29 @@ export default function AdminPost() {
                     {SIZES[f].label}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Χορηγοί */}
+            <div className="rounded-xl border border-chalk/[0.06] p-3 bg-turf/40">
+              <label className="flex items-center justify-between mb-2">
+                <span className="text-[8.5px] font-extrabold text-dim tracking-[0.12em]">
+                  ΧΟΡΗΓΟΙ (POWERED BY)
+                </span>
+                <button type="button" onClick={() => { setShowSponsors(v => !v); setReady(false) }}
+                  className={`text-[11px] font-bold px-2.5 py-1 rounded-full border
+                    ${showSponsors ? 'text-lit border-lit/40 bg-lit/10' : 'text-dim border-chalk/[0.1]'}`}>
+                  {showSponsors ? 'Ενεργοί' : 'Ανενεργοί'}
+                </button>
+              </label>
+              <p className="text-[10.5px] text-dim mb-2 leading-snug">
+                Ανέβασε τα λογότυπα μία φορά — αποθηκεύονται σε αυτή τη συσκευή.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <LogoUpload bucket="logos" url={sponsorA} onChange={saveSponsorA}
+                  fallback="🅰️" label="ΧΟΡΗΓΟΣ 1" />
+                <LogoUpload bucket="logos" url={sponsorB} onChange={saveSponsorB}
+                  fallback="🅱️" label="ΧΟΡΗΓΟΣ 2" />
               </div>
             </div>
           </>
