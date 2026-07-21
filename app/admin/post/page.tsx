@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Loading } from '@/app/ui'
 import { Select } from '../ui'
+import { athensDateKey, fmtDay } from '@/lib/time'
 import toast from 'react-hot-toast'
 import { drawPost, type PostType, type PostData, type DayGroup, type MatchRow } from './canvas'
 
@@ -41,6 +42,8 @@ export default function AdminPost() {
   const [matches, setMatches]     = useState<any[]>([])
   const [standings, setStandings] = useState<any[]>([])
   const [round, setRound]         = useState<string>('')
+  const [scope, setScope]         = useState<'round' | 'day'>('round')
+  const [day, setDay]             = useState(() => athensDateKey(new Date().toISOString()))
   const [busy, setBusy]           = useState(false)
   const [ready, setReady]         = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -80,9 +83,11 @@ export default function AdminPost() {
       ? ['Scheduled', 'Live']
       : ['Played', 'Forfeit']
     const list = matches
-      .filter(m => String(m.round) === round && wanted.includes(m.match_status))
+      .filter(m => wanted.includes(m.match_status) && (scope === 'day'
+        ? (m.match_date && athensDateKey(m.match_date) === day)
+        : String(m.round) === round))
       .sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
-      .slice(0, 5)
+      .slice(0, 6)
 
     const byDay = new Map<string, MatchRow[]>()
     for (const m of list) {
@@ -112,9 +117,13 @@ export default function AdminPost() {
     try {
       await ensureOswald()
       const typeLabel = TYPES.find(t => t.id === type)!.label
+      const season = leagueObj.season ?? ''
+      const dayLabel = day ? fmtDay(new Date(`${day}T12:00:00`).toISOString()) : ''
       const sub = type === 'standings'
-        ? (leagueObj.season ?? '')
-        : `Αγωνιστική ${round} · ${leagueObj.season ?? ''}`
+        ? season
+        : scope === 'day'
+        ? `${dayLabel} · ${season}`.trim()
+        : `Αγωνιστική ${round} · ${season}`
 
       const data: PostData = {
         type,
@@ -182,12 +191,39 @@ export default function AdminPost() {
         </div>
 
         {needsRound && (
-          <Select label="ΑΓΩΝΙΣΤΙΚΗ" value={round} onChange={setRound}
-            options={rounds.map(r => ({ value: String(r), label: `Αγωνιστική ${r}` }))} />
+          <>
+            <div>
+              <label className="block text-[8.5px] font-extrabold text-dim
+                tracking-[0.12em] mb-1.5 pl-0.5">ΕΥΡΟΣ</label>
+              <div className="flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
+                {(['round', 'day'] as const).map(s => (
+                  <button key={s} onClick={() => { setScope(s); setReady(false) }}
+                    className={`flex-1 py-2.5 rounded-lg text-[12.5px] font-bold transition-colors
+                      ${scope === s ? 'bg-brand text-chalk' : 'text-dim'}`}>
+                    {s === 'round' ? 'Ανά αγωνιστική' : 'Ανά ημέρα'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {scope === 'round' ? (
+              <Select label="ΑΓΩΝΙΣΤΙΚΗ" value={round} onChange={setRound}
+                options={rounds.map(r => ({ value: String(r), label: `Αγωνιστική ${r}` }))} />
+            ) : (
+              <div>
+                <label className="block text-[8.5px] font-extrabold text-dim
+                  tracking-[0.12em] mb-1.5 pl-0.5">ΗΜΕΡΑ</label>
+                <input type="date" value={day} onChange={e => { setDay(e.target.value); setReady(false) }}
+                  className="w-full bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-sm
+                    outline-none border border-chalk/[0.07] focus:border-lit/50" />
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      <button onClick={generate} disabled={busy || !league || (needsRound && !round)}
+      <button onClick={generate}
+        disabled={busy || !league || (needsRound && (scope === 'round' ? !round : !day))}
         className="w-full py-3.5 rounded-xl bg-gradient-to-b from-lit to-brand
           text-white font-extrabold text-[15px] disabled:opacity-40
           shadow-[0_4px_16px_rgba(224,91,31,0.3)]">
