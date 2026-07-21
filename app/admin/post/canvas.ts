@@ -17,13 +17,21 @@ const COL = {
 
 export type PostType = 'schedule' | 'results' | 'standings' | 'versus'
 
+/* Χρωματικά θέματα ανά πρωτάθλημα (accent + φόντο). */
+export type ThemeId = 'orange' | 'yellow' | 'miami'
+export const THEMES: Record<ThemeId, { label: string; accent: string; accent2: string; bgTop: string; bgBottom: string }> = {
+  orange: { label: 'Πορτοκαλί', accent: '#FF7A2F', accent2: '#E05B1F', bgTop: '#0e1830', bgBottom: '#0a1020' },
+  yellow: { label: 'Κίτρινο',   accent: '#F2C230', accent2: '#D8A21F', bgTop: '#1a1608', bgBottom: '#0e0c05' },
+  miami:  { label: 'Miami',     accent: '#ff2d95', accent2: '#d81f7a', bgTop: '#1a0d3d', bgBottom: '#0a0618' },
+}
+
 export interface Versus {
   homeName: string; homeLogo: string | null
   awayName: string; awayLogo: string | null
   day?: string; time?: string; field?: string
   homePos?: number; homePts?: number; homeForm?: ('W' | 'D' | 'L')[]
   awayPos?: number; awayPts?: number; awayForm?: ('W' | 'D' | 'L')[]
-  poweredBy?: string
+  theme?: ThemeId
 }
 
 export interface MatchRow {
@@ -127,17 +135,29 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
   urls.forEach((u, i) => { if (u) map.set(u, imgs[i]) })
   const L = (u: string | null) => (u ? map.get(u) ?? null : null)
 
+  /* παλέτα: θέμα ανά πρωτάθλημα μόνο στην Αναμέτρηση, αλλιώς πορτοκαλί */
+  const t = d.type === 'versus' && d.versus?.theme ? THEMES[d.versus.theme] : null
+  const pal = {
+    accent:   t?.accent ?? COL.orange1,
+    accent2:  t?.accent2 ?? COL.orange2,
+    bgTop:    t?.bgTop ?? COL.bgTop,
+    bgBottom: t?.bgBottom ?? COL.bgBottom,
+  }
+
   /* φόντο */
   const bg = ctx.createLinearGradient(0, 0, 0, H)
-  bg.addColorStop(0, COL.bgTop)
-  bg.addColorStop(1, COL.bgBottom)
+  bg.addColorStop(0, pal.bgTop)
+  bg.addColorStop(1, pal.bgBottom)
   ctx.fillStyle = bg
   ctx.fillRect(0, 0, W, H)
 
-  /* πορτοκαλί λωρίδα κορυφής */
+  /* διακριτική υφή φόντου (ομόκεντροι κύκλοι + διαγώνια τρίγωνα) */
+  if (d.type === 'versus') versusTexture(ctx, pal, W, H)
+
+  /* λωρίδα κορυφής (accent) */
   const strip = ctx.createLinearGradient(0, 0, W, 0)
-  strip.addColorStop(0, COL.orange1)
-  strip.addColorStop(1, COL.orange2)
+  strip.addColorStop(0, pal.accent)
+  strip.addColorStop(1, pal.accent2)
   ctx.fillStyle = strip
   ctx.fillRect(0, 0, W, 12)
 
@@ -147,12 +167,12 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
   const tx = PAD + 122
   ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
-  ctx.fillStyle = COL.orange1
+  ctx.fillStyle = pal.accent
   ctx.font = font(600, 26)
   ctx.fillText('SALONICUP', tx, 96)
   ctx.fillStyle = COL.white
   ctx.font = font(700, 52)
-  ctx.fillText(fit(ctx, d.leagueName.toUpperCase(), 620), tx, 150)
+  ctx.fillText(fit(ctx, d.leagueName.toUpperCase(), W - tx - 260), tx, 150)
   ctx.fillStyle = COL.blue
   ctx.font = font(500, 27)
   ctx.fillText(d.sub, tx, 188)
@@ -165,8 +185,8 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
   const pillH = 52
   const pillX = W - PAD - pillW
   const pill = ctx.createLinearGradient(pillX, 0, pillX + pillW, 0)
-  pill.addColorStop(0, COL.orange1)
-  pill.addColorStop(1, COL.orange2)
+  pill.addColorStop(0, pal.accent)
+  pill.addColorStop(1, pal.accent2)
   ctx.fillStyle = pill
   roundRect(ctx, pillX, 78, pillW, pillH, pillH / 2)
   ctx.fill()
@@ -184,7 +204,7 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
 
   /* ── σώμα ── */
   if (d.type === 'standings') drawStandings(ctx, d, L)
-  else if (d.type === 'versus') drawVersus(ctx, d, L, W, H)
+  else if (d.type === 'versus') drawVersus(ctx, d, L, W, H, pal)
   else drawMatches(ctx, d, L)
 
   /* υποσέλιδο */
@@ -217,65 +237,112 @@ function formPills(ctx: any, form: ('W' | 'D' | 'L')[], cx: number, y: number) {
   }
 }
 
-function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageElement | null, W: number, H: number) {
+type Pal = { accent: string; accent2: string; bgTop: string; bgBottom: string }
+
+/* Διακριτική υφή: δύο ομόκεντροι κύκλοι στο κέντρο + διαγώνια τρίγωνα στις άκρες. */
+function versusTexture(ctx: any, pal: Pal, W: number, H: number) {
+  const cx = W / 2
+  const cy = H * 0.42
+  const R = Math.min(W, H)
+  ctx.save()
+  // ομόκεντροι κύκλοι
+  ctx.strokeStyle = pal.accent
+  ctx.lineWidth = 3
+  ctx.globalAlpha = 0.07
+  ctx.beginPath(); ctx.arc(cx, cy, R * 0.36, 0, Math.PI * 2); ctx.stroke()
+  ctx.globalAlpha = 0.05
+  ctx.beginPath(); ctx.arc(cx, cy, R * 0.48, 0, Math.PI * 2); ctx.stroke()
+  // διαγώνια τρίγωνα στις γωνίες
+  ctx.fillStyle = pal.accent
+  ctx.globalAlpha = 0.05
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(W * 0.24, 0); ctx.lineTo(0, H * 0.15); ctx.closePath(); ctx.fill()
+  ctx.beginPath(); ctx.moveTo(W, H); ctx.lineTo(W - W * 0.24, H); ctx.lineTo(W, H - H * 0.15); ctx.closePath(); ctx.fill()
+  ctx.restore()
+}
+
+/* Σήμα ομάδας σε άσπρο στρογγυλεμένο πλαίσιο (contain). */
+function logoBox(ctx: any, img: HTMLImageElement | null, name: string, cx: number, cy: number, box: number, pal: Pal) {
+  ctx.save()
+  ctx.shadowColor = 'rgba(0,0,0,0.35)'
+  ctx.shadowBlur = 30
+  ctx.shadowOffsetY = 10
+  ctx.fillStyle = COL.white
+  roundRect(ctx, cx - box / 2, cy - box / 2, box, box, box * 0.2)
+  ctx.fill()
+  ctx.restore()
+
+  const pad = box * 0.16
+  const inner = box - pad * 2
+  if (img) {
+    const ar = (img.width || 1) / (img.height || 1)
+    let dw = inner, dh = inner
+    if (ar > 1) dh = inner / ar
+    else dw = inner * ar
+    ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh)
+  } else {
+    ctx.fillStyle = pal.accent
+    ctx.font = font(700, box * 0.5)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText((name?.[0] ?? '?').toUpperCase(), cx, cy + box * 0.02)
+  }
+}
+
+function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageElement | null, W: number, H: number, pal: Pal) {
   const v = d.versus
   if (!v) return
   const cx = W / 2
-  const size = Math.min(W, H) * 0.25
-  const gap = Math.min(W * 0.25, 540)
-  const leftX = cx - gap
-  const rightX = cx + gap
-  const nameMax = gap * 1.7
-  const cy = H * 0.44
+  const box = Math.min(W, H) * 0.26
+  const offset = Math.min(W * 0.26, box + 100)
+  const leftX = cx - offset
+  const rightX = cx + offset
+  const nameMax = offset * 1.55
+  const cy = H * 0.42
 
-  // Πλαίσιο ημέρας/ώρας (πάνω, κάτω από κεφαλίδα)
-  const info = [v.day, v.time].filter(Boolean).join('  ·  ').toUpperCase()
-  if (info) {
-    ctx.font = font(700, 44)
-    const w = ctx.measureText(info).width + 76
-    const h = 82
-    const x = cx - w / 2
-    const g = ctx.createLinearGradient(x, 0, x + w, 0)
-    g.addColorStop(0, COL.orange1)
-    g.addColorStop(1, COL.orange2)
-    ctx.fillStyle = g
-    roundRect(ctx, x, 250, w, h, h / 2)
-    ctx.fill()
-    ctx.fillStyle = COL.white
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(info, cx, 250 + h / 2 + 2)
-  }
-
-  // Θυρεοί + VS
-  crest(ctx, L(v.homeLogo), v.homeName, leftX, cy, size)
-  crest(ctx, L(v.awayLogo), v.awayName, rightX, cy, size)
+  // Σήματα σε άσπρα πλαίσια + VS
+  logoBox(ctx, L(v.homeLogo), v.homeName, leftX, cy, box, pal)
+  logoBox(ctx, L(v.awayLogo), v.awayName, rightX, cy, box, pal)
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.fillStyle = COL.orange1
-  ctx.font = font(700, size * 0.46)
+  ctx.fillStyle = pal.accent
+  ctx.font = font(700, box * 0.52)
   ctx.fillText('VS', cx, cy)
 
-  // Ονόματα
+  // Ονόματα + θέση
   ctx.textBaseline = 'alphabetic'
-  ctx.fillStyle = COL.white
-  ctx.font = font(700, Math.min(size * 0.22, 56))
   ctx.textAlign = 'center'
-  const nameY = cy + size * 0.62 + 62
-  ctx.fillText(fit(ctx, v.homeName.toUpperCase(), nameMax), leftX, nameY)
-  ctx.fillText(fit(ctx, v.awayName.toUpperCase(), nameMax), rightX, nameY)
+  const nameY = cy + box / 2 + 66
+  const nameSize = Math.min(box * 0.2, 54)
 
-  // Φόρμα (τελευταία 5)
-  if (v.homeForm?.length) formPills(ctx, v.homeForm, leftX, nameY + 40)
-  if (v.awayForm?.length) formPills(ctx, v.awayForm, rightX, nameY + 40)
+  const team = (name: string, pos: number | undefined, x: number) => {
+    ctx.fillStyle = COL.white
+    ctx.font = font(700, nameSize)
+    ctx.fillText(fit(ctx, name.toUpperCase(), nameMax), x, nameY)
+    if (pos != null) {
+      ctx.fillStyle = pal.accent
+      ctx.font = font(600, 34)
+      ctx.fillText(`${pos}η θέση`, x, nameY + 48)
+    }
+  }
+  team(v.homeName, v.homePos, leftX)
+  team(v.awayName, v.awayPos, rightX)
 
-  // Γήπεδο
-  if (v.field) {
-    ctx.fillStyle = COL.blue
-    ctx.font = font(500, 36)
+  // Γήπεδο · μέρα · ώρα ανάμεσα σε δύο οριζόντιες γραμμές
+  const parts = [v.field ? `📍 ${v.field}` : '', v.day, v.time].filter(Boolean)
+  const line = parts.join('   ·   ').toUpperCase()
+  if (line) {
+    const vy = H - 170
+    ctx.font = font(600, 38)
     ctx.textAlign = 'center'
-    ctx.textBaseline = 'alphabetic'
-    ctx.fillText(`📍 ${v.field}`, cx, H - 110)
+    ctx.textBaseline = 'middle'
+    const tw = ctx.measureText(line).width
+    const ruleW = Math.min(W - 160, tw + 140)
+    ctx.strokeStyle = pal.accent
+    ctx.lineWidth = 3
+    ctx.beginPath(); ctx.moveTo(cx - ruleW / 2, vy - 40); ctx.lineTo(cx + ruleW / 2, vy - 40); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(cx - ruleW / 2, vy + 40); ctx.lineTo(cx + ruleW / 2, vy + 40); ctx.stroke()
+    ctx.fillStyle = COL.white
+    ctx.fillText(line, cx, vy + 2)
   }
 }
 

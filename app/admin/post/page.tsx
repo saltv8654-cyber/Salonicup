@@ -5,7 +5,7 @@ import { Loading } from '@/app/ui'
 import { Select } from '../ui'
 import { athensDateKey, fmtDay } from '@/lib/time'
 import toast from 'react-hot-toast'
-import { drawPost, type PostType, type PostData, type DayGroup, type MatchRow } from './canvas'
+import { drawPost, THEMES, type PostType, type PostData, type DayGroup, type MatchRow, type ThemeId } from './canvas'
 
 const TYPES: { id: PostType; label: string }[] = [
   { id: 'schedule',  label: 'Πρόγραμμα' },
@@ -47,6 +47,7 @@ export default function AdminPost() {
   const [day, setDay]             = useState(() => athensDateKey(new Date().toISOString()))
   const [matchId, setMatchId]     = useState('')
   const [format, setFormat]       = useState<'square' | 'story' | 'yt'>('square')
+  const [theme, setTheme]         = useState<ThemeId>('orange')
   const [busy, setBusy]           = useState(false)
   const [ready, setReady]         = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -153,7 +154,7 @@ export default function AdminPost() {
           field: m.field ?? '',
           homePos: sa?.position, homePts: sa?.points, homeForm: formOf(m.team_a),
           awayPos: sb?.position, awayPts: sb?.points, awayForm: formOf(m.team_b),
-          poweredBy: 'Corpus · Experiment',
+          theme,
         }
       }
 
@@ -276,6 +277,22 @@ export default function AdminPost() {
               options={matchOptions} />
             <div>
               <label className="block text-[8.5px] font-extrabold text-dim
+                tracking-[0.12em] mb-1.5 pl-0.5">ΘΕΜΑ</label>
+              <div className="flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
+                {(Object.keys(THEMES) as ThemeId[]).map(id => (
+                  <button key={id} onClick={() => { setTheme(id); setReady(false) }}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg
+                      text-[12px] font-bold transition-colors
+                      ${theme === id ? 'bg-brand text-chalk' : 'text-dim'}`}>
+                    <span className="w-3 h-3 rounded-full inline-block"
+                      style={{ background: THEMES[id].accent }} />
+                    {THEMES[id].label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-[8.5px] font-extrabold text-dim
                 tracking-[0.12em] mb-1.5 pl-0.5">ΜΕΓΕΘΟΣ</label>
               <div className="flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
                 {(['square', 'story', 'yt'] as const).map(f => (
@@ -310,7 +327,7 @@ export default function AdminPost() {
           <button onClick={download}
             className="w-full mt-3 py-3.5 rounded-xl bg-chalk/[0.06] text-chalk
               font-extrabold text-[14px] border border-chalk/[0.08]">
-            ⬇︎ Κατέβασμα PNG (1080×1080)
+            ⬇︎ Κατέβασμα PNG ({type === 'versus' ? `${size.w}×${size.h}` : '1080×1080'})
           </button>
         )}
         {!ready && (
