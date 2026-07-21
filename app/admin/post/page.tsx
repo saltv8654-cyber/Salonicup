@@ -129,12 +129,31 @@ export default function AdminPost() {
         const m = matches.find(x => x.match_id === matchId)
         if (!m) { toast.error('Διάλεξε αγώνα'); setBusy(false); return }
         const dt = m.match_date ? new Date(m.match_date) : null
+
+        const formOf = (teamId: string): ('W' | 'D' | 'L')[] =>
+          matches
+            .filter(x => ['Played', 'Forfeit'].includes(x.match_status) &&
+              (x.team_a === teamId || x.team_b === teamId))
+            .sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
+            .slice(-5)
+            .map(x => {
+              const us = x.team_a === teamId
+              const gf = us ? x.goals_team_a : x.goals_team_b
+              const ga = us ? x.goals_team_b : x.goals_team_a
+              return gf > ga ? 'W' : gf < ga ? 'L' : 'D'
+            })
+        const st = (teamId: string) => standings.find((s: any) => s.team_id === teamId)
+        const sa = st(m.team_a), sb = st(m.team_b)
+
         versus = {
           homeName: m.team_a_data?.name ?? '—', homeLogo: m.team_a_data?.logo_url ?? null,
           awayName: m.team_b_data?.name ?? '—', awayLogo: m.team_b_data?.logo_url ?? null,
           day: dt ? fmtDay(m.match_date) : '',
           time: dt ? dt.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' }) : '',
           field: m.field ?? '',
+          homePos: sa?.position, homePts: sa?.points, homeForm: formOf(m.team_a),
+          awayPos: sb?.position, awayPts: sb?.points, awayForm: formOf(m.team_b),
+          poweredBy: 'Corpus · Experiment',
         }
       }
 

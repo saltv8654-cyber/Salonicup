@@ -21,6 +21,9 @@ export interface Versus {
   homeName: string; homeLogo: string | null
   awayName: string; awayLogo: string | null
   day?: string; time?: string; field?: string
+  homePos?: number; homePts?: number; homeForm?: ('W' | 'D' | 'L')[]
+  awayPos?: number; awayPts?: number; awayForm?: ('W' | 'D' | 'L')[]
+  poweredBy?: string
 }
 
 export interface MatchRow {
@@ -195,64 +198,104 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
   ctx.restore()
 }
 
+function formPills(ctx: any, form: ('W' | 'D' | 'L')[], cx: number, y: number) {
+  const n = form.length
+  if (!n) return
+  const s = 40, gapp = 8
+  const totalW = n * s + (n - 1) * gapp
+  let x = cx - totalW / 2
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  for (const r of form) {
+    ctx.fillStyle = r === 'W' ? '#2FA84F' : r === 'L' ? '#D8483C' : '#6B6B75'
+    roundRect(ctx, x, y, s, s, 8)
+    ctx.fill()
+    ctx.fillStyle = '#FFFFFF'
+    ctx.font = font(700, 22)
+    ctx.fillText(r === 'W' ? 'Ν' : r === 'L' ? 'Η' : 'Ι', x + s / 2, y + s / 2 + 1)
+    x += s + gapp
+  }
+}
+
 function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageElement | null, W: number, H: number) {
   const v = d.versus
   if (!v) return
   const cx = W / 2
-  const size = Math.min(W, H) * 0.27          // ίδιο μέγεθος σήματος σε όλα τα φορμά
-  const cy = 260 + (H - 260) * 0.40           // κέντρο σημάτων κάτω από κεφαλίδα
-  const gap = Math.min(W * 0.25, 540)         // απόσταση αριστερά/δεξιά
+  const size = Math.min(W, H) * 0.25
+  const gap = Math.min(W * 0.25, 540)
   const leftX = cx - gap
   const rightX = cx + gap
   const nameMax = gap * 1.7
+  const cy = H * 0.44
 
-  // Θυρεοί
+  // Πλαίσιο ημέρας/ώρας (πάνω, κάτω από κεφαλίδα)
+  const info = [v.day, v.time].filter(Boolean).join('  ·  ').toUpperCase()
+  if (info) {
+    ctx.font = font(700, 44)
+    const w = ctx.measureText(info).width + 76
+    const h = 82
+    const x = cx - w / 2
+    const g = ctx.createLinearGradient(x, 0, x + w, 0)
+    g.addColorStop(0, COL.orange1)
+    g.addColorStop(1, COL.orange2)
+    ctx.fillStyle = g
+    roundRect(ctx, x, 250, w, h, h / 2)
+    ctx.fill()
+    ctx.fillStyle = COL.white
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(info, cx, 250 + h / 2 + 2)
+  }
+
+  // Θυρεοί + VS
   crest(ctx, L(v.homeLogo), v.homeName, leftX, cy, size)
   crest(ctx, L(v.awayLogo), v.awayName, rightX, cy, size)
-
-  // VS στο κέντρο
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillStyle = COL.orange1
   ctx.font = font(700, size * 0.46)
   ctx.fillText('VS', cx, cy)
 
-  // Ονόματα ομάδων
+  // Ονόματα
   ctx.textBaseline = 'alphabetic'
   ctx.fillStyle = COL.white
-  ctx.font = font(700, Math.min(size * 0.2, 58))
+  ctx.font = font(700, Math.min(size * 0.22, 56))
   ctx.textAlign = 'center'
-  const nameY = cy + size * 0.62 + 60
+  const nameY = cy + size * 0.62 + 62
   ctx.fillText(fit(ctx, v.homeName.toUpperCase(), nameMax), leftX, nameY)
   ctx.fillText(fit(ctx, v.awayName.toUpperCase(), nameMax), rightX, nameY)
 
-  // Πλαίσιο ημέρας/ώρας
-  const info = [v.day, v.time].filter(Boolean).join('  ·  ').toUpperCase()
-  const infoY = nameY + 80
-  if (info) {
-    ctx.font = font(700, 46)
-    const w = ctx.measureText(info).width + 80
-    const h = 88
-    const x = cx - w / 2
-    const g = ctx.createLinearGradient(x, 0, x + w, 0)
-    g.addColorStop(0, COL.orange1)
-    g.addColorStop(1, COL.orange2)
-    ctx.fillStyle = g
-    roundRect(ctx, x, infoY, w, h, h / 2)
-    ctx.fill()
-    ctx.fillStyle = COL.white
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(info, cx, infoY + h / 2 + 2)
-  }
+  // Θέση / βαθμοί
+  ctx.font = font(600, 30)
+  ctx.fillStyle = COL.blue
+  const posLine = (pos?: number, pts?: number) =>
+    pos ? `${pos}η θέση · ${pts ?? 0} βαθ.` : ''
+  if (v.homePos) ctx.fillText(posLine(v.homePos, v.homePts), leftX, nameY + 46)
+  if (v.awayPos) ctx.fillText(posLine(v.awayPos, v.awayPts), rightX, nameY + 46)
+
+  // Φόρμα (τελευταία 5)
+  if (v.homeForm?.length) formPills(ctx, v.homeForm, leftX, nameY + 74)
+  if (v.awayForm?.length) formPills(ctx, v.awayForm, rightX, nameY + 74)
 
   // Γήπεδο
   if (v.field) {
     ctx.fillStyle = COL.blue
-    ctx.font = font(500, 38)
+    ctx.font = font(500, 36)
     ctx.textAlign = 'center'
     ctx.textBaseline = 'alphabetic'
-    ctx.fillText(`📍 ${v.field}`, cx, infoY + 150)
+    ctx.fillText(`📍 ${v.field}`, cx, H - 150)
+  }
+
+  // Powered by (χορηγοί)
+  if (v.poweredBy) {
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'alphabetic'
+    ctx.fillStyle = COL.dim
+    ctx.font = font(600, 24)
+    ctx.fillText('POWERED BY', cx, H - 100)
+    ctx.fillStyle = COL.white
+    ctx.font = font(700, 40)
+    ctx.fillText(v.poweredBy, cx, H - 62)
   }
 }
 
