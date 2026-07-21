@@ -265,17 +265,9 @@ function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEle
   ctx.fillText(fit(ctx, v.homeName.toUpperCase(), nameMax), leftX, nameY)
   ctx.fillText(fit(ctx, v.awayName.toUpperCase(), nameMax), rightX, nameY)
 
-  // Θέση / βαθμοί
-  ctx.font = font(600, 30)
-  ctx.fillStyle = COL.blue
-  const posLine = (pos?: number, pts?: number) =>
-    pos ? `${pos}η θέση · ${pts ?? 0} βαθ.` : ''
-  if (v.homePos) ctx.fillText(posLine(v.homePos, v.homePts), leftX, nameY + 46)
-  if (v.awayPos) ctx.fillText(posLine(v.awayPos, v.awayPts), rightX, nameY + 46)
-
   // Φόρμα (τελευταία 5)
-  if (v.homeForm?.length) formPills(ctx, v.homeForm, leftX, nameY + 74)
-  if (v.awayForm?.length) formPills(ctx, v.awayForm, rightX, nameY + 74)
+  if (v.homeForm?.length) formPills(ctx, v.homeForm, leftX, nameY + 40)
+  if (v.awayForm?.length) formPills(ctx, v.awayForm, rightX, nameY + 40)
 
   // Γήπεδο
   if (v.field) {
@@ -283,19 +275,7 @@ function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEle
     ctx.font = font(500, 36)
     ctx.textAlign = 'center'
     ctx.textBaseline = 'alphabetic'
-    ctx.fillText(`📍 ${v.field}`, cx, H - 150)
-  }
-
-  // Powered by (χορηγοί)
-  if (v.poweredBy) {
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'alphabetic'
-    ctx.fillStyle = COL.dim
-    ctx.font = font(600, 24)
-    ctx.fillText('POWERED BY', cx, H - 100)
-    ctx.fillStyle = COL.white
-    ctx.font = font(700, 40)
-    ctx.fillText(v.poweredBy, cx, H - 62)
+    ctx.fillText(`📍 ${v.field}`, cx, H - 110)
   }
 }
 
