@@ -31,7 +31,6 @@ export interface Versus {
   day?: string; time?: string; field?: string
   homePos?: number; homePts?: number; homeForm?: ('W' | 'D' | 'L')[]
   awayPos?: number; awayPts?: number; awayForm?: ('W' | 'D' | 'L')[]
-  theme?: ThemeId
 }
 
 export interface MatchRow {
@@ -56,6 +55,7 @@ export interface PostData {
   standings: StandRow[]
   versus?: Versus
   sponsors?: string[]
+  theme?: ThemeId
 }
 
 /* ── helpers ── */
@@ -72,6 +72,15 @@ function loadImg(url: string | null): Promise<HTMLImageElement | null> {
 
 function font(w: number, size: number) {
   return `${w} ${size}px Oswald, "Arial Narrow", sans-serif`
+}
+
+/* hex → rgba με διαφάνεια */
+function rgba(hex: string, a: number) {
+  const h = hex.replace('#', '')
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  return `rgba(${r},${g},${b},${a})`
 }
 
 function roundRect(ctx: any, x: number, y: number, w: number, h: number, r: number) {
@@ -137,8 +146,8 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
   urls.forEach((u, i) => { if (u) map.set(u, imgs[i]) })
   const L = (u: string | null) => (u ? map.get(u) ?? null : null)
 
-  /* παλέτα: θέμα ανά πρωτάθλημα μόνο στην Αναμέτρηση, αλλιώς πορτοκαλί */
-  const t = d.type === 'versus' && d.versus?.theme ? THEMES[d.versus.theme] : null
+  /* παλέτα: θέμα (accent + φόντο) για όλους τους τύπους */
+  const t = d.theme ? THEMES[d.theme] : null
   const pal = {
     accent:   t?.accent ?? COL.orange1,
     accent2:  t?.accent2 ?? COL.orange2,
@@ -154,7 +163,7 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
   ctx.fillRect(0, 0, W, H)
 
   /* διακριτική υφή φόντου (ομόκεντροι κύκλοι + διαγώνια τρίγωνα) */
-  if (d.type === 'versus') versusTexture(ctx, pal, W, H)
+  versusTexture(ctx, pal, W, H)
 
   /* λωρίδα κορυφής (accent) */
   const strip = ctx.createLinearGradient(0, 0, W, 0)
@@ -210,9 +219,9 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
 
   /* ── σώμα ── */
   const bodyBottom = hasSp ? H - 165 : H - 64
-  if (d.type === 'standings') drawStandings(ctx, d, L, bodyBottom)
+  if (d.type === 'standings') drawStandings(ctx, d, L, pal, bodyBottom)
   else if (d.type === 'versus') drawVersus(ctx, d, L, W, H, pal)
-  else drawMatches(ctx, d, L, bodyBottom)
+  else drawMatches(ctx, d, L, pal, bodyBottom)
 
   /* λωρίδα χορηγών (μη-Αναμέτρηση· η Αναμέτρηση τους ζωγραφίζει στοιβαγμένους) */
   if (hasSp && d.type !== 'versus') drawSponsorStrip(ctx, sImgs, W, H - 96)
@@ -418,7 +427,7 @@ function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEle
   }
 }
 
-function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageElement | null, bottom = S - 64) {
+function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageElement | null, pal: Pal, bottom = S - 64) {
   const PAD = 60
   const cardW = S - PAD * 2
   const total = d.groups.reduce((n, g) => n + g.matches.length, 0)
@@ -469,7 +478,7 @@ function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEl
         ctx.font = font(700, 46)
         ctx.fillText(m.score, S / 2, m.field ? cy - 12 : cy)
       } else {
-        ctx.fillStyle = COL.orange1
+        ctx.fillStyle = pal.accent
         ctx.font = font(700, 40)
         ctx.fillText(m.time ?? '', S / 2, m.field ? cy - 12 : cy)
       }
@@ -501,7 +510,7 @@ function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEl
   }
 }
 
-function drawStandings(ctx: any, d: PostData, L: (u: string | null) => HTMLImageElement | null, bottom = S - 64) {
+function drawStandings(ctx: any, d: PostData, L: (u: string | null) => HTMLImageElement | null, pal: Pal, bottom = S - 64) {
   const PAD = 60
   const rows = d.standings.slice(0, 10)
   const colB = S - PAD - 24
@@ -526,7 +535,7 @@ function drawStandings(ctx: any, d: PostData, L: (u: string | null) => HTMLImage
   ctx.fillText('Ι', colI, y)
   ctx.fillText('Η', colL, y)
   ctx.fillText('ΔΓ', colGD, y)
-  ctx.fillStyle = COL.orange1
+  ctx.fillStyle = pal.accent
   ctx.fillText('Β', colB, y)
 
   y = 286
@@ -536,13 +545,13 @@ function drawStandings(ctx: any, d: PostData, L: (u: string | null) => HTMLImage
     const top = y + i * rowH
     const cy = top + rowH / 2
     if (i === 0) {
-      ctx.fillStyle = COL.highlight
+      ctx.fillStyle = rgba(pal.accent, 0.2)
       roundRect(ctx, PAD - 4, top + 4, S - PAD * 2 + 8, rowH - 8, 12)
       ctx.fill()
     }
     ctx.textBaseline = 'middle'
     // θέση
-    ctx.fillStyle = i === 0 ? COL.orange1 : i < 3 ? COL.white : COL.dim
+    ctx.fillStyle = i === 0 ? pal.accent : i < 3 ? COL.white : COL.dim
     ctx.font = font(700, 30)
     ctx.textAlign = 'center'
     ctx.fillText(String(t.position), PAD + 22, cy)
@@ -562,7 +571,7 @@ function drawStandings(ctx: any, d: PostData, L: (u: string | null) => HTMLImage
     ctx.fillStyle = COL.dim
     ctx.fillText(String(t.draws), colI, cy)
     ctx.fillText(String(t.losses), colL, cy)
-    ctx.fillStyle = t.gd > 0 ? COL.orange1 : t.gd < 0 ? '#9E5148' : COL.dim
+    ctx.fillStyle = t.gd > 0 ? pal.accent : t.gd < 0 ? '#9E5148' : COL.dim
     ctx.fillText(t.gd > 0 ? `+${t.gd}` : String(t.gd), colGD, cy)
     ctx.fillStyle = COL.white
     ctx.font = font(700, 28)

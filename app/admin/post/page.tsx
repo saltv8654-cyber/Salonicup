@@ -165,7 +165,6 @@ export default function AdminPost() {
           field: m.field ?? '',
           homePos: sa?.position, homePts: sa?.points, homeForm: formOf(m.team_a),
           awayPos: sb?.position, awayPts: sb?.points, awayForm: formOf(m.team_b),
-          theme,
         }
       }
 
@@ -191,6 +190,7 @@ export default function AdminPost() {
           : [],
         versus,
         sponsors: showSponsors ? [sponsorA, sponsorB].filter(Boolean) : [],
+        theme,
       }
       await drawPost(canvasRef.current, data, type === 'versus' ? { w: size.w, h: size.h } : undefined)
       setReady(true)
@@ -283,26 +283,28 @@ export default function AdminPost() {
           </>
         )}
 
+        {/* ΘΕΜΑ — για όλους τους τύπους */}
+        <div>
+          <label className="block text-[8.5px] font-extrabold text-dim
+            tracking-[0.12em] mb-1.5 pl-0.5">ΘΕΜΑ</label>
+          <div className="flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
+            {(Object.keys(THEMES) as ThemeId[]).map(id => (
+              <button key={id} onClick={() => { setTheme(id); setReady(false) }}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg
+                  text-[12px] font-bold transition-colors
+                  ${theme === id ? 'bg-brand text-chalk' : 'text-dim'}`}>
+                <span className="w-3 h-3 rounded-full inline-block"
+                  style={{ background: THEMES[id].accent }} />
+                {THEMES[id].label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {type === 'versus' && (
           <>
             <Select label="ΑΓΩΝΑΣ" value={matchId} onChange={setMatchId}
               options={matchOptions} />
-            <div>
-              <label className="block text-[8.5px] font-extrabold text-dim
-                tracking-[0.12em] mb-1.5 pl-0.5">ΘΕΜΑ</label>
-              <div className="flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
-                {(Object.keys(THEMES) as ThemeId[]).map(id => (
-                  <button key={id} onClick={() => { setTheme(id); setReady(false) }}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg
-                      text-[12px] font-bold transition-colors
-                      ${theme === id ? 'bg-brand text-chalk' : 'text-dim'}`}>
-                    <span className="w-3 h-3 rounded-full inline-block"
-                      style={{ background: THEMES[id].accent }} />
-                    {THEMES[id].label}
-                  </button>
-                ))}
-              </div>
-            </div>
             <div>
               <label className="block text-[8.5px] font-extrabold text-dim
                 tracking-[0.12em] mb-1.5 pl-0.5">ΜΕΓΕΘΟΣ</label>
