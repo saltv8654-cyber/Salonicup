@@ -11,6 +11,7 @@ const TYPES: { id: PostType; label: string }[] = [
   { id: 'schedule',  label: 'Πρόγραμμα' },
   { id: 'results',   label: 'Αποτελέσματα' },
   { id: 'standings', label: 'Βαθμολογία' },
+  { id: 'versus',    label: 'Αναμέτρηση' },
 ]
 
 const DAY_FMT: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'numeric' }
@@ -44,6 +45,7 @@ export default function AdminPost() {
   const [round, setRound]         = useState<string>('')
   const [scope, setScope]         = useState<'round' | 'day'>('round')
   const [day, setDay]             = useState(() => athensDateKey(new Date().toISOString()))
+  const [matchId, setMatchId]     = useState('')
   const [busy, setBusy]           = useState(false)
   const [ready, setReady]         = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -119,7 +121,23 @@ export default function AdminPost() {
       const typeLabel = TYPES.find(t => t.id === type)!.label
       const season = leagueObj.season ?? ''
       const dayLabel = day ? fmtDay(new Date(`${day}T12:00:00`).toISOString()) : ''
-      const sub = type === 'standings'
+
+      // Αναμέτρηση (1vs1)
+      let versus: PostData['versus']
+      if (type === 'versus') {
+        const m = matches.find(x => x.match_id === matchId)
+        if (!m) { toast.error('Διάλεξε αγώνα'); setBusy(false); return }
+        const dt = m.match_date ? new Date(m.match_date) : null
+        versus = {
+          homeName: m.team_a_data?.name ?? '—', homeLogo: m.team_a_data?.logo_url ?? null,
+          awayName: m.team_b_data?.name ?? '—', awayLogo: m.team_b_data?.logo_url ?? null,
+          day: dt ? fmtDay(m.match_date) : '',
+          time: dt ? dt.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' }) : '',
+          field: m.field ?? '',
+        }
+      }
+
+      const sub = type === 'standings' || type === 'versus'
         ? season
         : scope === 'day'
         ? `${dayLabel} · ${season}`.trim()
@@ -131,7 +149,7 @@ export default function AdminPost() {
         sub,
         typeLabel,
         leagueLogo: leagueObj.logo_url ?? null,
-        groups: type === 'standings' ? [] : buildGroups(type),
+        groups: (type === 'schedule' || type === 'results') ? buildGroups(type) : [],
         standings: type === 'standings'
           ? standings.slice(0, 10).map((t: any) => ({
               position: t.position, name: t.team_name, logo: t.logo_url,
@@ -139,6 +157,7 @@ export default function AdminPost() {
               gd: t.goal_diff, points: t.points,
             }))
           : [],
+        versus,
       }
       await drawPost(canvasRef.current, data)
       setReady(true)
@@ -166,7 +185,11 @@ export default function AdminPost() {
 
   if (load) return <Loading />
 
-  const needsRound = type !== 'standings'
+  const needsRound = type === 'schedule' || type === 'results'
+  const matchOptions = matches.map((m: any) => ({
+    value: m.match_id,
+    label: `${m.team_a_data?.name ?? '—'} – ${m.team_b_data?.name ?? '—'}${m.match_date ? ' · ' + fmtDay(m.match_date) : ''}`,
+  }))
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
@@ -179,10 +202,10 @@ export default function AdminPost() {
         <div>
           <label className="block text-[8.5px] font-extrabold text-dim
             tracking-[0.12em] mb-1.5 pl-0.5">ΤΥΠΟΣ</label>
-          <div className="flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
+          <div className="grid grid-cols-2 gap-[3px] bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
             {TYPES.map(t => (
               <button key={t.id} onClick={() => { setType(t.id); setReady(false) }}
-                className={`flex-1 py-2.5 rounded-lg text-[12.5px] font-bold transition-colors
+                className={`py-2.5 rounded-lg text-[12.5px] font-bold transition-colors
                   ${type === t.id ? 'bg-brand text-chalk' : 'text-dim'}`}>
                 {t.label}
               </button>
@@ -220,10 +243,17 @@ export default function AdminPost() {
             )}
           </>
         )}
+
+        {type === 'versus' && (
+          <Select label="ΑΓΩΝΑΣ" value={matchId} onChange={setMatchId}
+            options={matchOptions} />
+        )}
       </div>
 
       <button onClick={generate}
-        disabled={busy || !league || (needsRound && (scope === 'round' ? !round : !day))}
+        disabled={busy || !league
+          || (needsRound && (scope === 'round' ? !round : !day))
+          || (type === 'versus' && !matchId)}
         className="w-full py-3.5 rounded-xl bg-gradient-to-b from-lit to-brand
           text-white font-extrabold text-[15px] disabled:opacity-40
           shadow-[0_4px_16px_rgba(224,91,31,0.3)]">

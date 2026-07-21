@@ -15,7 +15,13 @@ const COL = {
   highlight: 'rgba(224,91,31,0.22)',
 }
 
-export type PostType = 'schedule' | 'results' | 'standings'
+export type PostType = 'schedule' | 'results' | 'standings' | 'versus'
+
+export interface Versus {
+  homeName: string; homeLogo: string | null
+  awayName: string; awayLogo: string | null
+  day?: string; time?: string; field?: string
+}
 
 export interface MatchRow {
   homeName: string; homeLogo: string | null
@@ -37,6 +43,7 @@ export interface PostData {
   leagueLogo: string | null
   groups: DayGroup[]
   standings: StandRow[]
+  versus?: Versus
 }
 
 /* ── helpers ── */
@@ -107,6 +114,8 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData) {
     if (m.awayLogo) teamUrls.add(m.awayLogo)
   }))
   d.standings.forEach((s) => { if (s.logo) teamUrls.add(s.logo) })
+  if (d.versus?.homeLogo) teamUrls.add(d.versus.homeLogo)
+  if (d.versus?.awayLogo) teamUrls.add(d.versus.awayLogo)
   const urls = [d.leagueLogo, ...Array.from(teamUrls)]
   const imgs = await Promise.all(urls.map(loadImg))
   const map = new Map<string, HTMLImageElement | null>()
@@ -170,6 +179,7 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData) {
 
   /* ── σώμα ── */
   if (d.type === 'standings') drawStandings(ctx, d, L)
+  else if (d.type === 'versus') drawVersus(ctx, d, L)
   else drawMatches(ctx, d, L)
 
   /* υποσέλιδο */
@@ -181,6 +191,63 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData) {
   ;(ctx as any).letterSpacing = '4px'
   ctx.fillText('SALONICUP.GR', S / 2, S - 40)
   ctx.restore()
+}
+
+function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageElement | null) {
+  const v = d.versus
+  if (!v) return
+  const cy = 500
+  const size = 290
+  const leftX = 300
+  const rightX = S - 300
+
+  // Θυρεοί
+  crest(ctx, L(v.homeLogo), v.homeName, leftX, cy, size)
+  crest(ctx, L(v.awayLogo), v.awayName, rightX, cy, size)
+
+  // VS στο κέντρο
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillStyle = COL.orange1
+  ctx.font = font(700, 128)
+  ctx.fillText('VS', S / 2, cy)
+
+  // Ονόματα ομάδων
+  ctx.textBaseline = 'alphabetic'
+  ctx.fillStyle = COL.white
+  ctx.font = font(700, 50)
+  ctx.textAlign = 'center'
+  ctx.fillText(fit(ctx, v.homeName.toUpperCase(), 400), leftX, cy + 240)
+  ctx.fillText(fit(ctx, v.awayName.toUpperCase(), 400), rightX, cy + 240)
+
+  // Πλαίσιο ημέρας/ώρας
+  const info = [v.day, v.time].filter(Boolean).join('  ·  ').toUpperCase()
+  if (info) {
+    ctx.font = font(700, 44)
+    const w = ctx.measureText(info).width + 80
+    const h = 84
+    const x = S / 2 - w / 2
+    const y = 840
+    const g = ctx.createLinearGradient(x, 0, x + w, 0)
+    g.addColorStop(0, COL.orange1)
+    g.addColorStop(1, COL.orange2)
+    ctx.fillStyle = g
+    roundRect(ctx, x, y, w, h, h / 2)
+    ctx.fill()
+    ctx.fillStyle = COL.white
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(info, S / 2, y + h / 2 + 2)
+  }
+
+  // Γήπεδο
+  if (v.field) {
+    ctx.fillStyle = COL.blue
+    ctx.font = font(500, 36)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'alphabetic'
+    ctx.fillText(`📍 ${v.field}`, S / 2, 972)
+  }
 }
 
 function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageElement | null) {
