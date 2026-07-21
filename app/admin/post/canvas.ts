@@ -355,19 +355,14 @@ function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEle
   const nameY = cy + box / 2 + 62
   const nameSize = Math.min(box * 0.22, 54)
 
-  const team = (name: string, pos: number | undefined, x: number) => {
+  const team = (name: string, x: number) => {
     ctx.fillStyle = COL.white
     ctx.font = font(700, nameSize)
     ctx.fillText(fit(ctx, name.toUpperCase(), nameMax), x, nameY)
-    if (pos != null) {
-      ctx.fillStyle = pal.accent
-      ctx.font = font(600, 34)
-      ctx.fillText(`${pos}η θέση`, x, nameY + 48)
-    }
   }
-  team(v.homeName, v.homePos, leftX)
-  team(v.awayName, v.awayPos, rightX)
-  const bottomOfTeams = nameY + (v.homePos != null || v.awayPos != null ? 48 : 0)
+  team(v.homeName, leftX)
+  team(v.awayName, rightX)
+  const bottomOfTeams = nameY
 
   // Γήπεδο · μέρα · ώρα ανάμεσα σε δύο οριζόντιες γραμμές
   const parts = [v.field ? `📍 ${v.field}` : '', v.day, v.time].filter(Boolean)
