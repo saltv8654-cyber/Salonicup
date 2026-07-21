@@ -166,7 +166,6 @@ export default function AdminPost() {
           homePos: sa?.position, homePts: sa?.points, homeForm: formOf(m.team_a),
           awayPos: sb?.position, awayPts: sb?.points, awayForm: formOf(m.team_b),
           theme,
-          sponsors: showSponsors ? [sponsorA, sponsorB].filter(Boolean) : [],
         }
       }
 
@@ -191,6 +190,7 @@ export default function AdminPost() {
             }))
           : [],
         versus,
+        sponsors: showSponsors ? [sponsorA, sponsorB].filter(Boolean) : [],
       }
       await drawPost(canvasRef.current, data, type === 'versus' ? { w: size.w, h: size.h } : undefined)
       setReady(true)
@@ -316,31 +316,31 @@ export default function AdminPost() {
                 ))}
               </div>
             </div>
-
-            {/* Χορηγοί */}
-            <div className="rounded-xl border border-chalk/[0.06] p-3 bg-turf/40">
-              <label className="flex items-center justify-between mb-2">
-                <span className="text-[8.5px] font-extrabold text-dim tracking-[0.12em]">
-                  ΧΟΡΗΓΟΙ (POWERED BY)
-                </span>
-                <button type="button" onClick={() => { setShowSponsors(v => !v); setReady(false) }}
-                  className={`text-[11px] font-bold px-2.5 py-1 rounded-full border
-                    ${showSponsors ? 'text-lit border-lit/40 bg-lit/10' : 'text-dim border-chalk/[0.1]'}`}>
-                  {showSponsors ? 'Ενεργοί' : 'Ανενεργοί'}
-                </button>
-              </label>
-              <p className="text-[10.5px] text-dim mb-2 leading-snug">
-                Ανέβασε τα λογότυπα μία φορά — αποθηκεύονται σε αυτή τη συσκευή.
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <LogoUpload bucket="logos" url={sponsorA} onChange={saveSponsorA}
-                  fallback="🅰️" label="ΧΟΡΗΓΟΣ 1" />
-                <LogoUpload bucket="logos" url={sponsorB} onChange={saveSponsorB}
-                  fallback="🅱️" label="ΧΟΡΗΓΟΣ 2" />
-              </div>
-            </div>
           </>
         )}
+
+        {/* Χορηγοί — για όλους τους τύπους */}
+        <div className="rounded-xl border border-chalk/[0.06] p-3 bg-turf/40">
+          <label className="flex items-center justify-between mb-2">
+            <span className="text-[8.5px] font-extrabold text-dim tracking-[0.12em]">
+              ΧΟΡΗΓΟΙ (POWERED BY)
+            </span>
+            <button type="button" onClick={() => { setShowSponsors(v => !v); setReady(false) }}
+              className={`text-[11px] font-bold px-2.5 py-1 rounded-full border
+                ${showSponsors ? 'text-lit border-lit/40 bg-lit/10' : 'text-dim border-chalk/[0.1]'}`}>
+              {showSponsors ? 'Ενεργοί' : 'Ανενεργοί'}
+            </button>
+          </label>
+          <p className="text-[10.5px] text-dim mb-2 leading-snug">
+            Ανέβασε τα λογότυπα μία φορά — αποθηκεύονται σε αυτή τη συσκευή και μπαίνουν σε όλα τα γραφικά.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <LogoUpload bucket="logos" url={sponsorA} onChange={saveSponsorA}
+              fallback="🅰️" label="ΧΟΡΗΓΟΣ 1" />
+            <LogoUpload bucket="logos" url={sponsorB} onChange={saveSponsorB}
+              fallback="🅱️" label="ΧΟΡΗΓΟΣ 2" />
+          </div>
+        </div>
       </div>
 
       <button onClick={generate}

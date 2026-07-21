@@ -32,7 +32,6 @@ export interface Versus {
   homePos?: number; homePts?: number; homeForm?: ('W' | 'D' | 'L')[]
   awayPos?: number; awayPts?: number; awayForm?: ('W' | 'D' | 'L')[]
   theme?: ThemeId
-  sponsors?: string[]
 }
 
 export interface MatchRow {
@@ -56,6 +55,7 @@ export interface PostData {
   groups: DayGroup[]
   standings: StandRow[]
   versus?: Versus
+  sponsors?: string[]
 }
 
 /* ── helpers ── */
@@ -130,7 +130,7 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
   d.standings.forEach((s) => { if (s.logo) teamUrls.add(s.logo) })
   if (d.versus?.homeLogo) teamUrls.add(d.versus.homeLogo)
   if (d.versus?.awayLogo) teamUrls.add(d.versus.awayLogo)
-  d.versus?.sponsors?.forEach((u) => { if (u) teamUrls.add(u) })
+  d.sponsors?.forEach((u) => { if (u) teamUrls.add(u) })
   const urls = [d.leagueLogo, ...Array.from(teamUrls)]
   const imgs = await Promise.all(urls.map(loadImg))
   const map = new Map<string, HTMLImageElement | null>()
@@ -204,10 +204,18 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
   ctx.lineTo(W - PAD, 210)
   ctx.stroke()
 
+  /* χορηγοί (Powered by) */
+  const sImgs = (d.sponsors ?? []).map((u) => L(u)).filter(Boolean) as HTMLImageElement[]
+  const hasSp = sImgs.length > 0
+
   /* ── σώμα ── */
-  if (d.type === 'standings') drawStandings(ctx, d, L)
+  const bodyBottom = hasSp ? H - 165 : H - 64
+  if (d.type === 'standings') drawStandings(ctx, d, L, bodyBottom)
   else if (d.type === 'versus') drawVersus(ctx, d, L, W, H, pal)
-  else drawMatches(ctx, d, L)
+  else drawMatches(ctx, d, L, bodyBottom)
+
+  /* λωρίδα χορηγών (μη-Αναμέτρηση· η Αναμέτρηση τους ζωγραφίζει στοιβαγμένους) */
+  if (hasSp && d.type !== 'versus') drawSponsorStrip(ctx, sImgs, W, H - 96)
 
   /* υποσέλιδο */
   ctx.fillStyle = COL.dim
@@ -218,6 +226,37 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
   ;(ctx as any).letterSpacing = '4px'
   ctx.fillText('SALONICUP.GR', W / 2, H - 40)
   ctx.restore()
+}
+
+/* Οριζόντια λωρίδα χορηγών: λογότυπα σε άσπρα chips δίπλα-δίπλα. */
+function drawSponsorStrip(ctx: any, imgs: HTMLImageElement[], W: number, cy: number) {
+  const n = imgs.length
+  const pad = 12, gap = 20, chipH = 62, logoH = chipH - pad * 2
+  const maxLogoW = (W - 220) / n - gap
+  const chips = imgs.map((img) => {
+    const ar = (img.width || 1) / (img.height || 1)
+    let lw = logoH * ar, lh = logoH
+    if (lw > maxLogoW) { lw = maxLogoW; lh = lw / ar }
+    return { img, lw, lh, cw: lw + pad * 2 }
+  })
+  const total = chips.reduce((s, c) => s + c.cw, 0) + gap * (n - 1)
+
+  ctx.fillStyle = COL.dim
+  ctx.font = font(600, 18)
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.save(); ;(ctx as any).letterSpacing = '3px'
+  ctx.fillText('POWERED BY', W / 2, cy - chipH / 2 - 16)
+  ctx.restore()
+
+  let x = W / 2 - total / 2
+  for (const c of chips) {
+    ctx.fillStyle = COL.white
+    roundRect(ctx, x, cy - chipH / 2, c.cw, chipH, 14)
+    ctx.fill()
+    ctx.drawImage(c.img, x + (c.cw - c.lw) / 2, cy - c.lh / 2, c.lw, c.lh)
+    x += c.cw + gap
+  }
 }
 
 function formPills(ctx: any, form: ('W' | 'D' | 'L')[], cx: number, y: number) {
@@ -349,7 +388,7 @@ function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEle
   }
 
   // Powered by — χορηγοί (λογότυπα σε άσπρα chips, το ένα κάτω από το άλλο)
-  const sImgs = (v.sponsors ?? []).map((u) => L(u)).filter(Boolean) as HTMLImageElement[]
+  const sImgs = (d.sponsors ?? []).map((u) => L(u)).filter(Boolean) as HTMLImageElement[]
   if (sImgs.length) {
     const chipH = 62, pad = 12, gap = 14, logoH = chipH - pad * 2
     const labelGap = 18
@@ -384,14 +423,21 @@ function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEle
   }
 }
 
-function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageElement | null) {
+function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageElement | null, bottom = S - 64) {
   const PAD = 60
   const cardW = S - PAD * 2
   const total = d.groups.reduce((n, g) => n + g.matches.length, 0)
-  const cardH = 96
+  const nDays = d.groups.length
   const gap = 14
   const dayH = 54
-  let y = 260
+  const top = 260
+  // ύψος κάρτας ώστε να χωράνε όλες πάνω από το υποσέλιδο/χορηγούς
+  let cardH = 96
+  const needed = nDays * dayH + total * (cardH + gap) + nDays * 6
+  if (needed > bottom - top) {
+    cardH = Math.max(60, (bottom - top - nDays * dayH - total * gap - nDays * 6) / Math.max(total, 1))
+  }
+  let y = top
 
   d.groups.forEach((g) => {
     // τίτλος ημέρας (μπλε, κεντραρισμένος)
@@ -460,7 +506,7 @@ function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEl
   }
 }
 
-function drawStandings(ctx: any, d: PostData, L: (u: string | null) => HTMLImageElement | null) {
+function drawStandings(ctx: any, d: PostData, L: (u: string | null) => HTMLImageElement | null, bottom = S - 64) {
   const PAD = 60
   const rows = d.standings.slice(0, 10)
   const colB = S - PAD - 24
@@ -489,7 +535,7 @@ function drawStandings(ctx: any, d: PostData, L: (u: string | null) => HTMLImage
   ctx.fillText('Β', colB, y)
 
   y = 286
-  const rowH = Math.min(70, (940 - y) / Math.max(rows.length, 1))
+  const rowH = Math.min(70, (bottom - y) / Math.max(rows.length, 1))
 
   rows.forEach((t, i) => {
     const top = y + i * rowH
