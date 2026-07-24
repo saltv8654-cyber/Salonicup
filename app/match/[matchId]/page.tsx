@@ -7,6 +7,8 @@ import { useLiveMatch } from '@/lib/hooks/useLiveMatch'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { Watermark, Crest, Avatar, LiveDot, SectionLabel, Loading, Empty } from '@/app/ui'
 import { PERIODS, EVENTS, fmtMinute, absMinute } from '@/lib/match'
+import { clockLabel } from '@/lib/clock'
+import { useNow } from '@/lib/hooks/useNow'
 import toast from 'react-hot-toast'
 import type { Period } from '@/lib/types'
 
@@ -16,6 +18,7 @@ export default function PublicMatch() {
   const { isSpeaker, isAdmin } = useAuth()
   const { match, events, loading } = useLiveMatch(matchId as string)
   const supabase = createClient()
+  const now = useNow(1000)
 
   // Συνθέσεις: φέρνουμε τα στοιχεία των παικτών από τα squad_a/squad_b
   const [squad, setSquad] = useState<any[]>([])
@@ -48,6 +51,7 @@ export default function PublicMatch() {
   const live = match.match_status === 'Live'
   const done = ['Played', 'Forfeit'].includes(match.match_status)
   const hasPens = match.pens_team_a > 0 || match.pens_team_b > 0
+  const clk = clockLabel(match.clock_period, match.clock_started_at, now)
   const place = [match.venue?.name, match.field].filter(Boolean).join(' · ')
 
   // Γκολ ανά παίκτη (για σήμανση στη σύνθεση)
@@ -122,7 +126,16 @@ export default function PublicMatch() {
                 </div>
               )}
               <div className="mt-2">
-                {live ? <LiveDot /> : (
+                {live ? (
+                  <div className="flex items-center justify-center gap-1.5">
+                    <LiveDot />
+                    {clk && (
+                      <span className="text-[12px] font-extrabold text-live tnum leading-none">
+                        {clk}
+                      </span>
+                    )}
+                  </div>
+                ) : (
                   <span className="text-[9px] font-extrabold text-dim tracking-[0.14em]">
                     {done ? 'ΤΕΛΙΚΟ' : 'ΠΡΟΓΡΑΜΜΑΤΙΣΜΕΝΟΣ'}
                   </span>

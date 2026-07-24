@@ -8,6 +8,8 @@ import { Watermark, Crest, Avatar, LiveDot, SectionLabel, Loading } from '@/app/
 import {
   PERIODS, EVENTS, PLAY_EVENTS, PEN_EVENTS, fmtMinute, absMinute, toRelativeMinute,
 } from '@/lib/match'
+import { clockLabel, clockRel, isRunning } from '@/lib/clock'
+import { useNow } from '@/lib/hooks/useNow'
 import ReportSheet from './report'
 import { notifyPush } from '@/lib/push'
 import toast from 'react-hot-toast'
@@ -44,10 +46,31 @@ export default function SpeakerPanel() {
   const [chained, setChained] = useState(false)
   const [report, setReport]   = useState(false)
   const [saving, setSaving]   = useState(false)
+  const [clockBusy, setClockBusy] = useState(false)
+  const now = useNow(1000)
 
   useEffect(() => {
     if (!authLoading && !isSpeaker) router.replace('/')
   }, [authLoading, isSpeaker])
+
+  // Το ημίχρονο ακολουθεί αυτόματα το ζωντανό χρονόμετρο
+  useEffect(() => {
+    if (isRunning(match?.clock_period)) setPeriod(match.clock_period as Period)
+  }, [match?.clock_period])
+
+  // Έλεγχος χρονομέτρου: cp = φάση, started = αν τρέχει
+  async function setClock(cp: string | null, started: boolean) {
+    if (!match) return
+    setClockBusy(true)
+    const payload: any = {
+      clock_period: cp,
+      clock_started_at: started ? new Date().toISOString() : null,
+    }
+    if (cp && match.match_status === 'Scheduled') payload.match_status = 'Live'
+    const { error } = await supabase.from('matches').update(payload).eq('match_id', match.match_id)
+    setClockBusy(false)
+    if (error) toast.error('Το χρονόμετρο χρειάζεται ενημέρωση βάσης')
+  }
 
   // Σχόλια παικτών (μόνο γι' αυτό το ματς) — αρχικοποίηση μία φορά ανά ματς
   useEffect(() => {
@@ -139,8 +162,11 @@ export default function SpeakerPanel() {
   async function commit(playerId: string) {
     if (!pending) return
     const wasGoal = pending === 'GOAL' && period !== 'PEN'
+    // Αν δεν γράφτηκε λεπτό, πάρ' το από το ζωντανό χρονόμετρο
+    const fromClock = isRunning(match.clock_period) && match.clock_started_at
+      ? clockRel(match.clock_started_at) : null
     const min = period === 'PEN' ? null
-      : (minute ? toRelativeMinute(period, parseInt(minute)) : null)
+      : (minute ? toRelativeMinute(period, parseInt(minute)) : fromClock)
 
     const { error } = await supabase.from('events').insert({
       match_id:   match.match_id,
@@ -266,7 +292,11 @@ export default function SpeakerPanel() {
         />
       ) : (
         <>
-          <div className="px-3.5 pt-4 pb-3 shrink-0">
+          <div className="px-3.5 pt-3.5 shrink-0">
+            <ClockBar cp={match.clock_period} startedAt={match.clock_started_at}
+              now={now} busy={clockBusy} onSet={setClock} />
+          </div>
+          <div className="px-3.5 pt-3 pb-3 shrink-0">
             {/* Περίοδος */}
             <div className="flex bg-turf rounded-xl p-[3px] mb-2.5
               border border-chalk/[0.05]">
@@ -464,6 +494,58 @@ export default function SpeakerPanel() {
 }
 
 /* ── Ομάδα στο scoreboard ── */
+/* ── Χρονόμετρο αγώνα ── */
+function ClockBar({ cp, startedAt, now, busy, onSet }: {
+  cp: string | null; startedAt: string | null; now: number; busy: boolean
+  onSet: (cp: string | null, started: boolean) => void
+}) {
+  const label = clockLabel(cp, startedAt, now)
+  const running = isRunning(cp)
+
+  const Big = ({ children, onClick, tone = 'go' }: {
+    children: React.ReactNode; onClick: () => void; tone?: 'go' | 'stop' | 'soft'
+  }) => (
+    <button onClick={onClick} disabled={busy}
+      className={`flex-1 py-3 rounded-xl text-[13px] font-extrabold disabled:opacity-50
+        ${tone === 'go' ? 'bg-brand text-chalk'
+          : tone === 'stop' ? 'bg-danger/15 text-danger'
+          : 'bg-turf border border-chalk/[0.08] text-silver'}`}>
+      {children}
+    </button>
+  )
+
+  return (
+    <div className="flex items-center gap-2 rounded-xl bg-turf border border-chalk/[0.06] p-2">
+      {/* Ένδειξη */}
+      <div className="shrink-0 w-[74px] text-center">
+        {running ? (
+          <div className="flex items-center justify-center gap-1.5">
+            <LiveDot />
+            <span className="text-[18px] font-extrabold text-chalk tnum leading-none">{label}</span>
+          </div>
+        ) : (
+          <span className="text-[12px] font-extrabold text-dim tracking-[0.12em]">
+            {label ?? '—'}
+          </span>
+        )}
+      </div>
+
+      {/* Κουμπιά ανάλογα με τη φάση */}
+      <div className="flex-1 flex gap-2">
+        {!cp && <Big onClick={() => onSet('H1', true)}>▶ Έναρξη Α΄</Big>}
+        {cp === 'H1' && <Big tone="stop" onClick={() => onSet('HT', false)}>⏸ Ημίχρονο</Big>}
+        {cp === 'HT' && <Big onClick={() => onSet('H2', true)}>▶ Έναρξη Β΄</Big>}
+        {cp === 'H2' && <>
+          <Big tone="soft" onClick={() => onSet('ET', true)}>Παράταση</Big>
+          <Big tone="stop" onClick={() => onSet('FT', false)}>⏹ Λήξη</Big>
+        </>}
+        {cp === 'ET' && <Big tone="stop" onClick={() => onSet('FT', false)}>⏹ Λήξη</Big>}
+        {cp === 'FT' && <Big tone="soft" onClick={() => onSet(null, false)}>↺ Επαναφορά</Big>}
+      </div>
+    </div>
+  )
+}
+
 function Badge({ team, n }: { team: any; n: number }) {
   return (
     <div className="flex-1 min-w-0 flex flex-col items-center gap-1.5">

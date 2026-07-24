@@ -3,15 +3,18 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { LiveDot } from '@/app/ui'
+import { clockLabel } from '@/lib/clock'
+import { useNow } from '@/lib/hooks/useNow'
 
 /** Κορδέλα με τους αγώνες που παίζονται τώρα — ζωντανή ενημέρωση. */
 export default function LiveTicker() {
   const supabase = createClient()
   const [live, setLive] = useState<any[]>([])
+  const now = useNow(1000)
 
   async function fetchLive() {
     const { data } = await supabase.from('matches')
-      .select('match_id, goals_team_a, goals_team_b, team_a_data:team_a(name), team_b_data:team_b(name)')
+      .select('*, team_a_data:team_a(name), team_b_data:team_b(name)')
       .eq('match_status', 'Live')
       .order('match_date')
     setLive(data ?? [])
@@ -48,6 +51,11 @@ export default function LiveTicker() {
               <span className="text-[11.5px] font-semibold text-chalk truncate max-w-[78px]">
                 {m.team_b_data?.name}
               </span>
+              {clockLabel(m.clock_period, m.clock_started_at, now) && (
+                <span className="text-[10px] font-extrabold text-live/90 tnum shrink-0">
+                  {clockLabel(m.clock_period, m.clock_started_at, now)}
+                </span>
+              )}
             </Link>
           ))}
         </div>
