@@ -188,18 +188,19 @@ export default function PublicMatch() {
       <div className="px-3.5 pt-4">
         <SectionLabel>Περιγραφή</SectionLabel>
 
-        {!events.length ? (
+        {!events.length && !(match.subs?.length) ? (
           <Empty>Δεν υπάρχουν φάσεις ακόμα.</Empty>
         ) : (
           <div className="flex flex-col gap-2.5">
             {PERIODS.slice().reverse().map(P => {
-              const list = events
+              const evs = events
                 .filter(e => (e.period ?? 'H1') === P.id)
-                .sort((a, b) =>
-                  absMinute(b.period as Period, b.minute) -
-                  absMinute(a.period as Period, a.minute))
-
-              if (!list.length) return null
+                .map(e => ({ kind: 'event' as const, e, min: absMinute(P.id, e.minute) }))
+              const sbs = (match.subs ?? [])
+                .filter((s: any) => (s.period ?? 'H1') === P.id)
+                .map((s: any) => ({ kind: 'sub' as const, s, min: absMinute(P.id, s.minute) }))
+              const all = [...evs, ...sbs].sort((a, b) => b.min - a.min)
+              if (!all.length) return null
 
               return (
                 <div key={P.id}>
@@ -208,7 +209,8 @@ export default function PublicMatch() {
                     {P.label.toUpperCase()}
                   </p>
                   <div className="flex flex-col gap-1">
-                    {list.map(e => {
+                    {all.map(item => item.kind === 'event' ? (() => {
+                      const e = item.e
                       const cfg  = EVENTS[e.event_type as keyof typeof EVENTS]
                       const home = e.team_id === match.team_a
                       return (
@@ -233,7 +235,25 @@ export default function PublicMatch() {
                           <span className="text-dim text-xs shrink-0">›</span>
                         </Link>
                       )
-                    })}
+                    })() : (
+                      <div key={`sub-${item.s.ts}`}
+                        className="bg-turf rounded-lg px-3 py-2.5 flex items-center gap-3
+                          border border-chalk/[0.04]"
+                        style={{ borderLeft: `3px solid ${item.s.side === 'a' ? '#E05B1F' : '#63636E'}` }}>
+                        <span className="text-xs font-extrabold text-silver w-9 shrink-0 tnum">
+                          {fmtMinute(P.id, item.s.minute)}
+                        </span>
+                        <span className="text-base shrink-0">🔄</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-semibold text-chalk truncate">
+                            <span className="text-lit">▲ {byIdAll[item.s.in]?.full_name ?? '—'}</span>
+                          </p>
+                          <p className="text-[10px] text-dim truncate">
+                            ▼ {byIdAll[item.s.out]?.full_name ?? '—'} · {item.s.side === 'a' ? match.team_a_data?.name : match.team_b_data?.name}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )

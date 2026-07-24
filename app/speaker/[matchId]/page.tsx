@@ -168,6 +168,7 @@ export default function SpeakerPanel() {
   // Γήπεδο (ζωντανά): θέσεις από τη διάταξη + πάγκος
   const byIdA: Record<string, Player> = Object.fromEntries(rosterA.map(p => [p.player_id, p]))
   const byIdB: Record<string, Player> = Object.fromEntries(rosterB.map(p => [p.player_id, p]))
+  const allById: Record<string, Player> = { ...byIdA, ...byIdB }
   const startersLiveA = (match.lineup_a ?? []).filter(Boolean) as string[]
   const startersLiveB = (match.lineup_b ?? []).filter(Boolean) as string[]
   const benchLiveA = activeA.filter(p => !startersLiveA.includes(p.player_id))
@@ -278,6 +279,15 @@ export default function SpeakerPanel() {
     const col = evSide === 'a' ? 'lineup_a' : 'lineup_b'
     const { error } = await supabase.from('matches').update({ [col]: nl }).eq('match_id', match.match_id)
     if (error) { toast.error('Δεν καταχωρήθηκε η αλλαγή'); return }
+
+    // Καταγραφή στο ιστορικό (χρειάζεται στήλη subs· αν λείπει, αγνοείται)
+    const fromClock = isRunning(match.clock_period) && match.clock_started_at
+      ? clockRel(match.clock_started_at) : null
+    const min = period === 'PEN' ? null
+      : (minute ? toRelativeMinute(period, parseInt(minute)) : fromClock)
+    const rec = { side: evSide, out: outPid, in: inPid, period, minute: min, ts: Date.now() }
+    await supabase.from('matches').update({ subs: [...(match.subs ?? []), rec] }).eq('match_id', match.match_id)
+
     const inName = (evSide === 'a' ? byIdA : byIdB)[inPid]?.full_name ?? ''
     toast.success(`Αλλαγή: μπαίνει ${inName}`)
   }
@@ -542,19 +552,21 @@ export default function SpeakerPanel() {
                 </button>
               )}
             </div>
-            {!events.length ? (
+            {!events.length && !(match.subs?.length) ? (
               <p className="text-dim text-[13px] text-center py-9">
                 Πάτα παίκτη για να καταχωρήσεις φάση.
               </p>
             ) : (
               <div className="flex flex-col gap-2.5">
                 {PERIODS.slice().reverse().map(P => {
-                  const list = events
+                  const evs = events
                     .filter(e => (e.period ?? 'H1') === P.id)
-                    .sort((a, b) =>
-                      absMinute(b.period as Period, b.minute) -
-                      absMinute(a.period as Period, a.minute))
-                  if (!list.length) return null
+                    .map(e => ({ kind: 'event' as const, e, min: absMinute(P.id, e.minute) }))
+                  const sbs = (match.subs ?? [])
+                    .filter((s: any) => (s.period ?? 'H1') === P.id)
+                    .map((s: any) => ({ kind: 'sub' as const, s, min: absMinute(P.id, s.minute) }))
+                  const all = [...evs, ...sbs].sort((a, b) => b.min - a.min)
+                  if (!all.length) return null
 
                   return (
                     <div key={P.id}>
@@ -563,7 +575,8 @@ export default function SpeakerPanel() {
                         {P.label.toUpperCase()}
                       </p>
                       <div className="flex flex-col gap-1">
-                        {list.map(e => {
+                        {all.map(item => item.kind === 'event' ? (() => {
+                          const e = item.e
                           const cfg  = EVENTS[e.event_type as EventType]
                           const home = e.team_id === match.team_a
                           return (
@@ -593,7 +606,24 @@ export default function SpeakerPanel() {
                               </button>
                             </div>
                           )
-                        })}
+                        })() : (
+                          <div key={`sub-${item.s.ts}`}
+                            className="bg-turf rounded-lg px-3 py-2.5 flex items-center gap-3"
+                            style={{ borderLeft: `3px solid ${item.s.side === 'a' ? '#E05B1F' : '#63636E'}` }}>
+                            <span className="text-xs font-extrabold text-silver w-9 shrink-0 tnum">
+                              {fmtMinute(P.id, item.s.minute)}
+                            </span>
+                            <span className="text-base shrink-0">🔄</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[13px] font-semibold text-chalk truncate">
+                                <span className="text-lit">▲ {allById[item.s.in]?.full_name ?? '—'}</span>
+                              </p>
+                              <p className="text-[10px] text-dim truncate">
+                                ▼ {allById[item.s.out]?.full_name ?? '—'}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )
