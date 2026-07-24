@@ -367,31 +367,35 @@ export default function SpeakerPanel() {
               ))}
             </div>
 
-            {period !== 'PEN' ? (
-              <div className="flex items-center gap-2">
-                <input
-                  value={minute}
-                  onChange={e => setMinute(e.target.value.replace(/\D/g, ''))}
-                  inputMode="numeric" placeholder="Λεπτό (αυτόματο από χρονόμετρο)"
-                  className="flex-1 bg-turf rounded-xl px-3 py-2.5 text-chalk
-                    text-[13px] font-bold text-center tnum outline-none
-                    border border-chalk/[0.07] focus:border-lit/50
-                    placeholder:text-off placeholder:font-normal"
-                />
-                {minute && (
-                  <span className="text-[11px] font-bold text-lit shrink-0">
-                    → {fmtMinute(period, toRelativeMinute(period, parseInt(minute)))}
-                  </span>
+            {entryView !== 'pitch' && (
+              <>
+                {period !== 'PEN' ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={minute}
+                      onChange={e => setMinute(e.target.value.replace(/\D/g, ''))}
+                      inputMode="numeric" placeholder="Λεπτό (αυτόματο από χρονόμετρο)"
+                      className="flex-1 bg-turf rounded-xl px-3 py-2.5 text-chalk
+                        text-[13px] font-bold text-center tnum outline-none
+                        border border-chalk/[0.07] focus:border-lit/50
+                        placeholder:text-off placeholder:font-normal"
+                    />
+                    {minute && (
+                      <span className="text-[11px] font-bold text-lit shrink-0">
+                        → {fmtMinute(period, toRelativeMinute(period, parseInt(minute)))}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-off text-center py-1">
+                    Πέναλτι: πάτα παίκτη → Εύστοχο / Άστοχο
+                  </p>
                 )}
-              </div>
-            ) : (
-              <p className="text-[10px] text-off text-center py-1">
-                Πέναλτι: πάτα παίκτη → Εύστοχο / Άστοχο
-              </p>
+                <p className="text-[9.5px] text-off text-center mt-1.5">
+                  Πάτα τον <b className="text-silver">παίκτη</b> → μετά τη φάση. Το λεπτό μπαίνει μόνο του.
+                </p>
+              </>
             )}
-            <p className="text-[9.5px] text-off text-center mt-1.5">
-              Πάτα τον <b className="text-silver">παίκτη</b> → μετά τη φάση. Το λεπτό μπαίνει μόνο του.
-            </p>
           </div>
 
           {/* Ασίστ; (μετά από γκολ) */}
@@ -427,7 +431,7 @@ export default function SpeakerPanel() {
 
           {entryView === 'pitch' && hasLineupLive ? (
             /* Γήπεδο: πάτα παίκτη πάνω στο γήπεδο */
-            <div className="px-3.5 pb-2 shrink-0 overflow-y-auto" style={{ maxHeight: '54vh' }}>
+            <div className="px-3.5 pb-2 flex-1 min-h-0 overflow-y-auto">
               <div className="flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05] mb-2">
                 {(['a', 'b'] as Side[]).map(s => (
                   <button key={s} onClick={() => setPitchSide(s)}
@@ -479,7 +483,8 @@ export default function SpeakerPanel() {
           )}
 
           {/* Περιγραφή */}
-          <div className="flex-1 px-3.5 pb-3 overflow-y-auto">
+          <div className={`px-3.5 pb-3 overflow-y-auto
+            ${entryView === 'pitch' && hasLineupLive ? 'shrink-0 max-h-[17vh]' : 'flex-1'}`}>
             <div className="flex items-center gap-2">
               <div className="flex-1"><SectionLabel>Περιγραφή</SectionLabel></div>
               {events.length > 0 && (
