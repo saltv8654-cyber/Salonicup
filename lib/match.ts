@@ -60,4 +60,19 @@ export const EVENTS: Record<EventType, { label: string; icon: string }> = {
 export const PLAY_EVENTS: EventType[] = ['GOAL', 'ASSIST', 'OWN', 'YELLOW', 'RED']
 export const PEN_EVENTS:  EventType[] = ['PEN_SCORED', 'PEN_MISSED']
 
+/** Σύνοψη ανά παίκτη (γκολ/ασίστ/κίτρινες/κόκκινες) από τα γεγονότα. */
+export type Tally = { g: number; a: number; y: number; r: number }
+export function playerTallies(events: { player_id?: string | null; event_type: string }[]): Record<string, Tally> {
+  const m: Record<string, Tally> = {}
+  for (const e of events) {
+    if (!e.player_id) continue
+    const t = (m[e.player_id] ??= { g: 0, a: 0, y: 0, r: 0 })
+    if (e.event_type === 'GOAL' || e.event_type === 'PEN_SCORED') t.g++
+    else if (e.event_type === 'ASSIST') t.a++
+    else if (e.event_type === 'YELLOW') t.y++
+    else if (e.event_type === 'RED') t.r++
+  }
+  return m
+}
+
 export const MAX_POSTPONEMENTS = 2

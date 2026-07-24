@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useLiveMatch } from '@/lib/hooks/useLiveMatch'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { Watermark, Crest, Avatar, LiveDot, SectionLabel, Loading, Empty } from '@/app/ui'
-import { PERIODS, EVENTS, fmtMinute, absMinute } from '@/lib/match'
+import { PERIODS, EVENTS, fmtMinute, absMinute, playerTallies } from '@/lib/match'
 import { clockLabel, clockHalf } from '@/lib/clock'
 import { useNow } from '@/lib/hooks/useNow'
 import LineupPitch from '@/app/lineup-pitch'
@@ -281,6 +281,7 @@ export default function PublicMatch() {
               line={lineForTab(pitchTab)}
               players={byIdAll}
               accent={pitchTab === 'a' ? '#E05B1F' : '#3E6DDB'}
+              stats={playerTallies(events)}
             />
           ) : (
             <p className="text-dim text-[12.5px] text-center py-8">

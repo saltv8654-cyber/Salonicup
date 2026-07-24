@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/hooks/useAuth'
 import { useLiveMatch } from '@/lib/hooks/useLiveMatch'
 import { Watermark, Crest, Avatar, LiveDot, SectionLabel, Loading } from '@/app/ui'
 import {
-  PERIODS, EVENTS, PLAY_EVENTS, PEN_EVENTS, fmtMinute, absMinute, toRelativeMinute,
+  PERIODS, EVENTS, PLAY_EVENTS, PEN_EVENTS, fmtMinute, absMinute, toRelativeMinute, playerTallies,
 } from '@/lib/match'
 import { clockLabel, clockRel, isRunning } from '@/lib/clock'
 import { useNow } from '@/lib/hooks/useNow'
@@ -174,6 +174,7 @@ export default function SpeakerPanel() {
   const benchLiveA = activeA.filter(p => !startersLiveA.includes(p.player_id))
   const benchLiveB = activeB.filter(p => !startersLiveB.includes(p.player_id))
   const hasLineupLive = startersLiveA.length > 0 || startersLiveB.length > 0
+  const tallies = playerTallies(events)
 
   /* ── Συνθέσεις ── */
   async function saveSquad() {
@@ -494,6 +495,7 @@ export default function SpeakerPanel() {
                   players={pitchSide === 'a' ? byIdA : byIdB}
                   accent={pitchSide === 'a' ? '#E05B1F' : '#3E6DDB'}
                   notes={notes}
+                  stats={tallies}
                   onSlot={(i) => {
                     const line = (pitchSide === 'a' ? match.lineup_a : match.lineup_b) ?? []
                     const pid = line[i]
@@ -1413,15 +1415,15 @@ function TeamGrid({ name, players, side, notes, dimmed, onTap }: {
           <button key={p.player_id} onClick={() => onTap(p, side)}
             className="w-full bg-turf rounded-lg pl-1.5 pr-2 py-2 flex items-center gap-1.5
               border border-chalk/[0.05] active:bg-brand/25 text-left">
-            <span className="w-5 text-[11px] font-extrabold text-dim text-center shrink-0 tnum">
+            <span className="w-5 text-[11px] font-extrabold text-dim text-center shrink-0 tnum self-start mt-0.5">
               {p.number ?? '·'}
             </span>
             <span className="flex-1 min-w-0">
-              <span className="block text-[12.5px] font-semibold text-chalk truncate leading-tight">
+              <span className="block text-[12.5px] font-semibold text-chalk leading-tight break-words">
                 {p.full_name}
               </span>
               {notes?.[p.player_id] && (
-                <span className="block text-[9px] text-lit truncate leading-tight">📝 {notes[p.player_id]}</span>
+                <span className="block text-[9px] text-lit leading-tight break-words">📝 {notes[p.player_id]}</span>
               )}
             </span>
           </button>

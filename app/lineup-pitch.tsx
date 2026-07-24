@@ -24,14 +24,17 @@ function PitchLines() {
   )
 }
 
+type Tally = { g: number; a: number; y: number; r: number }
+
 /** Γήπεδο με διάταξη. Διαδραστικό (onSlot) για τον σπίκερ, αλλιώς μόνο εμφάνιση. */
-export default function LineupPitch({ formation, line, players, onSlot, accent = '#E05B1F', notes }: {
+export default function LineupPitch({ formation, line, players, onSlot, accent = '#E05B1F', notes, stats }: {
   formation: string
   line: (string | null)[]
   players: Record<string, P>
   onSlot?: (index: number) => void
   accent?: string
   notes?: Record<string, string>
+  stats?: Record<string, Tally>
 }) {
   const coords = slotCoords(formation)
   return (
@@ -42,6 +45,7 @@ export default function LineupPitch({ formation, line, players, onSlot, accent =
         const pid = line[i]
         const p = pid ? players[pid] : null
         const note = pid ? notes?.[pid] : undefined
+        const st = pid ? stats?.[pid] : undefined
         return (
           <div key={i}
             role={onSlot ? 'button' : undefined}
@@ -69,6 +73,15 @@ export default function LineupPitch({ formation, line, players, onSlot, accent =
                 {p.full_name}
               </span>
             )}
+            {p && st && (st.g || st.a || st.y || st.r) ? (
+              <span className="flex items-center gap-1 text-[9px] font-extrabold text-white
+                leading-none px-1 py-0.5 rounded bg-black/55">
+                {st.g > 0 && <span>⚽{st.g > 1 ? st.g : ''}</span>}
+                {st.a > 0 && <span>🅰{st.a > 1 ? st.a : ''}</span>}
+                {st.y > 0 && <span>🟨</span>}
+                {st.r > 0 && <span>🟥</span>}
+              </span>
+            ) : null}
             {p && note && (
               <span className="text-[9px] font-semibold text-lit text-center leading-tight
                 px-1 rounded bg-black/55 max-w-[104px]">
