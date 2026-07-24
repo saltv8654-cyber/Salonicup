@@ -9,6 +9,7 @@ import { Watermark, Crest, Avatar, LiveDot, SectionLabel, Loading, Empty } from 
 import { PERIODS, EVENTS, fmtMinute, absMinute } from '@/lib/match'
 import { clockLabel, clockHalf } from '@/lib/clock'
 import { useNow } from '@/lib/hooks/useNow'
+import LineupPitch from '@/app/lineup-pitch'
 import toast from 'react-hot-toast'
 import type { Period } from '@/lib/types'
 
@@ -22,6 +23,7 @@ export default function PublicMatch() {
 
   // Συνθέσεις: φέρνουμε τα στοιχεία των παικτών από τα squad_a/squad_b
   const [squad, setSquad] = useState<any[]>([])
+  const [pitchTab, setPitchTab] = useState<'a' | 'b'>('a')
   const squadKey = [...(match?.squad_a ?? []), ...(match?.squad_b ?? [])].join(',')
   useEffect(() => {
     const ids = squadKey ? squadKey.split(',') : []
@@ -68,6 +70,11 @@ export default function PublicMatch() {
   const squadB = squad.filter(p => p.team_id === match.team_b)
     .sort((a, b) => (a.number ?? 99) - (b.number ?? 99))
   const hasSquads = squadA.length > 0 || squadB.length > 0
+  const byIdAll = Object.fromEntries(squad.map(p => [p.player_id, p]))
+  const lineForTab = (t: 'a' | 'b') => (t === 'a' ? match.lineup_a : match.lineup_b) ?? []
+  const formForTab = (t: 'a' | 'b') => (t === 'a' ? match.formation_a : match.formation_b)
+  const hasLineup = (lineForTab('a').filter(Boolean).length > 0 && formForTab('a'))
+    || (lineForTab('b').filter(Boolean).length > 0 && formForTab('b'))
 
   // Head-to-head σύνοψη (από τη σκοπιά της γηπεδούχου του τρέχοντος αγώνα)
   let hA = 0, hD = 0, hB = 0
@@ -234,6 +241,34 @@ export default function PublicMatch() {
           </div>
         )}
       </div>
+
+      {/* Διάταξη στο γήπεδο */}
+      {hasLineup && (
+        <div className="px-3.5 pt-6">
+          <SectionLabel>Διάταξη</SectionLabel>
+          <div className="flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05] mb-3">
+            {(['a', 'b'] as const).map(t => (
+              <button key={t} onClick={() => setPitchTab(t)}
+                className={`flex-1 py-2 px-1.5 rounded-lg text-[12.5px] font-bold truncate
+                  ${pitchTab === t ? 'bg-brand text-chalk' : 'text-dim'}`}>
+                {t === 'a' ? match.team_a_data?.name : match.team_b_data?.name}
+              </button>
+            ))}
+          </div>
+          {formForTab(pitchTab) && lineForTab(pitchTab).filter(Boolean).length > 0 ? (
+            <LineupPitch
+              formation={formForTab(pitchTab)}
+              line={lineForTab(pitchTab)}
+              players={byIdAll}
+              accent={pitchTab === 'a' ? '#E05B1F' : '#3E6DDB'}
+            />
+          ) : (
+            <p className="text-dim text-[12.5px] text-center py-8">
+              Δεν ορίστηκε διάταξη γι' αυτή την ομάδα.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Συνθέσεις */}
       {hasSquads && (

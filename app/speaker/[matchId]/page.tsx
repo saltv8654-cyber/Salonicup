@@ -10,6 +10,8 @@ import {
 } from '@/lib/match'
 import { clockLabel, clockRel, isRunning } from '@/lib/clock'
 import { useNow } from '@/lib/hooks/useNow'
+import { FORMATIONS, validFormation, normalizeLine } from '@/lib/formations'
+import LineupPitch, { shortName } from '@/app/lineup-pitch'
 import ReportSheet from './report'
 import { notifyPush } from '@/lib/push'
 import toast from 'react-hot-toast'
@@ -38,6 +40,14 @@ export default function SpeakerPanel() {
   const [inA, setInA]         = useState<Set<string>>(new Set())
   const [inB, setInB]         = useState<Set<string>>(new Set())
   const [notes, setNotes]     = useState<Record<string, string>>({})
+
+  // Διάταξη (γήπεδο) + πάγκος ανά ομάδα
+  const [formA, setFormA]   = useState('3-3-1')
+  const [formB, setFormB]   = useState('3-3-1')
+  const [lineA, setLineA]   = useState<(string | null)[]>([])
+  const [lineB, setLineB]   = useState<(string | null)[]>([])
+  const [benchA, setBenchA] = useState<string[]>([])
+  const [benchB, setBenchB] = useState<string[]>([])
 
   const [period, setPeriod]   = useState<Period>('H1')
   const [minute, setMinute]   = useState('')
@@ -108,6 +118,18 @@ export default function SpeakerPanel() {
       setInA(setA)
       setInB(setB)
 
+      // Διάταξη + πάγκος
+      const fA = match.formation_a ?? '3-3-1'
+      const fB = match.formation_b ?? '3-3-1'
+      const lA = normalizeLine(match.lineup_a, fA)
+      const lB = normalizeLine(match.lineup_b, fB)
+      setFormA(fA); setFormB(fB)
+      setLineA(lA); setLineB(lB)
+      const startersA = lA.filter(Boolean) as string[]
+      const startersB = lB.filter(Boolean) as string[]
+      setBenchA([...setA].filter(id => !startersA.includes(id)))
+      setBenchB([...setB].filter(id => !startersB.includes(id)))
+
       if (match.match_status !== 'Scheduled') setPhase('live')
     })
   }, [match?.match_id])
@@ -133,17 +155,28 @@ export default function SpeakerPanel() {
   /* ── Συνθέσεις ── */
   async function saveSquad() {
     const starting = match.match_status === 'Scheduled'
+    const squadA = [...new Set([...(lineA.filter(Boolean) as string[]), ...benchA])]
+    const squadB = [...new Set([...(lineB.filter(Boolean) as string[]), ...benchB])]
     setSaving(true)
+    // Βασικά (δουλεύει και χωρίς τις νέες στήλες διάταξης)
     const { error } = await supabase.from('matches').update({
-      squad_a: [...inA],
-      squad_b: [...inB],
+      squad_a: squadA,
+      squad_b: squadB,
       squad_set_at: new Date().toISOString(),
       squad_set_by: profile?.id,
       match_status: starting ? 'Live' : match.match_status,
     }).eq('match_id', match.match_id)
-    setSaving(false)
 
+    // Διάταξη (χρειάζεται νέες στήλες· αν λείπουν, αγνοείται)
+    const { error: fErr } = await supabase.from('matches').update({
+      formation_a: formA, formation_b: formB,
+      lineup_a: lineA, lineup_b: lineB,
+    }).eq('match_id', match.match_id)
+
+    setSaving(false)
     if (error) { toast.error('Δεν αποθηκεύτηκε'); return }
+    if (fErr) toast('Η διάταξη χρειάζεται ενημέρωση βάσης', { icon: 'ℹ️' })
+    setInA(new Set(squadA)); setInB(new Set(squadB))
     if (starting) {
       notifyPush({
         title: '🟢 Έναρξη αγώνα',
@@ -282,12 +315,14 @@ export default function SpeakerPanel() {
       </div>
 
       {phase === 'squad' ? (
-        <SquadPicker
+        <LineupBuilder
           teamA={match.team_a_data} teamB={match.team_b_data}
           teamIdA={match.team_a} teamIdB={match.team_b}
           rosterA={rosterA} rosterB={rosterB}
           setRosterA={setRosterA} setRosterB={setRosterB}
-          inA={inA} inB={inB} setInA={setInA} setInB={setInB}
+          formA={formA} formB={formB} setFormA={setFormA} setFormB={setFormB}
+          lineA={lineA} lineB={lineB} setLineA={setLineA} setLineB={setLineB}
+          benchA={benchA} benchB={benchB} setBenchA={setBenchA} setBenchB={setBenchB}
           notes={notes} saveNote={saveNote}
           onSave={saveSquad} saving={saving}
         />
@@ -584,6 +619,296 @@ function SortableRow({ p, on, note, onToggle, onEdit }: {
       <button onClick={onEdit} aria-label="Επεξεργασία"
         className="w-11 self-stretch shrink-0 grid place-items-center text-silver
           text-[15px] active:bg-chalk/[0.06] rounded-r-xl">✎</button>
+    </div>
+  )
+}
+
+/* ── Στήσιμο σύνθεσης σε γήπεδο (διάταξη + θέσεις + πάγκος) ── */
+function LineupBuilder({
+  teamA, teamB, teamIdA, teamIdB, rosterA, rosterB, setRosterA, setRosterB,
+  formA, formB, setFormA, setFormB, lineA, lineB, setLineA, setLineB,
+  benchA, benchB, setBenchA, setBenchB, notes, saveNote, onSave, saving,
+}: any) {
+  const supabase = createClient()
+  const [tab, setTab] = useState<Side>('a')
+  const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<Player | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [assign, setAssign] = useState<{ mode: 'slot' | 'bench'; slot?: number } | null>(null)
+  const [customForms, setCustomForms] = useState<string[]>([])
+
+  useEffect(() => {
+    try { setCustomForms(JSON.parse(localStorage.getItem('formations') || '[]')) } catch {}
+  }, [])
+
+  const roster   = tab === 'a' ? rosterA : rosterB
+  const setRoster = tab === 'a' ? setRosterA : setRosterB
+  const teamId   = tab === 'a' ? teamIdA : teamIdB
+  const teamName = tab === 'a' ? teamA?.name : teamB?.name
+  const form     = tab === 'a' ? formA : formB
+  const setForm  = tab === 'a' ? setFormA : setFormB
+  const line: (string | null)[] = tab === 'a' ? lineA : lineB
+  const setLine  = tab === 'a' ? setLineA : setLineB
+  const bench: string[] = tab === 'a' ? benchA : benchB
+  const setBench = tab === 'a' ? setBenchA : setBenchB
+
+  const byId: Record<string, Player> = Object.fromEntries(roster.map((p: Player) => [p.player_id, p]))
+  const placed = new Set(line.filter(Boolean) as string[])
+  const allForms = [...FORMATIONS, ...customForms.filter(f => !FORMATIONS.includes(f))]
+
+  function changeForm(f: string) { setForm(f); setLine(normalizeLine(line, f)) }
+
+  function addCustomForm() {
+    const f = prompt('Νέα διάταξη (π.χ. 2-3-2):')?.trim()
+    if (!f) return
+    if (!validFormation(f)) { toast.error('Μη έγκυρη διάταξη'); return }
+    const next = [...new Set([...customForms, f])]
+    setCustomForms(next); localStorage.setItem('formations', JSON.stringify(next))
+    changeForm(f)
+  }
+
+  function assignPlayer(pid: string) {
+    if (!assign) return
+    if (assign.mode === 'slot' && assign.slot != null) {
+      const nl = line.map(x => (x === pid ? null : x))
+      nl[assign.slot] = pid
+      setLine(nl)
+      setBench(bench.filter(b => b !== pid))
+    } else {
+      if (line.includes(pid)) setLine(line.map(x => (x === pid ? null : x)))
+      if (!bench.includes(pid)) setBench([...bench, pid])
+    }
+    setAssign(null)
+  }
+  function clearSlot(i: number) { const nl = [...line]; nl[i] = null; setLine(nl) }
+  function removeBench(pid: string) { setBench(bench.filter(b => b !== pid)) }
+
+  async function addPlayer(name: string, number: string) {
+    setBusy(true)
+    const { data, error } = await supabase.from('players').insert({
+      full_name: name.trim(), number: number ? parseInt(number) : null,
+      team_id: teamId, active: true,
+    }).select().single()
+    setBusy(false)
+    if (error || !data) { toast.error('Δεν προστέθηκε ο παίκτης'); return }
+    setRoster([...roster, data])
+    setBench([...bench, data.player_id])
+    toast.success('Ο παίκτης προστέθηκε στον πάγκο'); setAdding(false)
+  }
+  async function savePlayer(p: Player, name: string, number: string) {
+    setBusy(true)
+    const { error } = await supabase.from('players').update({
+      full_name: name.trim(), number: number ? parseInt(number) : null,
+    }).eq('player_id', p.player_id)
+    setBusy(false)
+    if (error) { toast.error('Δεν αποθηκεύτηκε'); return }
+    setRoster(roster.map((x: Player) => x.player_id === p.player_id
+      ? { ...x, full_name: name.trim(), number: number ? parseInt(number) : null } : x))
+    toast.success('Αποθηκεύτηκε'); setEditing(null)
+  }
+  async function deletePlayer(p: Player) {
+    if (!confirm(`Αφαίρεση του «${p.full_name}» από το ρόστερ;`)) return
+    setBusy(true)
+    const { error } = await supabase.from('players').delete().eq('player_id', p.player_id)
+    setBusy(false)
+    if (error) { toast.error('Δεν αφαιρέθηκε (ίσως έχει φάσεις)'); return }
+    setRoster(roster.filter((x: Player) => x.player_id !== p.player_id))
+    setLine(line.map(x => (x === p.player_id ? null : x)))
+    setBench(bench.filter(b => b !== p.player_id))
+    setEditing(null)
+  }
+
+  const starters = line.filter(Boolean).length
+  const benchPlayers = bench.map(id => byId[id]).filter(Boolean) as Player[]
+  const totalStarters = (lineA.filter(Boolean).length as number) + (lineB.filter(Boolean).length as number)
+  const accent = tab === 'a' ? '#E05B1F' : '#3E6DDB'
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="px-3.5 pt-3.5 pb-2">
+        <h2 className="text-base font-bold text-chalk tracking-tight">Σύνθεση & Διάταξη</h2>
+        <p className="text-[11px] text-dim mt-0.5">Διάλεξε διάταξη, πάτα θέση → βάλε παίκτη.</p>
+      </div>
+
+      {/* Ομάδα */}
+      <div className="px-3.5 pb-2">
+        <div className="flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
+          {([['a', teamA], ['b', teamB]] as const).map(([s, t]) => (
+            <button key={s} onClick={() => setTab(s as Side)}
+              className={`flex-1 py-2.5 px-1.5 rounded-lg text-[12.5px] font-bold truncate
+                ${tab === s ? 'bg-brand text-chalk' : 'text-dim'}`}>
+              {t?.name}
+              <span className="ml-1.5 text-[11px] opacity-50">
+                {(s === 'a' ? lineA : lineB).filter(Boolean).length}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Διάταξη */}
+      <div className="px-3.5 pb-2 flex gap-1.5 overflow-x-auto">
+        {allForms.map(f => (
+          <button key={f} onClick={() => changeForm(f)}
+            className={`shrink-0 px-3 py-2 rounded-lg text-[12px] font-extrabold tnum
+              ${form === f ? 'bg-brand text-chalk' : 'bg-turf text-dim border border-chalk/[0.06]'}`}>
+            {f}
+          </button>
+        ))}
+        <button onClick={addCustomForm}
+          className="shrink-0 px-3 py-2 rounded-lg text-[12px] font-extrabold
+            bg-lit/[0.12] text-lit">＋</button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-3.5 pb-3">
+        {/* Γήπεδο */}
+        <LineupPitch formation={form} line={line} players={byId} accent={accent}
+          onSlot={(i) => setAssign({ mode: 'slot', slot: i })} />
+
+        {/* Πάγκος / Αλλαγές */}
+        <div className="mt-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-[9px] font-extrabold text-dim tracking-[0.12em]">
+              ΠΑΓΚΟΣ / ΑΛΛΑΓΕΣ
+            </p>
+            <div className="flex gap-1.5">
+              <button onClick={() => setAdding(true)}
+                className="text-[11px] font-bold text-lit bg-lit/[0.12] rounded-lg px-2.5 py-1.5">
+                + Νέος
+              </button>
+              <button onClick={() => setAssign({ mode: 'bench' })}
+                className="text-[11px] font-bold text-silver bg-chalk/[0.06] rounded-lg px-2.5 py-1.5">
+                + Πάγκος
+              </button>
+            </div>
+          </div>
+          {benchPlayers.length === 0 ? (
+            <p className="text-[11px] text-off py-2">Κανείς στον πάγκο.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {benchPlayers.map(p => (
+                <span key={p.player_id}
+                  className="flex items-center gap-1.5 bg-turf border border-chalk/[0.06]
+                    rounded-lg pl-2 pr-1 py-1.5">
+                  <span className="text-[11px] font-extrabold text-dim tnum">{p.number ?? '·'}</span>
+                  <span className="text-[12px] font-semibold text-chalk">{shortName(p.full_name)}</span>
+                  <button onClick={() => setEditing(p)}
+                    className="w-5 h-5 grid place-items-center text-silver text-[11px]">✎</button>
+                  <button onClick={() => removeBench(p.player_id)}
+                    className="w-5 h-5 grid place-items-center text-dim text-[11px]">✕</button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="p-3.5">
+        <button onClick={onSave} disabled={!totalStarters || saving}
+          className="w-full py-3.5 rounded-xl bg-gradient-to-b from-lit to-brand
+            text-white font-extrabold text-[15px] disabled:opacity-25
+            shadow-[0_4px_16px_rgba(224,91,31,0.3)]">
+          {saving ? 'Αποθήκευση…' : 'Έναρξη αγώνα'}
+        </button>
+        <p className="text-[10px] text-off text-center mt-1.5">
+          {teamName}: {starters} βασικοί · {benchPlayers.length} πάγκος
+        </p>
+      </div>
+
+      {assign && (
+        <RosterSheet
+          title={assign.mode === 'bench' ? 'Πρόσθεσε στον πάγκο' : `Θέση ${assign.slot === 0 ? 'Τερματοφύλακα' : assign.slot}`}
+          teamName={teamName}
+          players={roster} notes={notes} placed={placed} bench={new Set(bench)}
+          showClear={assign.mode === 'slot' && assign.slot != null && !!line[assign.slot!]}
+          onPick={assignPlayer}
+          onClear={() => { if (assign.slot != null) clearSlot(assign.slot); setAssign(null) }}
+          onAdd={() => { setAssign(null); setAdding(true) }}
+          onEdit={(p: Player) => { setAssign(null); setEditing(p) }}
+          onClose={() => setAssign(null)}
+        />
+      )}
+
+      {adding && (
+        <AddPlayerSheet teamName={teamName} busy={busy}
+          onAdd={addPlayer} onClose={() => setAdding(false)} />
+      )}
+      {editing && (
+        <EditPlayerSheet player={editing} busy={busy}
+          note={notes?.[editing.player_id] ?? ''}
+          onSaveNote={(t: string) => saveNote(editing.player_id, t)}
+          onSave={savePlayer} onDelete={deletePlayer}
+          onClose={() => setEditing(null)} />
+      )}
+    </div>
+  )
+}
+
+/* ── Επιλογή παίκτη για θέση/πάγκο ── */
+function RosterSheet({ title, teamName, players, notes, placed, bench, showClear, onPick, onClear, onAdd, onEdit, onClose }: {
+  title: string; teamName?: string; players: Player[]; notes?: Record<string, string>
+  placed: Set<string>; bench: Set<string>; showClear?: boolean
+  onPick: (id: string) => void; onClear: () => void; onAdd: () => void
+  onEdit: (p: Player) => void; onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/75" />
+      <div onClick={e => e.stopPropagation()}
+        className="relative bg-turf rounded-t-[20px] max-h-[80vh] flex flex-col border-t-2 border-brand">
+        <div className="px-4.5 pt-4.5 pb-3 shrink-0 border-b border-chalk/[0.06] flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base font-bold text-chalk truncate">{title}</h3>
+            <p className="text-[11px] text-dim">{teamName}</p>
+          </div>
+          <button onClick={onAdd}
+            className="text-[11px] font-bold text-lit bg-lit/[0.12] rounded-lg px-2.5 py-2 shrink-0">
+            + Νέος
+          </button>
+          <button onClick={onClose}
+            className="w-[30px] h-[30px] rounded-lg bg-chalk/[0.06] grid place-items-center text-silver text-sm shrink-0">✕</button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-3.5 py-3">
+          {showClear && (
+            <button onClick={onClear}
+              className="w-full mb-2 py-3 rounded-xl bg-danger/15 text-danger font-bold text-[13px]">
+              Άδειασε τη θέση
+            </button>
+          )}
+          <div className="flex flex-col gap-1">
+            {players.map((p: Player) => {
+              const inSlot = placed.has(p.player_id)
+              const onBench = bench.has(p.player_id)
+              return (
+                <div key={p.player_id}
+                  className="w-full bg-chalk/[0.04] rounded-xl flex items-center">
+                  <button onClick={() => onPick(p.player_id)}
+                    className="flex-1 min-w-0 px-3.5 py-3 flex items-center gap-3 text-left active:bg-chalk/[0.09] rounded-l-xl">
+                    <span className="w-6 text-[12.5px] font-extrabold text-dim text-center shrink-0 tnum">
+                      {p.number ?? '—'}
+                    </span>
+                    <Avatar url={p.photo_url} name={p.full_name} size={30} />
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[14px] font-semibold text-chalk truncate">{p.full_name}</span>
+                      {notes?.[p.player_id] && (
+                        <span className="block text-[11px] text-lit truncate">📝 {notes[p.player_id]}</span>
+                      )}
+                    </span>
+                    {(inSlot || onBench) && (
+                      <span className={`text-[8.5px] font-extrabold shrink-0 tracking-[0.06em]
+                        ${inSlot ? 'text-lit' : 'text-dim'}`}>
+                        {inSlot ? 'ΓΗΠΕΔΟ' : 'ΠΑΓΚΟΣ'}
+                      </span>
+                    )}
+                  </button>
+                  <button onClick={() => onEdit(p)}
+                    className="w-11 self-stretch grid place-items-center text-silver text-[15px] active:bg-chalk/[0.06] rounded-r-xl shrink-0">✎</button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
