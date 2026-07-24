@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { LiveDot } from '@/app/ui'
-import { clockLabel } from '@/lib/clock'
+import { clockLabel, clockHalf } from '@/lib/clock'
 import { useNow } from '@/lib/hooks/useNow'
 
 /** Κορδέλα με τους αγώνες που παίζονται τώρα — ζωντανή ενημέρωση. */
@@ -53,7 +53,8 @@ export default function LiveTicker() {
               </span>
               {clockLabel(m.clock_period, m.clock_started_at, now) && (
                 <span className="text-[10px] font-extrabold text-live/90 tnum shrink-0">
-                  {clockLabel(m.clock_period, m.clock_started_at, now)}
+                  {[clockHalf(m.clock_period), clockLabel(m.clock_period, m.clock_started_at, now)]
+                    .filter(Boolean).join(' · ')}
                 </span>
               )}
             </Link>

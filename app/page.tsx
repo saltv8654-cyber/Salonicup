@@ -178,7 +178,7 @@ function MatchRow({ m, first }: { m: any; first: boolean }) {
           {live
             ? <span className="mt-1 flex items-center gap-1">
                 <LiveDot />
-                <LiveClock period={m.clock_period} startedAt={m.clock_started_at}
+                <LiveClock period={m.clock_period} startedAt={m.clock_started_at} withHalf
                   className="text-[9px] font-extrabold text-live tnum leading-none" />
               </span>
             : done
