@@ -551,9 +551,9 @@ export default function SpeakerPanel() {
             <div className="px-3.5 pb-2 shrink-0 max-h-[42vh] overflow-y-auto">
               <div className="grid grid-cols-2 gap-2 items-start">
                 <TeamGrid name={match.team_a_data?.name} players={activeA} side="a"
-                  notes={notes} dimmed={assistSide === 'b'} onTap={onPlayerTap} />
+                  notes={notes} dimmed={assistSide === 'b'} onTap={onPlayerTap} stats={tallies} />
                 <TeamGrid name={match.team_b_data?.name} players={activeB} side="b"
-                  notes={notes} dimmed={assistSide === 'a'} onTap={onPlayerTap} />
+                  notes={notes} dimmed={assistSide === 'a'} onTap={onPlayerTap} stats={tallies} />
               </div>
             </div>
           )}
@@ -1399,9 +1399,10 @@ function AddPlayerSheet({ teamName, busy, onAdd, onClose }: {
 
 /* ── Επιλογή παίκτη ── */
 /* ── Πλέγμα ομάδας: ονόματα μόνιμα ορατά, tap = επιλογή παίκτη ── */
-function TeamGrid({ name, players, side, notes, dimmed, onTap }: {
+function TeamGrid({ name, players, side, notes, dimmed, onTap, stats }: {
   name?: string; players: Player[]; side: Side; notes?: Record<string, string>
   dimmed?: boolean; onTap: (p: Player, s: Side) => void
+  stats?: Record<string, { g: number; a: number; y: number; r: number }>
 }) {
   return (
     <div className={dimmed ? 'opacity-35 pointer-events-none' : ''}>
@@ -1411,7 +1412,9 @@ function TeamGrid({ name, players, side, notes, dimmed, onTap }: {
       <div className="flex flex-col gap-1">
         {players.length === 0 ? (
           <p className="text-[10px] text-off px-1 py-2">— χωρίς παίκτες —</p>
-        ) : players.map(p => (
+        ) : players.map(p => {
+          const st = stats?.[p.player_id]
+          return (
           <button key={p.player_id} onClick={() => onTap(p, side)}
             className="w-full bg-turf rounded-lg pl-1.5 pr-2 py-2 flex items-center gap-1.5
               border border-chalk/[0.05] active:bg-brand/25 text-left">
@@ -1426,8 +1429,17 @@ function TeamGrid({ name, players, side, notes, dimmed, onTap }: {
                 <span className="block text-[9px] text-lit leading-tight break-words">📝 {notes[p.player_id]}</span>
               )}
             </span>
+            {st && (st.g || st.a || st.y || st.r) ? (
+              <span className="shrink-0 flex items-center gap-0.5 text-[10px] font-extrabold self-start mt-0.5">
+                {st.g > 0 && <span>⚽{st.g > 1 ? st.g : ''}</span>}
+                {st.a > 0 && <span>🅰{st.a > 1 ? st.a : ''}</span>}
+                {st.y > 0 && <span>🟨</span>}
+                {st.r > 0 && <span>🟥</span>}
+              </span>
+            ) : null}
           </button>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
