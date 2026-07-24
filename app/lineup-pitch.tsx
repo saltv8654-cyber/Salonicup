@@ -25,12 +25,13 @@ function PitchLines() {
 }
 
 /** Γήπεδο με διάταξη. Διαδραστικό (onSlot) για τον σπίκερ, αλλιώς μόνο εμφάνιση. */
-export default function LineupPitch({ formation, line, players, onSlot, accent = '#E05B1F' }: {
+export default function LineupPitch({ formation, line, players, onSlot, accent = '#E05B1F', notes }: {
   formation: string
   line: (string | null)[]
   players: Record<string, P>
   onSlot?: (index: number) => void
   accent?: string
+  notes?: Record<string, string>
 }) {
   const coords = slotCoords(formation)
   return (
@@ -40,14 +41,15 @@ export default function LineupPitch({ formation, line, players, onSlot, accent =
       {coords.map((c, i) => {
         const pid = line[i]
         const p = pid ? players[pid] : null
+        const note = pid ? notes?.[pid] : undefined
         return (
           <button key={i} type="button"
             onClick={onSlot ? () => onSlot(i) : undefined}
             disabled={!onSlot}
             className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-0.5"
-            style={{ left: `${c.x * 100}%`, top: `${c.y * 100}%`, width: 68 }}>
+            style={{ left: `${c.x * 100}%`, top: `${c.y * 100}%`, width: 104 }}>
             <span
-              className={`w-11 h-11 rounded-full grid place-items-center text-[13px] font-extrabold
+              className={`w-12 h-12 rounded-full grid place-items-center text-[14px] font-extrabold
                 overflow-hidden ${p ? 'text-white border-2' : 'border-2 border-dashed border-white/45 text-white/70'}`}
               style={p ? { background: accent, borderColor: 'rgba(255,255,255,0.9)' } : undefined}>
               {p
@@ -57,9 +59,15 @@ export default function LineupPitch({ formation, line, players, onSlot, accent =
                 : (onSlot ? '+' : '')}
             </span>
             {p && (
-              <span className="text-[9.5px] font-semibold text-white text-center leading-tight
-                px-1 rounded bg-black/45 max-w-[68px] truncate">
-                {shortName(p.full_name)}
+              <span className="text-[10px] font-semibold text-white text-center leading-tight
+                px-1 py-0.5 rounded bg-black/55 max-w-[104px]">
+                {p.full_name}
+              </span>
+            )}
+            {p && note && (
+              <span className="text-[9px] font-semibold text-lit text-center leading-tight
+                px-1 rounded bg-black/55 max-w-[104px]">
+                📝 {note}
               </span>
             )}
           </button>

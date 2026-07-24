@@ -446,6 +446,7 @@ export default function SpeakerPanel() {
                 line={(pitchSide === 'a' ? match.lineup_a : match.lineup_b) ?? []}
                 players={pitchSide === 'a' ? byIdA : byIdB}
                 accent={pitchSide === 'a' ? '#E05B1F' : '#3E6DDB'}
+                notes={notes}
                 onSlot={(i) => {
                   const line = (pitchSide === 'a' ? match.lineup_a : match.lineup_b) ?? []
                   const pid = line[i]
@@ -846,7 +847,7 @@ function LineupBuilder({
 
       <div className="flex-1 overflow-y-auto px-3.5 pb-3">
         {/* Γήπεδο */}
-        <LineupPitch formation={form} line={line} players={byId} accent={accent}
+        <LineupPitch formation={form} line={line} players={byId} accent={accent} notes={notes}
           onSlot={(i) => setAssign({ mode: 'slot', slot: i })} />
 
         {/* Πάγκος / Αλλαγές */}
