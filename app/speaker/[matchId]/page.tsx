@@ -659,10 +659,21 @@ export default function SpeakerPanel() {
                 shadow-[0_4px_16px_rgba(224,91,31,0.3)] active:opacity-90">
               {done ? 'Κείμενο αγώνα' : 'Λήξη αγώνα'}
             </button>
-            <button onClick={() => setPhase('squad')}
-              className="w-full py-3 rounded-xl text-dim font-semibold text-[12.5px]">
-              Αλλαγή συμμετοχών
-            </button>
+            <div className="flex gap-2">
+              <button onClick={() => setPhase('squad')}
+                className="flex-1 py-3 rounded-xl text-dim font-semibold text-[12.5px]">
+                Αλλαγή συμμετοχών
+              </button>
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(`${window.location.origin}/overlay/${match.match_id}`)
+                  toast.success('Αντιγράφηκε το OBS overlay link')
+                }}
+                className="flex-1 py-3 rounded-xl text-silver font-semibold text-[12.5px]
+                  bg-chalk/[0.05] border border-chalk/[0.07]">
+                📺 OBS overlay
+              </button>
+            </div>
           </div>
         </>
       )}

@@ -141,6 +141,7 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved }: {
   const [field, setField]     = useState(row?.field ?? '')
   const [date, setDate]       = useState(toDatetimeLocal(row?.match_date))
   const [status, setStatus]   = useState<MatchState>(row?.match_status ?? 'Scheduled')
+  const [stream, setStream]   = useState(row?.stream_url ?? '')
   const [busy, setBusy]       = useState(false)
 
   const leagueTeams = teams.filter(t => t.league_id === league)
@@ -161,6 +162,7 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved }: {
       field: field || null,
       match_date: date ? new Date(date).toISOString() : null,
       match_status: status,
+      stream_url: stream.trim() || null,
     }
     const { error } = row
       ? await supabase.from('matches').update(payload).eq('match_id', row.match_id)
@@ -203,6 +205,9 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved }: {
       <Select label="ΚΑΤΑΣΤΑΣΗ" value={status}
         onChange={v => setStatus(v as MatchState)}
         options={STATUSES} />
+
+      <Field label="ΣΥΝΔΕΣΜΟΣ YOUTUBE (live)" value={stream} onChange={setStream}
+        placeholder="https://youtu.be/… ή https://youtube.com/watch?v=…" />
 
       <SaveBtn busy={busy} onClick={save} />
     </Modal>

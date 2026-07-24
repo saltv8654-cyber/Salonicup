@@ -10,6 +10,7 @@ import { PERIODS, EVENTS, fmtMinute, absMinute, playerTallies } from '@/lib/matc
 import { clockLabel, clockHalf } from '@/lib/clock'
 import { useNow } from '@/lib/hooks/useNow'
 import LineupPitch from '@/app/lineup-pitch'
+import { ytEmbed } from '@/lib/youtube'
 import toast from 'react-hot-toast'
 import type { Period } from '@/lib/types'
 
@@ -159,6 +160,26 @@ export default function PublicMatch() {
           )}
         </div>
       </div>
+
+      {/* Ζωντανή ροή YouTube */}
+      {match.stream_url && (
+        <div className="px-3.5 pt-3.5">
+          {ytEmbed(match.stream_url) && (
+            <div className="rounded-2xl overflow-hidden border border-chalk/[0.08] bg-black"
+              style={{ aspectRatio: '16 / 9' }}>
+              <iframe src={ytEmbed(match.stream_url)!} title="Live"
+                allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen className="w-full h-full" />
+            </div>
+          )}
+          <a href={match.stream_url} target="_blank" rel="noopener"
+            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl mt-2
+              bg-[#FF0000]/[0.14] border border-[#FF0000]/40 text-[#FF7A7A]
+              text-[13px] font-extrabold active:opacity-90">
+            ▶ Δες live στο YouTube
+          </a>
+        </div>
+      )}
 
       {/* Γραφικό αποτελέσματος για Instagram — μόνο admin */}
       {(live || done) && isAdmin && (
