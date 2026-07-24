@@ -11,9 +11,9 @@ export function isRunning(cp?: string | null): cp is 'H1' | 'H2' | 'ET' {
   return !!cp && RUNNING.includes(cp as ClockPeriod)
 }
 
-/** Σύντομη ετικέτα ημιχρόνου (Α΄/Β΄/Παρ.) — null για ΗΜ/ΤΕΛ/πριν. */
+/** Ετικέτα ημιχρόνου (Α΄ Ημίχ / Β΄ Ημίχ / Παράταση) — null για ΗΜ/ΤΕΛ/πριν. */
 export function clockHalf(cp?: string | null): string | null {
-  return cp === 'H1' ? 'Α΄' : cp === 'H2' ? 'Β΄' : cp === 'ET' ? 'Παρ.' : null
+  return cp === 'H1' ? 'Α΄ Ημίχ' : cp === 'H2' ? 'Β΄ Ημίχ' : cp === 'ET' ? 'Παράταση' : null
 }
 
 /** Σχετικό λεπτό μέσα στο ημίχρονο (1-based), για αποθήκευση event / εμφάνιση. */
