@@ -434,8 +434,8 @@ export default function SpeakerPanel() {
             )}
           </div>
 
-          {/* Ασίστ; (μετά από γκολ) */}
-          {assistSide && (
+          {/* Ασίστ; (λίστα — στο γήπεδο εμφανίζεται ως overlay) */}
+          {assistSide && entryView !== 'pitch' && (
             <div className="mx-3.5 mb-1.5 flex items-center gap-2 px-3 py-2 rounded-xl
               bg-lit/10 border border-lit/30 shrink-0">
               <span className="text-[14px]">🅰</span>
@@ -487,29 +487,43 @@ export default function SpeakerPanel() {
                 </button>
               </div>
 
-              {subMode && (
-                <div className="mb-2 px-3 py-2 rounded-xl bg-lit/10 border border-lit/30
-                  text-[12px] font-bold text-lit">
-                  {subMode.out
-                    ? `Βγαίνει: ${(pitchSide === 'a' ? byIdA : byIdB)[subMode.out]?.full_name ?? ''} → διάλεξε ποιος μπαίνει (πάγκος)`
-                    : 'Διάλεξε ποιος βγαίνει (από το γήπεδο)'}
-                </div>
-              )}
+              <div className="relative">
+                <LineupPitch
+                  formation={(pitchSide === 'a' ? match.formation_a : match.formation_b) ?? '3-3-1'}
+                  line={(pitchSide === 'a' ? match.lineup_a : match.lineup_b) ?? []}
+                  players={pitchSide === 'a' ? byIdA : byIdB}
+                  accent={pitchSide === 'a' ? '#E05B1F' : '#3E6DDB'}
+                  notes={notes}
+                  onSlot={(i) => {
+                    const line = (pitchSide === 'a' ? match.lineup_a : match.lineup_b) ?? []
+                    const pid = line[i]
+                    if (!pid) return
+                    const p = (pitchSide === 'a' ? byIdA : byIdB)[pid]
+                    if (p) pitchTap(p, pitchSide)
+                  }}
+                />
 
-              <LineupPitch
-                formation={(pitchSide === 'a' ? match.formation_a : match.formation_b) ?? '3-3-1'}
-                line={(pitchSide === 'a' ? match.lineup_a : match.lineup_b) ?? []}
-                players={pitchSide === 'a' ? byIdA : byIdB}
-                accent={pitchSide === 'a' ? '#E05B1F' : '#3E6DDB'}
-                notes={notes}
-                onSlot={(i) => {
-                  const line = (pitchSide === 'a' ? match.lineup_a : match.lineup_b) ?? []
-                  const pid = line[i]
-                  if (!pid) return
-                  const p = (pitchSide === 'a' ? byIdA : byIdB)[pid]
-                  if (p) pitchTap(p, pitchSide)
-                }}
-              />
+                {/* Μηνύματα πάνω στο γήπεδο (overlay — δεν μετακινούν τίποτα) */}
+                {(subMode || assistSide) && (
+                  <div className="absolute top-2 left-2 right-2 z-10 flex items-center gap-2
+                    px-3 py-2 rounded-xl bg-black/75 border border-lit/40
+                    text-[12px] font-bold text-lit">
+                    <span className="flex-1 leading-tight">
+                      {subMode
+                        ? (subMode.out
+                            ? `🔄 Βγαίνει: ${(pitchSide === 'a' ? byIdA : byIdB)[subMode.out]?.full_name ?? ''} → διάλεξε ποιος μπαίνει`
+                            : '🔄 Διάλεξε ποιος βγαίνει (πάτα παίκτη)')
+                        : `🅰 Ασίστ; διάλεξε παίκτη — ${assistSide === 'a' ? match.team_a_data?.name : match.team_b_data?.name}`}
+                    </span>
+                    {!subMode && assistSide && (
+                      <button onClick={() => setAssistSide(null)}
+                        className="shrink-0 text-[11px] font-bold text-silver bg-white/10 rounded-lg px-2.5 py-1.5">
+                        Χωρίς
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
               {(pitchSide === 'a' ? benchLiveA : benchLiveB).length > 0 && (
                 <div className="mt-2">
                   <p className="text-[9px] font-extrabold text-dim tracking-[0.1em] mb-1.5">
