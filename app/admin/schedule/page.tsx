@@ -11,13 +11,41 @@ export default function AdminSchedule() {
   const [load, setLoad] = useState(true)
   const [showPast, setShowPast] = useState(false)
 
-  useEffect(() => {
-    supabase.from('matches')
+  // Πρωταθλήματα & αγωνιστικές (για διαγραφή)
+  const [leagues, setLeagues] = useState<any[]>([])
+  const [roundInfo, setRoundInfo] = useState<Record<string, number[]>>({})
+
+  async function loadRows() {
+    const { data } = await supabase.from('matches')
       .select(`match_id, match_date, field, match_status,
         team_a_data:team_a(name), team_b_data:team_b(name), league:league_id(name)`)
       .not('match_date', 'is', null)
       .order('match_date', { ascending: true })
-      .then(({ data }) => { setRows(data ?? []); setLoad(false) })
+    setRows(data ?? [])
+  }
+
+  async function loadRounds() {
+    const { data } = await supabase.from('matches').select('league_id, round')
+    const map: Record<string, Set<number>> = {}
+    for (const m of data ?? []) {
+      if (m.round == null) continue
+      ;(map[m.league_id] ??= new Set()).add(m.round)
+    }
+    const out: Record<string, number[]> = {}
+    for (const k in map) out[k] = [...map[k]].sort((a, b) => a - b)
+    setRoundInfo(out)
+  }
+
+  useEffect(() => {
+    Promise.all([
+      loadRows(),
+      loadRounds(),
+      supabase.from('leagues').select('league_id, name').order('sort_order')
+        .then(({ data }) => {
+          setLeagues(data ?? [])
+          if (data?.length) setDelLeague(data[0].league_id)
+        }),
+    ]).finally(() => setLoad(false))
   }, [])
 
   const days = useMemo(() => {
@@ -98,6 +126,44 @@ export default function AdminSchedule() {
     } finally { setCleaning(false) }
   }
 
+  // Σβήσιμο αγωνιστικών (ανά πρωτάθλημα, εύρος από–έως)
+  const [delLeague, setDelLeague] = useState('')
+  const [rFrom, setRFrom] = useState('')
+  const [rTo, setRTo] = useState('')
+  const [rBusy, setRBusy] = useState(false)
+  const availRounds = roundInfo[delLeague] ?? []
+
+  async function deleteRounds() {
+    const from = parseInt(rFrom)
+    if (!delLeague || isNaN(from)) return toast.error('Διάλεξε πρωτάθλημα & αγωνιστική')
+    const toNum = rTo.trim() ? parseInt(rTo) : from
+    const lo = Math.min(from, toNum), hi = Math.max(from, toNum)
+    const lg = leagues.find(l => l.league_id === delLeague)?.name ?? ''
+    setRBusy(true)
+    try {
+      const { data: ms, error } = await supabase.from('matches')
+        .select('match_id').eq('league_id', delLeague).gte('round', lo).lte('round', hi)
+      if (error) throw error
+      const ids = (ms ?? []).map(m => m.match_id)
+      if (!ids.length) { toast('Δεν βρέθηκαν αγώνες σε αυτές τις αγωνιστικές'); return }
+      const label = lo === hi ? `την αγωνιστική ${lo}` : `τις αγωνιστικές ${lo}–${hi}`
+      if (!confirm(`Σβήσιμο ${ids.length} αγώνων — ${label} (${lg});\nΘα διαγραφούν και τα γκολ/γεγονότα τους. Μη αναστρέψιμο.`)) return
+
+      // πρώτα τα events (γκολ/κάρτες), μετά τους αγώνες
+      for (let i = 0; i < ids.length; i += 100)
+        await supabase.from('events').delete().in('match_id', ids.slice(i, i + 100))
+      for (let i = 0; i < ids.length; i += 100) {
+        const { error: de } = await supabase.from('matches').delete().in('match_id', ids.slice(i, i + 100))
+        if (de) throw de
+      }
+      toast.success(`Σβήστηκαν ${ids.length} αγώνες`)
+      setRFrom(''); setRTo('')
+      await Promise.all([loadRows(), loadRounds()])
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Απέτυχε η διαγραφή')
+    } finally { setRBusy(false) }
+  }
+
   if (load) return <Loading />
 
   return (
@@ -129,6 +195,36 @@ export default function AdminSchedule() {
           className="px-3 py-2 rounded-lg bg-danger/15 text-danger text-[11px] font-bold disabled:opacity-50">
           {delBusy ? '…' : 'Σβήσε'}
         </button>
+      </div>
+
+      {/* Σβήσιμο αγωνιστικών */}
+      <div className="bg-turf rounded-xl p-3 border border-chalk/[0.05] flex flex-col gap-2">
+        <span className="text-[11px] text-dim font-semibold">Σβήσε αγωνιστικές (αγώνες + γκολ):</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <select value={delLeague} onChange={e => setDelLeague(e.target.value)}
+            className="flex-1 min-w-[150px] bg-chalk/[0.04] rounded-lg px-3 py-2 text-chalk text-[13px]
+              outline-none border border-chalk/[0.07]">
+            {leagues.map(l => <option key={l.league_id} value={l.league_id}>{l.name}</option>)}
+          </select>
+          <input type="number" inputMode="numeric" value={rFrom} onChange={e => setRFrom(e.target.value)}
+            placeholder="από"
+            className="w-[68px] bg-chalk/[0.04] rounded-lg px-3 py-2 text-chalk text-[13px] tnum
+              outline-none border border-chalk/[0.07]" />
+          <span className="text-dim text-[13px]">–</span>
+          <input type="number" inputMode="numeric" value={rTo} onChange={e => setRTo(e.target.value)}
+            placeholder="έως"
+            className="w-[68px] bg-chalk/[0.04] rounded-lg px-3 py-2 text-chalk text-[13px] tnum
+              outline-none border border-chalk/[0.07]" />
+          <button onClick={deleteRounds} disabled={rBusy}
+            className="px-3 py-2 rounded-lg bg-danger/15 text-danger text-[11px] font-bold disabled:opacity-50">
+            {rBusy ? '…' : 'Σβήσε'}
+          </button>
+        </div>
+        <p className="text-[10px] text-dim">
+          {availRounds.length
+            ? <>Υπάρχουν αγωνιστικές: {availRounds.join(', ')}. Άφησε το «έως» κενό για μία μόνο.</>
+            : 'Δεν υπάρχουν αγωνιστικές σε αυτό το πρωτάθλημα.'}
+        </p>
       </div>
 
       {!days.length ? <Empty>Δεν υπάρχουν προγραμματισμένοι αγώνες.</Empty> : (
