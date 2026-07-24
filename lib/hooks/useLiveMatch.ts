@@ -18,7 +18,7 @@ export function useLiveMatch(matchId: string) {
         setter:squad_set_by(full_name),
         team_a_data:team_a(team_id, name, logo_url),
         team_b_data:team_b(team_id, name, logo_url),
-        league:league_id(name),
+        league:league_id(name, logo_url),
         venue:venue_id(name)
       `)
       .eq('match_id', matchId)
