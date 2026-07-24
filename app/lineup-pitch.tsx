@@ -45,9 +45,10 @@ export default function LineupPitch({ formation, line, players, onSlot, accent =
         return (
           <button key={i} type="button"
             onClick={onSlot ? () => onSlot(i) : undefined}
+            onPointerDown={onSlot ? (e) => e.preventDefault() : undefined}
             disabled={!onSlot}
             className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-0.5"
-            style={{ left: `${c.x * 100}%`, top: `${c.y * 100}%`, width: 104 }}>
+            style={{ left: `${c.x * 100}%`, top: `${c.y * 100}%`, width: 104, touchAction: 'manipulation' }}>
             <span
               className={`w-12 h-12 rounded-full grid place-items-center text-[14px] font-extrabold
                 overflow-hidden ${p ? 'text-white border-2' : 'border-2 border-dashed border-white/45 text-white/70'}`}

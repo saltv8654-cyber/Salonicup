@@ -467,7 +467,8 @@ export default function SpeakerPanel() {
 
           {entryView === 'pitch' && hasLineupLive ? (
             /* Γήπεδο: πάτα παίκτη πάνω στο γήπεδο */
-            <div className="px-3.5 pb-2 flex-1 min-h-0 overflow-y-auto">
+            <div className="px-3.5 pb-2 flex-1 min-h-0 overflow-y-auto"
+              style={{ overflowAnchor: 'none' }}>
               <div className="flex items-center gap-2 mb-2">
                 <div className="flex-1 flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
                   {(['a', 'b'] as Side[]).map(s => (
@@ -517,6 +518,8 @@ export default function SpeakerPanel() {
                   <div className="flex flex-wrap gap-1.5">
                     {(pitchSide === 'a' ? benchLiveA : benchLiveB).map(p => (
                       <button key={p.player_id} onClick={() => benchTap(p, pitchSide)}
+                        onPointerDown={(e) => e.preventDefault()}
+                        style={{ touchAction: 'manipulation' }}
                         className={`flex items-center gap-1.5 bg-turf border rounded-lg pl-1.5 pr-2 py-1.5
                           active:bg-brand/25 ${subMode?.out ? 'border-lit/50' : 'border-chalk/[0.06]'}`}>
                         <span className="text-[11px] font-extrabold text-dim tnum">{p.number ?? '·'}</span>
@@ -540,7 +543,8 @@ export default function SpeakerPanel() {
           )}
 
           {/* Περιγραφή */}
-          <div className={`px-3.5 pb-3 overflow-y-auto
+          <div style={{ overflowAnchor: 'none' }}
+            className={`px-3.5 pb-3 overflow-y-auto
             ${entryView === 'pitch' && hasLineupLive ? 'shrink-0 max-h-[17vh]' : 'flex-1'}`}>
             <div className="flex items-center gap-2">
               <div className="flex-1"><SectionLabel>Περιγραφή</SectionLabel></div>
