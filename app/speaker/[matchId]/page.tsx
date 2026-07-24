@@ -55,6 +55,7 @@ export default function SpeakerPanel() {
   const [assistSide, setAssistSide] = useState<Side | null>(null)
   const [entryView, setEntryView]   = useState<'list' | 'pitch'>('list')
   const [pitchSide, setPitchSide]   = useState<Side>('a')
+  const [subMode, setSubMode]       = useState<{ side: Side; out: string | null } | null>(null)
   const [report, setReport]   = useState(false)
   const [saving, setSaving]   = useState(false)
   const [clockBusy, setClockBusy] = useState(false)
@@ -270,6 +271,31 @@ export default function SpeakerPanel() {
     logEvent(p.player, ev, p.side)
   }
 
+  // Αλλαγή: ο παίκτης που μπαίνει παίρνει τη θέση αυτού που βγαίνει
+  async function substitute(evSide: Side, outPid: string, inPid: string) {
+    const line = (evSide === 'a' ? match.lineup_a : match.lineup_b) ?? []
+    const nl = line.map((x: string | null) => (x === outPid ? inPid : x))
+    const col = evSide === 'a' ? 'lineup_a' : 'lineup_b'
+    const { error } = await supabase.from('matches').update({ [col]: nl }).eq('match_id', match.match_id)
+    if (error) { toast.error('Δεν καταχωρήθηκε η αλλαγή'); return }
+    const inName = (evSide === 'a' ? byIdA : byIdB)[inPid]?.full_name ?? ''
+    toast.success(`Αλλαγή: μπαίνει ${inName}`)
+  }
+
+  // Πάτημα παίκτη στο γήπεδο (θέση) — σε λειτουργία αλλαγής επιλέγει ποιος βγαίνει
+  function pitchTap(p: Player, s: Side) {
+    if (subMode && subMode.side === s) { setSubMode({ side: s, out: p.player_id }); return }
+    onPlayerTap(p, s)
+  }
+  // Πάτημα παίκτη πάγκου — σε λειτουργία αλλαγής (αφού διαλέξεις έξοδο) μπαίνει
+  function benchTap(p: Player, s: Side) {
+    if (subMode && subMode.side === s) {
+      if (subMode.out) { substitute(s, subMode.out, p.player_id); setSubMode(null) }
+      return
+    }
+    onPlayerTap(p, s)
+  }
+
   async function removeEvent(id: string) {
     const { error } = await supabase.from('events').delete().eq('event_id', id)
     if (error) { toast.error('Δεν διαγράφηκε'); return }
@@ -432,15 +458,33 @@ export default function SpeakerPanel() {
           {entryView === 'pitch' && hasLineupLive ? (
             /* Γήπεδο: πάτα παίκτη πάνω στο γήπεδο */
             <div className="px-3.5 pb-2 flex-1 min-h-0 overflow-y-auto">
-              <div className="flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05] mb-2">
-                {(['a', 'b'] as Side[]).map(s => (
-                  <button key={s} onClick={() => setPitchSide(s)}
-                    className={`flex-1 py-2 rounded-lg text-[12px] font-bold truncate transition-colors
-                      ${pitchSide === s ? 'bg-brand text-chalk' : 'text-dim'}`}>
-                    {s === 'a' ? match.team_a_data?.name : match.team_b_data?.name}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2 mb-2">
+                <div className="flex-1 flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
+                  {(['a', 'b'] as Side[]).map(s => (
+                    <button key={s} onClick={() => { setPitchSide(s); setSubMode(null) }}
+                      className={`flex-1 py-2 rounded-lg text-[12px] font-bold truncate transition-colors
+                        ${pitchSide === s ? 'bg-brand text-chalk' : 'text-dim'}`}>
+                      {s === 'a' ? match.team_a_data?.name : match.team_b_data?.name}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setSubMode(subMode ? null : { side: pitchSide, out: null })}
+                  className={`shrink-0 px-3 py-2.5 rounded-xl text-[12px] font-bold
+                    ${subMode ? 'bg-danger/15 text-danger' : 'bg-chalk/[0.06] text-silver border border-chalk/[0.08]'}`}>
+                  {subMode ? '✕ Άκυρο' : '🔄 Αλλαγή'}
+                </button>
               </div>
+
+              {subMode && (
+                <div className="mb-2 px-3 py-2 rounded-xl bg-lit/10 border border-lit/30
+                  text-[12px] font-bold text-lit">
+                  {subMode.out
+                    ? `Βγαίνει: ${(pitchSide === 'a' ? byIdA : byIdB)[subMode.out]?.full_name ?? ''} → διάλεξε ποιος μπαίνει (πάγκος)`
+                    : 'Διάλεξε ποιος βγαίνει (από το γήπεδο)'}
+                </div>
+              )}
+
               <LineupPitch
                 formation={(pitchSide === 'a' ? match.formation_a : match.formation_b) ?? '3-3-1'}
                 line={(pitchSide === 'a' ? match.lineup_a : match.lineup_b) ?? []}
@@ -452,17 +496,19 @@ export default function SpeakerPanel() {
                   const pid = line[i]
                   if (!pid) return
                   const p = (pitchSide === 'a' ? byIdA : byIdB)[pid]
-                  if (p) onPlayerTap(p, pitchSide)
+                  if (p) pitchTap(p, pitchSide)
                 }}
               />
               {(pitchSide === 'a' ? benchLiveA : benchLiveB).length > 0 && (
                 <div className="mt-2">
-                  <p className="text-[9px] font-extrabold text-dim tracking-[0.1em] mb-1.5">ΠΑΓΚΟΣ</p>
+                  <p className="text-[9px] font-extrabold text-dim tracking-[0.1em] mb-1.5">
+                    ΠΑΓΚΟΣ {subMode?.out ? '· πάτα ποιος μπαίνει' : ''}
+                  </p>
                   <div className="flex flex-wrap gap-1.5">
                     {(pitchSide === 'a' ? benchLiveA : benchLiveB).map(p => (
-                      <button key={p.player_id} onClick={() => onPlayerTap(p, pitchSide)}
-                        className="flex items-center gap-1.5 bg-turf border border-chalk/[0.06]
-                          rounded-lg pl-1.5 pr-2 py-1.5 active:bg-brand/25">
+                      <button key={p.player_id} onClick={() => benchTap(p, pitchSide)}
+                        className={`flex items-center gap-1.5 bg-turf border rounded-lg pl-1.5 pr-2 py-1.5
+                          active:bg-brand/25 ${subMode?.out ? 'border-lit/50' : 'border-chalk/[0.06]'}`}>
                         <span className="text-[11px] font-extrabold text-dim tnum">{p.number ?? '·'}</span>
                         <span className="text-[12px] font-semibold text-chalk">{shortName(p.full_name)}</span>
                       </button>
