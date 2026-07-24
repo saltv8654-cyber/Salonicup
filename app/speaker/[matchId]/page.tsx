@@ -53,6 +53,8 @@ export default function SpeakerPanel() {
   const [minute, setMinute]   = useState('')
   const [pick, setPick]       = useState<{ player: Player; side: Side } | null>(null)
   const [assistSide, setAssistSide] = useState<Side | null>(null)
+  const [entryView, setEntryView]   = useState<'list' | 'pitch'>('list')
+  const [pitchSide, setPitchSide]   = useState<Side>('a')
   const [report, setReport]   = useState(false)
   const [saving, setSaving]   = useState(false)
   const [clockBusy, setClockBusy] = useState(false)
@@ -66,6 +68,16 @@ export default function SpeakerPanel() {
   useEffect(() => {
     if (isRunning(match?.clock_period)) setPeriod(match.clock_period as Period)
   }, [match?.clock_period])
+
+  // Αν υπάρχει διάταξη, δείξε το γήπεδο στη ζωντανή καταχώρηση
+  useEffect(() => {
+    const has = (match?.lineup_a?.filter(Boolean).length ?? 0) > 0
+      || (match?.lineup_b?.filter(Boolean).length ?? 0) > 0
+    if (has) setEntryView('pitch')
+  }, [match?.match_id])
+
+  // Σε λειτουργία ασίστ, το γήπεδο δείχνει την ίδια ομάδα
+  useEffect(() => { if (assistSide) setPitchSide(assistSide) }, [assistSide])
 
   // Έλεγχος χρονομέτρου: cp = φάση, started = αν τρέχει
   async function setClock(cp: string | null, started: boolean) {
@@ -151,6 +163,15 @@ export default function SpeakerPanel() {
   const activeA = rosterA.filter(p => inA.has(p.player_id))
   const activeB = rosterB.filter(p => inB.has(p.player_id))
   const done    = ['Played', 'Forfeit'].includes(match.match_status)
+
+  // Γήπεδο (ζωντανά): θέσεις από τη διάταξη + πάγκος
+  const byIdA: Record<string, Player> = Object.fromEntries(rosterA.map(p => [p.player_id, p]))
+  const byIdB: Record<string, Player> = Object.fromEntries(rosterB.map(p => [p.player_id, p]))
+  const startersLiveA = (match.lineup_a ?? []).filter(Boolean) as string[]
+  const startersLiveB = (match.lineup_b ?? []).filter(Boolean) as string[]
+  const benchLiveA = activeA.filter(p => !startersLiveA.includes(p.player_id))
+  const benchLiveB = activeB.filter(p => !startersLiveB.includes(p.player_id))
+  const hasLineupLive = startersLiveA.length > 0 || startersLiveB.length > 0
 
   /* ── Συνθέσεις ── */
   async function saveSquad() {
@@ -389,15 +410,73 @@ export default function SpeakerPanel() {
             </div>
           )}
 
-          {/* Παίκτες — μόνιμα ορατοί, ανά ομάδα */}
-          <div className="px-3.5 pb-2 shrink-0 max-h-[42vh] overflow-y-auto">
-            <div className="grid grid-cols-2 gap-2 items-start">
-              <TeamGrid name={match.team_a_data?.name} players={activeA} side="a"
-                notes={notes} dimmed={assistSide === 'b'} onTap={onPlayerTap} />
-              <TeamGrid name={match.team_b_data?.name} players={activeB} side="b"
-                notes={notes} dimmed={assistSide === 'a'} onTap={onPlayerTap} />
+          {/* Διακόπτης Γήπεδο / Λίστα (αν υπάρχει διάταξη) */}
+          {hasLineupLive && (
+            <div className="px-3.5 pb-2 shrink-0">
+              <div className="flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
+                {(['pitch', 'list'] as const).map(v => (
+                  <button key={v} onClick={() => setEntryView(v)}
+                    className={`flex-1 py-2 rounded-lg text-[12px] font-bold transition-colors
+                      ${entryView === v ? 'bg-brand text-chalk' : 'text-dim'}`}>
+                    {v === 'pitch' ? '⚽ Γήπεδο' : 'Λίστα'}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+
+          {entryView === 'pitch' && hasLineupLive ? (
+            /* Γήπεδο: πάτα παίκτη πάνω στο γήπεδο */
+            <div className="px-3.5 pb-2 shrink-0 overflow-y-auto" style={{ maxHeight: '54vh' }}>
+              <div className="flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05] mb-2">
+                {(['a', 'b'] as Side[]).map(s => (
+                  <button key={s} onClick={() => setPitchSide(s)}
+                    className={`flex-1 py-2 rounded-lg text-[12px] font-bold truncate transition-colors
+                      ${pitchSide === s ? 'bg-brand text-chalk' : 'text-dim'}`}>
+                    {s === 'a' ? match.team_a_data?.name : match.team_b_data?.name}
+                  </button>
+                ))}
+              </div>
+              <LineupPitch
+                formation={(pitchSide === 'a' ? match.formation_a : match.formation_b) ?? '3-3-1'}
+                line={(pitchSide === 'a' ? match.lineup_a : match.lineup_b) ?? []}
+                players={pitchSide === 'a' ? byIdA : byIdB}
+                accent={pitchSide === 'a' ? '#E05B1F' : '#3E6DDB'}
+                onSlot={(i) => {
+                  const line = (pitchSide === 'a' ? match.lineup_a : match.lineup_b) ?? []
+                  const pid = line[i]
+                  if (!pid) return
+                  const p = (pitchSide === 'a' ? byIdA : byIdB)[pid]
+                  if (p) onPlayerTap(p, pitchSide)
+                }}
+              />
+              {(pitchSide === 'a' ? benchLiveA : benchLiveB).length > 0 && (
+                <div className="mt-2">
+                  <p className="text-[9px] font-extrabold text-dim tracking-[0.1em] mb-1.5">ΠΑΓΚΟΣ</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(pitchSide === 'a' ? benchLiveA : benchLiveB).map(p => (
+                      <button key={p.player_id} onClick={() => onPlayerTap(p, pitchSide)}
+                        className="flex items-center gap-1.5 bg-turf border border-chalk/[0.06]
+                          rounded-lg pl-1.5 pr-2 py-1.5 active:bg-brand/25">
+                        <span className="text-[11px] font-extrabold text-dim tnum">{p.number ?? '·'}</span>
+                        <span className="text-[12px] font-semibold text-chalk">{shortName(p.full_name)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Λίστα: ονόματα ανά ομάδα */
+            <div className="px-3.5 pb-2 shrink-0 max-h-[42vh] overflow-y-auto">
+              <div className="grid grid-cols-2 gap-2 items-start">
+                <TeamGrid name={match.team_a_data?.name} players={activeA} side="a"
+                  notes={notes} dimmed={assistSide === 'b'} onTap={onPlayerTap} />
+                <TeamGrid name={match.team_b_data?.name} players={activeB} side="b"
+                  notes={notes} dimmed={assistSide === 'a'} onTap={onPlayerTap} />
+              </div>
+            </div>
+          )}
 
           {/* Περιγραφή */}
           <div className="flex-1 px-3.5 pb-3 overflow-y-auto">
