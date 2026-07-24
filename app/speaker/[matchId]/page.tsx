@@ -939,7 +939,7 @@ function LineupBuilder({
             bg-lit/[0.12] text-lit">＋</button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3.5 pb-3">
+      <div className="flex-1 overflow-y-auto px-3.5 pb-3" style={{ overflowAnchor: 'none' }}>
         {/* Γήπεδο */}
         <LineupPitch formation={form} line={line} players={byId} accent={accent} notes={notes}
           onSlot={(i) => setAssign({ mode: 'slot', slot: i })} />
