@@ -689,10 +689,11 @@ export default function SpeakerPanel() {
               {done ? 'Κείμενο αγώνα' : 'Λήξη αγώνα'}
             </button>
             <div className="flex gap-2">
-              <button onClick={() => setPhase('squad')}
-                className="flex-1 py-3 rounded-xl text-dim font-semibold text-[12.5px]">
-                Αλλαγή συμμετοχών
-              </button>
+              <a href={`/overlay/${match.match_id}?preview=1`} target="_blank" rel="noopener"
+                className="flex-1 py-3 rounded-xl text-silver font-semibold text-[12.5px] text-center
+                  bg-chalk/[0.05] border border-chalk/[0.07]">
+                👁 Προεπισκόπηση
+              </a>
               <button
                 onClick={() => {
                   navigator.clipboard?.writeText(`${window.location.origin}/overlay/${match.match_id}`)
@@ -700,9 +701,13 @@ export default function SpeakerPanel() {
                 }}
                 className="flex-1 py-3 rounded-xl text-silver font-semibold text-[12.5px]
                   bg-chalk/[0.05] border border-chalk/[0.07]">
-                📺 OBS overlay
+                📺 Αντιγραφή link
               </button>
             </div>
+            <button onClick={() => setPhase('squad')}
+              className="w-full py-2.5 rounded-xl text-dim font-semibold text-[12.5px]">
+              Αλλαγή συμμετοχών
+            </button>
           </div>
         </>
       )}

@@ -36,6 +36,7 @@ function Overlay() {
 
   const scale = parseFloat(params.get('scale') || '1') || 1
   const pos = params.get('pos') || 'bl'
+  const preview = params.get('preview') != null
 
   const [popup, setPopup] = useState<{ name: string; sub: string } | null>(null)
   const seen = useRef<Set<string>>(new Set())
@@ -44,10 +45,12 @@ function Overlay() {
   useEffect(() => {
     const b = document.body.style.background
     const h = document.documentElement.style.background
-    document.body.style.background = 'transparent'
-    document.documentElement.style.background = 'transparent'
+    // Στο OBS: διάφανο. Στην προεπισκόπηση: σκούρο «γήπεδο» για να φαίνεται.
+    const bg = preview ? 'linear-gradient(160deg,#0f2a1c,#0a1512 70%)' : 'transparent'
+    document.body.style.background = bg
+    document.documentElement.style.background = preview ? '#0a1512' : 'transparent'
     return () => { document.body.style.background = b; document.documentElement.style.background = h }
-  }, [])
+  }, [preview])
 
   // Pop-up στο γκολ (μόνο για νέα γεγονότα)
   useEffect(() => {
@@ -155,6 +158,24 @@ function Overlay() {
             <div style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.1 }}>{popup.name}</div>
             <div style={{ fontSize: 12.5, fontWeight: 700, opacity: .92, marginTop: 1 }}>{popup.sub}</div>
           </div>
+        </div>
+      )}
+
+      {/* Χειριστήρια προεπισκόπησης (μόνο με ?preview) */}
+      {preview && (
+        <div style={{ position: 'fixed', top: 14, left: '50%', transform: 'translateX(-50%)',
+          display: 'flex', gap: 10, alignItems: 'center', zIndex: 20 }}>
+          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.16em',
+            color: 'rgba(255,255,255,.6)', textTransform: 'uppercase' }}>Προεπισκόπηση</span>
+          <button onClick={() => {
+            setPopup({ name: 'Δοκιμαστικός Παίκτης',
+              sub: `${(match.team_a_data?.name ?? '').toUpperCase()} · ${clk ?? "45'"}` })
+            clearTimeout(popTimer.current)
+            popTimer.current = setTimeout(() => setPopup(null), 4500)
+          }} style={{ background: t.acc, color: '#111', border: 0, borderRadius: 10,
+            padding: '8px 14px', fontWeight: 800, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer' }}>
+            ⚽ Δοκιμή γκολ
+          </button>
         </div>
       )}
     </div>
