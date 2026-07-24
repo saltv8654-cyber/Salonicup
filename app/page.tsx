@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Crest, LiveDot, BottomNav, Empty, Watermark, FieldBadge } from './ui'
 import NotificationsBell from './notifications-bell'
 import LiveTicker from './live-ticker'
+import LiveClock from './live-clock'
 import { athensDateKey, fmtDay, fmtTime } from '@/lib/time'
 
 export const revalidate = 15
@@ -175,7 +176,11 @@ function MatchRow({ m, first }: { m: any; first: boolean }) {
             </span>
           )}
           {live
-            ? <span className="mt-1"><LiveDot /></span>
+            ? <span className="mt-1 flex items-center gap-1">
+                <LiveDot />
+                <LiveClock period={m.clock_period} startedAt={m.clock_started_at}
+                  className="text-[9px] font-extrabold text-live tnum leading-none" />
+              </span>
             : done
             ? <span className="text-[8px] font-extrabold text-dim tracking-[0.1em] mt-1">ΤΕΛ</span>
             : null}
