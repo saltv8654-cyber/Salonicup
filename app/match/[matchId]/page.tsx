@@ -7,7 +7,7 @@ import { useLiveMatch } from '@/lib/hooks/useLiveMatch'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { Watermark, Crest, Avatar, LiveDot, SectionLabel, Loading, Empty } from '@/app/ui'
 import { PERIODS, EVENTS, fmtMinute, absMinute } from '@/lib/match'
-import { clockLabel } from '@/lib/clock'
+import { clockLabel, clockHalf } from '@/lib/clock'
 import { useNow } from '@/lib/hooks/useNow'
 import toast from 'react-hot-toast'
 import type { Period } from '@/lib/types'
@@ -51,7 +51,9 @@ export default function PublicMatch() {
   const live = match.match_status === 'Live'
   const done = ['Played', 'Forfeit'].includes(match.match_status)
   const hasPens = match.pens_team_a > 0 || match.pens_team_b > 0
-  const clk = clockLabel(match.clock_period, match.clock_started_at, now)
+  const clkMin = clockLabel(match.clock_period, match.clock_started_at, now)
+  const clkHalf = clockHalf(match.clock_period)
+  const clk = clkMin ? (clkHalf ? `${clkHalf} · ${clkMin}` : clkMin) : null
   const place = [match.venue?.name, match.field].filter(Boolean).join(' · ')
 
   // Γκολ ανά παίκτη (για σήμανση στη σύνθεση)

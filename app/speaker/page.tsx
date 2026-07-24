@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Watermark, Crest, LiveDot, SectionLabel, Empty } from '@/app/ui'
+import LiveClock from '@/app/live-clock'
 import { fmtDateTime as fmt, isTodayAthens as isToday } from '@/lib/time'
 
 export const dynamic = 'force-dynamic'
@@ -100,7 +101,13 @@ function Row({ m }: { m: any }) {
         <span className="text-[9.5px] text-dim font-bold">
           {m.league?.name} · Αγ. {m.round}
         </span>
-        {live ? <LiveDot /> : (
+        {live ? (
+          <span className="flex items-center gap-1.5">
+            <LiveClock period={m.clock_period} startedAt={m.clock_started_at} withHalf
+              className="text-[11px] font-extrabold text-live tnum" />
+            <LiveDot />
+          </span>
+        ) : (
           <span className="text-[9.5px] text-dim font-bold">
             {done ? 'ΤΕΛΙΚΟ' : fmt(m.match_date)}
           </span>
