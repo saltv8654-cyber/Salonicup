@@ -2,6 +2,7 @@
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/lib/hooks/useAuth'
+import { createClient } from '@/lib/supabase/client'
 import { Watermark } from '@/app/ui'
 import toast from 'react-hot-toast'
 
@@ -17,6 +18,7 @@ function LoginForm() {
   const router = useRouter()
   const params = useSearchParams()
   const { signIn, signOut, profile, loading, isAdmin, isSpeaker } = useAuth()
+  const supabase = createClient()
   const [email, setEmail] = useState('')
   const [pass, setPass]   = useState('')
   const [busy, setBusy]   = useState(false)
@@ -32,6 +34,17 @@ function LoginForm() {
       toast.error('Λάθος email ή κωδικός')
       setBusy(false)
     }
+  }
+
+  async function forgot() {
+    if (!email) { toast.error('Γράψε πρώτα το email σου πιο πάνω'); return }
+    setBusy(true)
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/reset`,
+    })
+    setBusy(false)
+    if (error) { toast.error('Κάτι πήγε στραβά — ξαναδοκίμασε'); return }
+    toast.success('Σου στείλαμε email για επαναφορά κωδικού')
   }
 
   // Ήδη συνδεδεμένος → κάρτα προφίλ με αποσύνδεση
@@ -151,8 +164,13 @@ function LoginForm() {
           </button>
         </form>
 
+        <button type="button" onClick={forgot} disabled={busy}
+          className="w-full py-2.5 mt-2 text-[12.5px] font-semibold text-lit disabled:opacity-50">
+          Ξέχασες τον κωδικό;
+        </button>
+
         <button onClick={() => router.push('/')}
-          className="w-full py-3 mt-3 text-dim font-semibold text-[12.5px]">
+          className="w-full py-3 mt-1 text-dim font-semibold text-[12.5px]">
           ← Πίσω στα πρωταθλήματα
         </button>
       </div>
