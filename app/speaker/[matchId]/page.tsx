@@ -59,6 +59,7 @@ export default function SpeakerPanel() {
   const [report, setReport]   = useState(false)
   const [saving, setSaving]   = useState(false)
   const [clockBusy, setClockBusy] = useState(false)
+  const [streamUrl, setStreamUrl] = useState('')
   const now = useNow(1000)
 
   useEffect(() => {
@@ -98,6 +99,19 @@ export default function SpeakerPanel() {
   useEffect(() => {
     if (match) setNotes(match.player_notes ?? {})
   }, [match?.match_id])
+
+  // YouTube link — αρχικοποίηση ανά ματς
+  useEffect(() => {
+    if (match) setStreamUrl(match.stream_url ?? '')
+  }, [match?.match_id])
+
+  async function saveStream(url: string) {
+    if (!match) return
+    const { error } = await supabase.from('matches')
+      .update({ stream_url: url.trim() || null }).eq('match_id', match.match_id)
+    if (error) toast.error('Δεν αποθηκεύτηκε ο σύνδεσμος')
+    else toast.success(url.trim() ? 'Ο σύνδεσμος YouTube αποθηκεύτηκε' : 'Ο σύνδεσμος αφαιρέθηκε')
+  }
 
   async function saveNote(playerId: string, text: string) {
     const t = text.trim()
@@ -653,6 +667,21 @@ export default function SpeakerPanel() {
           </div>
 
           <div className="px-3.5 pt-2 pb-6 flex flex-col gap-2 shrink-0">
+            <div className="flex items-center gap-2">
+              <input
+                value={streamUrl}
+                onChange={e => setStreamUrl(e.target.value)}
+                placeholder="📺 YouTube link (live)"
+                inputMode="url"
+                className="flex-1 bg-turf rounded-xl px-3 py-2.5 text-chalk text-[12.5px]
+                  outline-none border border-chalk/[0.07] focus:border-lit/50 placeholder:text-off"
+              />
+              <button onClick={() => saveStream(streamUrl)}
+                className="shrink-0 px-3.5 py-2.5 rounded-xl bg-chalk/[0.06] border border-chalk/[0.08]
+                  text-silver text-[12px] font-bold">
+                Αποθήκευση
+              </button>
+            </div>
             <button onClick={() => setReport(true)}
               className="w-full py-3.5 rounded-xl bg-gradient-to-b from-lit to-brand
                 text-white font-extrabold text-[15px]
