@@ -41,9 +41,8 @@ export default function SpeakerPanel() {
 
   const [period, setPeriod]   = useState<Period>('H1')
   const [minute, setMinute]   = useState('')
-  const [side, setSide]       = useState<Side>('a')
-  const [pending, setPending] = useState<EventType | null>(null)
-  const [chained, setChained] = useState(false)
+  const [pick, setPick]       = useState<{ player: Player; side: Side } | null>(null)
+  const [assistSide, setAssistSide] = useState<Side | null>(null)
   const [report, setReport]   = useState(false)
   const [saving, setSaving]   = useState(false)
   const [clockBusy, setClockBusy] = useState(false)
@@ -129,7 +128,6 @@ export default function SpeakerPanel() {
 
   const activeA = rosterA.filter(p => inA.has(p.player_id))
   const activeB = rosterB.filter(p => inB.has(p.player_id))
-  const roster  = side === 'a' ? activeA : activeB
   const done    = ['Played', 'Forfeit'].includes(match.match_status)
 
   /* ── Συνθέσεις ── */
@@ -158,61 +156,64 @@ export default function SpeakerPanel() {
     setPhase('live')
   }
 
-  /* ── Καταχώρηση φάσης ── */
-  async function commit(playerId: string) {
-    if (!pending) return
-    const wasGoal = pending === 'GOAL' && period !== 'PEN'
+  /* ── Καταχώρηση φάσης (πρώτα παίκτης, μετά φάση) ── */
+  async function logEvent(player: Player, ev: EventType, evSide: Side) {
+    const isPen = period === 'PEN'
+    const wasGoal = ev === 'GOAL' && !isPen
     // Αν δεν γράφτηκε λεπτό, πάρ' το από το ζωντανό χρονόμετρο
     const fromClock = isRunning(match.clock_period) && match.clock_started_at
       ? clockRel(match.clock_started_at) : null
-    const min = period === 'PEN' ? null
+    const min = isPen ? null
       : (minute ? toRelativeMinute(period, parseInt(minute)) : fromClock)
 
     const { error } = await supabase.from('events').insert({
       match_id:   match.match_id,
-      team_id:    side === 'a' ? match.team_a : match.team_b,
-      player_id:  playerId,
-      event_type: pending,
+      team_id:    evSide === 'a' ? match.team_a : match.team_b,
+      player_id:  player.player_id,
+      event_type: ev,
       period,
       minute:     min,
       created_by: profile?.id,
     })
-
     if (error) { toast.error('Δεν καταχωρήθηκε'); return }
 
-    const teamName = side === 'a' ? match.team_a_data?.name : match.team_b_data?.name
-    const pname = roster.find(p => p.player_id === playerId)?.full_name ?? ''
+    const teamName = evSide === 'a' ? match.team_a_data?.name : match.team_b_data?.name
     const vs = `${match.team_a_data?.name} εναντίον ${match.team_b_data?.name}`
 
     if (wasGoal) {
       notifyPush({
         title: `⚽ ΓΚΟΛ! ${teamName ?? ''}`.trim(),
-        body: `${pname}${pname ? ' — ' : ''}${vs}`,
+        body: `${player.full_name} — ${vs}`,
         url: `/match/${match.match_id}`,
         type: 'goal', leagueId: match.league_id,
       })
-      // Αλυσίδα: γκολ → ασίστ, ίδιο λεπτό, ίδια ομάδα
-      setPending('ASSIST')
-      setChained(true)
-    } else {
-      if (pending === 'RED') {
-        notifyPush({
-          title: '🟥 Κόκκινη κάρτα',
-          body: `${pname} (${teamName}) — ${vs}`,
-          url: `/match/${match.match_id}`,
-          type: 'red', leagueId: match.league_id,
-        })
-      }
-      setPending(null)
-      setChained(false)
-      setMinute('')
+      // Αλυσίδα: γκολ → ασίστ, ίδια ομάδα
+      setAssistSide(evSide)
+    } else if (ev === 'RED') {
+      notifyPush({
+        title: '🟥 Κόκκινη κάρτα',
+        body: `${player.full_name} (${teamName}) — ${vs}`,
+        url: `/match/${match.match_id}`,
+        type: 'red', leagueId: match.league_id,
+      })
     }
+    setMinute('')
   }
 
-  function skipAssist() {
-    setPending(null)
-    setChained(false)
-    setMinute('')
+  // Πάτημα παίκτη: σε λειτουργία ασίστ → ασίστ· αλλιώς → επιλογή φάσης
+  function onPlayerTap(player: Player, s: Side) {
+    if (assistSide) {
+      if (s === assistSide) { logEvent(player, 'ASSIST', s); setAssistSide(null) }
+      return
+    }
+    setPick({ player, side: s })
+  }
+
+  function onPickEvent(ev: EventType) {
+    if (!pick) return
+    const p = pick
+    setPick(null)
+    logEvent(p.player, ev, p.side)
   }
 
   async function removeEvent(id: string) {
@@ -310,72 +311,57 @@ export default function SpeakerPanel() {
               ))}
             </div>
 
-            <div className="flex gap-2 mb-3 items-end">
-              {period !== 'PEN' && (
-                <div className="shrink-0">
-                  <label className="block text-[8.5px] font-extrabold text-dim
-                    tracking-[0.12em] mb-1.5 pl-0.5">
-                    ΛΕΠΤΟ{minute ? ` → ${fmtMinute(period, toRelativeMinute(period, parseInt(minute)))}` : ''}
-                  </label>
-                  <input
-                    value={minute}
-                    onChange={e => setMinute(e.target.value.replace(/\D/g, ''))}
-                    inputMode="numeric" placeholder="—"
-                    className="w-[60px] bg-turf rounded-xl px-1.5 py-3 text-chalk
-                      text-base font-extrabold text-center tnum outline-none
-                      border border-chalk/[0.07] focus:border-lit/50
-                      placeholder:text-off"
-                  />
-                </div>
-              )}
-
-              <div className="flex-1 flex bg-turf rounded-xl p-[3px]
-                border border-chalk/[0.05]">
-                {(['a', 'b'] as Side[]).map(s => (
-                  <button key={s} onClick={() => setSide(s)}
-                    className={`flex-1 py-2.5 px-1.5 rounded-lg text-[12.5px] font-bold
-                      truncate transition-colors
-                      ${side === s ? 'bg-brand text-chalk' : 'text-dim'}`}>
-                    {s === 'a' ? match.team_a_data?.name : match.team_b_data?.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {period !== 'PEN' && (
-              <p className="text-[9.5px] text-off text-center mb-2.5">
-                Γράψε το πραγματικό λεπτό (π.χ. 58'). Καθυστερήσεις: π.χ. 62' = 60+2'
-              </p>
-            )}
-
-            {/* Ενέργειες */}
-            {period === 'PEN' ? (
-              <div className="grid grid-cols-2 gap-2">
-                {PEN_EVENTS.map(t => (
-                  <button key={t} onClick={() => setPending(t)}
-                    className="bg-turf rounded-xl py-3.5 flex flex-col items-center gap-1
-                      border border-chalk/[0.05] active:bg-[#1C1C22]">
-                    <span className="text-[21px]">{EVENTS[t].icon}</span>
-                    <span className="text-[11px] font-extrabold text-silver">
-                      {EVENTS[t].label}
-                    </span>
-                  </button>
-                ))}
+            {period !== 'PEN' ? (
+              <div className="flex items-center gap-2">
+                <input
+                  value={minute}
+                  onChange={e => setMinute(e.target.value.replace(/\D/g, ''))}
+                  inputMode="numeric" placeholder="Λεπτό (αυτόματο από χρονόμετρο)"
+                  className="flex-1 bg-turf rounded-xl px-3 py-2.5 text-chalk
+                    text-[13px] font-bold text-center tnum outline-none
+                    border border-chalk/[0.07] focus:border-lit/50
+                    placeholder:text-off placeholder:font-normal"
+                />
+                {minute && (
+                  <span className="text-[11px] font-bold text-lit shrink-0">
+                    → {fmtMinute(period, toRelativeMinute(period, parseInt(minute)))}
+                  </span>
+                )}
               </div>
             ) : (
-              <div className="grid grid-cols-5 gap-1.5">
-                {PLAY_EVENTS.map(t => (
-                  <button key={t} onClick={() => setPending(t)}
-                    className="bg-turf rounded-xl py-3 flex flex-col items-center gap-1.5
-                      border border-chalk/[0.05] active:bg-[#1C1C22]">
-                    <span className="text-[19px]">{EVENTS[t].icon}</span>
-                    <span className="text-[9px] font-bold text-silver">
-                      {EVENTS[t].label}
-                    </span>
-                  </button>
-                ))}
-              </div>
+              <p className="text-[10px] text-off text-center py-1">
+                Πέναλτι: πάτα παίκτη → Εύστοχο / Άστοχο
+              </p>
             )}
+            <p className="text-[9.5px] text-off text-center mt-1.5">
+              Πάτα τον <b className="text-silver">παίκτη</b> → μετά τη φάση. Το λεπτό μπαίνει μόνο του.
+            </p>
+          </div>
+
+          {/* Ασίστ; (μετά από γκολ) */}
+          {assistSide && (
+            <div className="mx-3.5 mb-1.5 flex items-center gap-2 px-3 py-2 rounded-xl
+              bg-lit/10 border border-lit/30 shrink-0">
+              <span className="text-[14px]">🅰</span>
+              <span className="flex-1 text-[12px] font-bold text-lit truncate">
+                Ασίστ; διάλεξε παίκτη — {assistSide === 'a' ? match.team_a_data?.name : match.team_b_data?.name}
+              </span>
+              <button onClick={() => setAssistSide(null)}
+                className="shrink-0 text-[11px] font-bold text-silver bg-chalk/[0.06]
+                  rounded-lg px-2.5 py-1.5">
+                Χωρίς ασίστ
+              </button>
+            </div>
+          )}
+
+          {/* Παίκτες — μόνιμα ορατοί, ανά ομάδα */}
+          <div className="px-3.5 pb-2 shrink-0 max-h-[42vh] overflow-y-auto">
+            <div className="grid grid-cols-2 gap-2 items-start">
+              <TeamGrid name={match.team_a_data?.name} players={activeA} side="a"
+                notes={notes} dimmed={assistSide === 'b'} onTap={onPlayerTap} />
+              <TeamGrid name={match.team_b_data?.name} players={activeB} side="b"
+                notes={notes} dimmed={assistSide === 'a'} onTap={onPlayerTap} />
+            </div>
           </div>
 
           {/* Περιγραφή */}
@@ -392,7 +378,7 @@ export default function SpeakerPanel() {
             </div>
             {!events.length ? (
               <p className="text-dim text-[13px] text-center py-9">
-                Διάλεξε φάση για να την καταχωρήσεις.
+                Πάτα παίκτη για να καταχωρήσεις φάση.
               </p>
             ) : (
               <div className="flex flex-col gap-2.5">
@@ -465,18 +451,18 @@ export default function SpeakerPanel() {
         </>
       )}
 
-      {/* Επιλογή παίκτη */}
-      {pending && (
-        <PlayerSheet
-          type={pending}
-          players={roster}
-          notes={notes}
-          teamName={side === 'a' ? match.team_a_data?.name : match.team_b_data?.name}
-          minuteLabel={period === 'PEN' ? '' : (minute ? fmtMinute(period, toRelativeMinute(period, parseInt(minute))) : '')}
-          chained={chained}
-          onPick={commit}
-          onSkip={skipAssist}
-          onClose={() => { setPending(null); setChained(false) }}
+      {/* Επιλογή φάσης για τον παίκτη */}
+      {pick && (
+        <EventSheet
+          player={pick.player}
+          teamName={pick.side === 'a' ? match.team_a_data?.name : match.team_b_data?.name}
+          minuteLabel={period === 'PEN' ? '' :
+            (minute ? fmtMinute(period, toRelativeMinute(period, parseInt(minute)))
+              : (isRunning(match.clock_period) && match.clock_started_at
+                  ? fmtMinute(period, clockRel(match.clock_started_at)) : ''))}
+          isPen={period === 'PEN'}
+          onPick={onPickEvent}
+          onClose={() => setPick(null)}
         />
       )}
 
@@ -906,88 +892,74 @@ function AddPlayerSheet({ teamName, busy, onAdd, onClose }: {
 }
 
 /* ── Επιλογή παίκτη ── */
-function PlayerSheet({
-  type, players, notes, teamName, minuteLabel, chained, onPick, onSkip, onClose,
-}: {
-  type: EventType; players: Player[]; notes?: Record<string, string>; teamName?: string
-  minuteLabel: string; chained: boolean
-  onPick: (id: string) => void; onSkip: () => void; onClose: () => void
+/* ── Πλέγμα ομάδας: ονόματα μόνιμα ορατά, tap = επιλογή παίκτη ── */
+function TeamGrid({ name, players, side, notes, dimmed, onTap }: {
+  name?: string; players: Player[]; side: Side; notes?: Record<string, string>
+  dimmed?: boolean; onTap: (p: Player, s: Side) => void
 }) {
-  const cfg = EVENTS[type]
-  const isAssistChain = chained && type === 'ASSIST'
-
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end"
-      onClick={isAssistChain ? undefined : onClose}>
+    <div className={dimmed ? 'opacity-35 pointer-events-none' : ''}>
+      <p className="text-[9px] font-extrabold text-dim tracking-[0.08em] mb-1.5 px-0.5 truncate">
+        {name?.toUpperCase()}
+      </p>
+      <div className="flex flex-col gap-1">
+        {players.length === 0 ? (
+          <p className="text-[10px] text-off px-1 py-2">— χωρίς παίκτες —</p>
+        ) : players.map(p => (
+          <button key={p.player_id} onClick={() => onTap(p, side)}
+            className="w-full bg-turf rounded-lg pl-1.5 pr-2 py-2 flex items-center gap-1.5
+              border border-chalk/[0.05] active:bg-brand/25 text-left">
+            <span className="w-5 text-[11px] font-extrabold text-dim text-center shrink-0 tnum">
+              {p.number ?? '·'}
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-[12.5px] font-semibold text-chalk truncate leading-tight">
+                {p.full_name}
+              </span>
+              {notes?.[p.player_id] && (
+                <span className="block text-[9px] text-lit truncate leading-tight">📝 {notes[p.player_id]}</span>
+              )}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/* ── Επιλογή φάσης για τον επιλεγμένο παίκτη ── */
+function EventSheet({ player, teamName, minuteLabel, isPen, onPick, onClose }: {
+  player: Player; teamName?: string; minuteLabel: string; isPen: boolean
+  onPick: (ev: EventType) => void; onClose: () => void
+}) {
+  const opts = isPen ? PEN_EVENTS : PLAY_EVENTS
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/75" />
       <div onClick={e => e.stopPropagation()}
-        className="relative bg-turf rounded-t-[20px] max-h-[78vh] flex flex-col
-          border-t-2 border-brand">
-
-        <div className="px-4.5 pt-4.5 pb-3 shrink-0 border-b border-chalk/[0.06]">
-          {isAssistChain && (
-            <div className="flex items-center gap-1.5 mb-3 px-2.5 py-2 rounded-lg
-              bg-lit/10 border border-lit/[0.22]">
-              <span className="text-[13px]">⚽</span>
-              <span className="text-[11px] font-bold text-lit">
-                Γκολ καταχωρήθηκε{minuteLabel ? ` στο ${minuteLabel}` : ''}
-              </span>
-            </div>
-          )}
-
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-brand/[0.18] grid place-items-center text-lg">
-              {cfg.icon}
-            </div>
-            <div className="flex-1">
-              <h3 className="text-base font-bold text-chalk">
-                {isAssistChain ? 'Ποιος έδωσε την ασίστ;' : cfg.label}
-              </h3>
-              <p className="text-[11px] text-dim mt-0.5">
-                {teamName}{minuteLabel ? ` · ${minuteLabel}` : ''}
-              </p>
-            </div>
-            {!isAssistChain && (
-              <button onClick={onClose}
-                className="w-[30px] h-[30px] rounded-lg bg-chalk/[0.06]
-                  grid place-items-center text-silver text-sm">✕</button>
-            )}
+        className="relative bg-turf rounded-t-[20px] flex flex-col border-t-2 border-brand pb-7">
+        <div className="px-4.5 pt-4.5 pb-3 flex items-center gap-3 border-b border-chalk/[0.06]">
+          <Avatar url={player.photo_url} name={player.full_name} size={40} />
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base font-bold text-chalk truncate">{player.full_name}</h3>
+            <p className="text-[11px] text-dim mt-0.5">
+              {teamName}{minuteLabel ? ` · ${minuteLabel}` : ''}
+            </p>
           </div>
+          <button onClick={onClose}
+            className="w-[30px] h-[30px] rounded-lg bg-chalk/[0.06]
+              grid place-items-center text-silver text-sm shrink-0">✕</button>
         </div>
-
-        <div className="flex-1 overflow-y-auto px-3.5 py-3.5">
-          <div className="flex flex-col gap-1">
-            {players.map(p => (
-              <button key={p.player_id} onClick={() => onPick(p.player_id)}
-                className="w-full bg-chalk/[0.04] rounded-xl px-3.5 py-3.5
-                  flex items-center gap-3 active:bg-chalk/[0.09]">
-                <span className="w-6 text-[12.5px] font-extrabold text-dim
-                  text-center shrink-0 tnum">
-                  {p.number ?? '—'}
-                </span>
-                <Avatar url={p.photo_url} name={p.full_name} size={30} />
-                <span className="flex-1 min-w-0 text-left">
-                  <span className="block text-[14.5px] font-semibold text-chalk truncate">
-                    {p.full_name}
-                  </span>
-                  {notes?.[p.player_id] && (
-                    <span className="block text-[11px] text-lit truncate">📝 {notes[p.player_id]}</span>
-                  )}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {isAssistChain && (
-          <div className="px-3.5 pt-2 pb-6 shrink-0 border-t border-chalk/[0.05]">
-            <button onClick={onSkip}
-              className="w-full py-3.5 rounded-xl bg-chalk/[0.05] text-silver
-                font-bold text-sm">
-              Χωρίς ασίστ
+        <div className={`px-3.5 py-4 grid gap-2 ${isPen ? 'grid-cols-2' : 'grid-cols-3'}`}>
+          {opts.map(t => (
+            <button key={t} onClick={() => onPick(t)}
+              className="bg-chalk/[0.04] rounded-xl py-4 flex flex-col items-center gap-1.5
+                border border-chalk/[0.05] active:bg-chalk/[0.09]">
+              <span className="text-[26px]">{EVENTS[t].icon}</span>
+              <span className="text-[11px] font-bold text-silver">{EVENTS[t].label}</span>
             </button>
-          </div>
-        )}
+          ))}
+        </div>
       </div>
     </div>
   )
