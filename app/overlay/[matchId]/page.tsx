@@ -1,13 +1,21 @@
 'use client'
-import { useEffect } from 'react'
+import { Suspense, useEffect } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { useLiveMatch } from '@/lib/hooks/useLiveMatch'
 import { useNow } from '@/lib/hooks/useNow'
 import { clockLabel, clockHalf } from '@/lib/clock'
 
+export default function OverlayPage() {
+  return (
+    <Suspense>
+      <Overlay />
+    </Suspense>
+  )
+}
+
 /** Διάφανο scoreboard για OBS (Browser Source).
  *  Παράμετροι: ?pos=tl|tr|bl|br  ?scale=1.2 */
-export default function Overlay() {
+function Overlay() {
   const { matchId } = useParams()
   const params = useSearchParams()
   const { match } = useLiveMatch(matchId as string)
