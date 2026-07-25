@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Loading } from '@/app/ui'
 import { Select, LogoUpload } from '../ui'
 import { athensDateKey, fmtDay } from '@/lib/time'
+import { fieldPostLabel } from '@/lib/fields'
 import toast from 'react-hot-toast'
 import { drawPost, THEMES, type PostType, type PostData, type DayGroup, type MatchRow, type ThemeId } from './canvas'
 
@@ -114,7 +115,7 @@ export default function AdminPost() {
         awayName: m.team_b_data?.name ?? '—',
         awayLogo: m.team_b_data?.logo_url ?? null,
       }
-      if (m.field) row.field = m.field
+      if (m.field) row.field = fieldPostLabel(m.field)
       if (kind === 'results') {
         row.score = `${m.goals_team_a ?? 0}-${m.goals_team_b ?? 0}`
       } else {
@@ -162,7 +163,7 @@ export default function AdminPost() {
           awayName: m.team_b_data?.name ?? '—', awayLogo: m.team_b_data?.logo_url ?? null,
           day: dt ? fmtDay(m.match_date) : '',
           time: dt ? dt.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' }) : '',
-          field: m.field ?? '',
+          field: fieldPostLabel(m.field) ?? '',
           homePos: sa?.position, homePts: sa?.points, homeForm: formOf(m.team_a),
           awayPos: sb?.position, awayPts: sb?.points, awayForm: formOf(m.team_b),
         }
