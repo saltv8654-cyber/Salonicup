@@ -236,9 +236,9 @@ function Overlay() {
     <div style={{ position: PP, display: 'flex', flexDirection: 'column', ...posStyle,
       transform: `scale(${userScale})`, transformOrigin: tOrigin,
       fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif' }}>
-      <div style={{ alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: 9, marginBottom: 9,
-        background: 'rgba(0,0,0,.55)', border: '1px solid rgba(255,255,255,.10)',
-        borderTop: `3px solid ${t.acc}`, borderRadius: 9, padding: '7px 16px' }}>
+      <div style={{ alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: 9, marginBottom: 0,
+        background: 'rgba(0,0,0,.7)', border: '1px solid rgba(255,255,255,.10)', borderBottom: 'none',
+        borderTop: `3px solid ${t.acc}`, borderRadius: '9px 9px 0 0', padding: '7px 16px' }}>
         <Crest name={match.league?.name} logo={match.league?.logo_url} size={26} />
         <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase',
           color: '#fff' }}>{match.league?.name}</span>
