@@ -28,7 +28,7 @@ export const THEMES: Record<ThemeId, { label: string; accent: string; accent2: s
 export interface Versus {
   homeName: string; homeLogo: string | null
   awayName: string; awayLogo: string | null
-  day?: string; time?: string; field?: string
+  day?: string; time?: string; field?: string; yt?: boolean
   homePos?: number; homePts?: number; homeForm?: ('W' | 'D' | 'L')[]
   awayPos?: number; awayPts?: number; awayForm?: ('W' | 'D' | 'L')[]
 }
@@ -36,7 +36,7 @@ export interface Versus {
 export interface MatchRow {
   homeName: string; homeLogo: string | null
   awayName: string; awayLogo: string | null
-  time?: string; score?: string; field?: string
+  time?: string; score?: string; field?: string; yt?: boolean
 }
 export interface StandRow {
   position: number; name: string; logo: string | null
@@ -91,6 +91,25 @@ function roundRect(ctx: any, x: number, y: number, w: number, h: number, r: numb
   ctx.arcTo(x, y + h, x, y, r)
   ctx.arcTo(x, y, x + w, y, r)
   ctx.closePath()
+}
+
+/** Σήμα YouTube (κόκκινο πλακίδιο + άσπρο τρίγωνο) κεντραρισμένο στο (cx,cy). Επιστρέφει πλάτος. */
+function ytBadge(ctx: any, cx: number, cy: number, h: number) {
+  const w = h * 1.42
+  ctx.save()
+  ctx.fillStyle = '#FF0000'
+  roundRect(ctx, cx - w / 2, cy - h / 2, w, h, h * 0.28)
+  ctx.fill()
+  ctx.fillStyle = '#ffffff'
+  const tw = h * 0.32
+  ctx.beginPath()
+  ctx.moveTo(cx - tw / 2, cy - h * 0.24)
+  ctx.lineTo(cx - tw / 2, cy + h * 0.24)
+  ctx.lineTo(cx + tw * 0.75, cy)
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
+  return w
 }
 
 function fit(ctx: any, text: string, maxW: number) {
@@ -373,22 +392,33 @@ function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEle
   team(v.awayName, rightX)
   const bottomOfTeams = nameY
 
-  // Γήπεδο · μέρα · ώρα ανάμεσα σε δύο οριζόντιες γραμμές
-  const parts = [v.field ? `📍 ${v.field}` : '', v.day, v.time].filter(Boolean)
-  const line = parts.join('   ·   ').toUpperCase()
+  // Γήπεδο (+ σήμα YouTube) · μέρα · ώρα ανάμεσα σε δύο οριζόντιες γραμμές
+  const fStr = v.field ? `📍 ${v.field}`.toUpperCase() : ''
+  const restStr = [v.day, v.time].filter(Boolean).join('   ·   ').toUpperCase()
   const venueY = H - 150
-  if (line) {
+  if (fStr || restStr) {
     ctx.font = font(600, 38)
-    ctx.textAlign = 'center'
+    ctx.textAlign = 'left'
     ctx.textBaseline = 'middle'
-    const tw = ctx.measureText(line).width
-    const ruleW = Math.min(W - 160, tw + 140)
+    const bh = 34, g = 12
+    const sep = fStr && restStr ? '   ·   ' : ''
+    const fw = fStr ? ctx.measureText(fStr).width : 0
+    const bw = (v.yt && v.field) ? bh * 1.42 + g : 0
+    const restW = ctx.measureText(sep + restStr).width
+    const total = fw + bw + restW
+
+    const ruleW = Math.min(W - 160, total + 140)
     ctx.strokeStyle = pal.accent
     ctx.lineWidth = 3
     ctx.beginPath(); ctx.moveTo(cx - ruleW / 2, venueY - 38); ctx.lineTo(cx + ruleW / 2, venueY - 38); ctx.stroke()
     ctx.beginPath(); ctx.moveTo(cx - ruleW / 2, venueY + 38); ctx.lineTo(cx + ruleW / 2, venueY + 38); ctx.stroke()
+
     ctx.fillStyle = COL.white
-    ctx.fillText(line, cx, venueY + 2)
+    let x = cx - total / 2
+    if (fStr) { ctx.fillText(fStr, x, venueY + 2); x += fw }
+    if (v.yt && v.field) { ytBadge(ctx, x + g / 2 + (bh * 1.42) / 2, venueY + 2, bh); x += bw }
+    if (restStr) { ctx.fillText(sep + restStr, x, venueY + 2) }
+    ctx.textAlign = 'center'
   }
 
   // Powered by — χορηγοί (λογότυπα σε άσπρα chips, το ένα κάτω από το άλλο)
@@ -398,7 +428,7 @@ function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEle
     const labelGap = 18
     const blockH = 22 + labelGap + sImgs.length * chipH + (sImgs.length - 1) * gap
     const regionTop = bottomOfTeams + 40
-    const regionBottom = line ? venueY - 38 - 30 : venueY + 30
+    const regionBottom = (fStr || restStr) ? venueY - 38 - 30 : venueY + 30
     let y = regionTop + Math.max(0, (regionBottom - regionTop - blockH) / 2)
 
     ctx.fillStyle = COL.dim
@@ -485,7 +515,18 @@ function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEl
       if (m.field) {
         ctx.fillStyle = COL.dim
         ctx.font = font(600, 22)
-        ctx.fillText(m.field, S / 2, cy + 26)
+        if (m.yt) {
+          const bh = 24, g = 9
+          const tw = ctx.measureText(m.field).width
+          const bw = bh * 1.42
+          const left = S / 2 - (tw + g + bw) / 2
+          ctx.textAlign = 'left'
+          ctx.fillText(m.field, left, cy + 26)
+          ytBadge(ctx, left + tw + g + bw / 2, cy + 26, bh)
+          ctx.textAlign = 'center'
+        } else {
+          ctx.fillText(m.field, S / 2, cy + 26)
+        }
       }
 
       // φιλοξενούμενος (δεξιά)
