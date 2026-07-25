@@ -27,7 +27,7 @@ function PitchLines() {
 type Tally = { g: number; a: number; y: number; r: number }
 
 /** Γήπεδο με διάταξη. Διαδραστικό (onSlot) για τον σπίκερ, αλλιώς μόνο εμφάνιση. */
-export default function LineupPitch({ formation, line, players, onSlot, accent = '#E05B1F', notes, stats }: {
+export default function LineupPitch({ formation, line, players, onSlot, accent = '#E05B1F', notes, stats, bg, borderColor }: {
   formation: string
   line: (string | null)[]
   players: Record<string, P>
@@ -35,11 +35,14 @@ export default function LineupPitch({ formation, line, players, onSlot, accent =
   accent?: string
   notes?: Record<string, string>
   stats?: Record<string, Tally>
+  bg?: string
+  borderColor?: string
 }) {
   const coords = slotCoords(formation)
   return (
-    <div className="relative w-full rounded-2xl overflow-hidden border border-chalk/[0.08]"
-      style={{ aspectRatio: '3 / 4', background: 'linear-gradient(#1f3d24, #14291a)' }}>
+    <div className="relative w-full rounded-2xl overflow-hidden"
+      style={{ aspectRatio: '3 / 4', background: bg ?? 'linear-gradient(#1f3d24, #14291a)',
+        border: `1px solid ${borderColor ?? 'rgba(255,255,255,0.08)'}` }}>
       <PitchLines />
       {coords.map((c, i) => {
         const pid = line[i]

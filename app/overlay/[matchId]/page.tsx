@@ -6,6 +6,7 @@ import { useLiveMatch } from '@/lib/hooks/useLiveMatch'
 import { useNow } from '@/lib/hooks/useNow'
 import { clockLabel, clockHalf } from '@/lib/clock'
 import { fmtMinute } from '@/lib/match'
+import LineupPitch from '@/app/lineup-pitch'
 import type { Period } from '@/lib/types'
 
 type Theme = { acc: string; acc2: string; bg0: string; bg1: string }
@@ -51,6 +52,7 @@ function Overlay() {
   const popTimer = useRef<ReturnType<typeof setTimeout>>()
   const [flash, setFlash] = useState<string | null>(null)
   const [lineupsOn, setLineupsOn] = useState(false)
+  const [luTeam, setLuTeam] = useState<'a' | 'b'>('a')
   const [squadMap, setSquadMap] = useState<Record<string, any>>({})
   const flashTimer = useRef<ReturnType<typeof setTimeout>>()
   const supa = useRef(createClient())
@@ -92,6 +94,14 @@ function Overlay() {
     return () => { supa.current.removeChannel(ch) }
   }, [matchId])
 
+  // Εναλλαγή ομάδας στις συνθέσεις (~3 δευτ. η καθεμία)
+  useEffect(() => {
+    if (!lineupsOn) return
+    setLuTeam('a')
+    const iv = setInterval(() => setLuTeam(s => (s === 'a' ? 'b' : 'a')), 3000)
+    return () => clearInterval(iv)
+  }, [lineupsOn])
+
   useEffect(() => {
     if (!match) return
     const ids = [...(match.squad_a ?? []), ...(match.squad_b ?? [])]
@@ -132,7 +142,7 @@ function Overlay() {
   const half = clockHalf(match.clock_period)
   const PP: 'fixed' | 'absolute' = preview ? 'absolute' : 'fixed'
 
-  const M = Number.isFinite(parseInt(params.get('margin') || '')) ? parseInt(params.get('margin')!) : 8
+  const M = Number.isFinite(parseInt(params.get('margin') || '')) ? parseInt(params.get('margin')!) : 0
   const posStyle: React.CSSProperties =
     pos === 'tl' ? { top: M, left: M, alignItems: 'flex-start' }
     : pos === 'tr' ? { top: M, right: M, alignItems: 'flex-end' }
@@ -160,41 +170,24 @@ function Overlay() {
     `}</style>
   )
 
+  const luLine: string[] = ((luTeam === 'a' ? match.lineup_a : match.lineup_b) ?? [])
+  const luForm = (luTeam === 'a' ? match.formation_a : match.formation_b) ?? '3-3-1'
+  const luName = luTeam === 'a' ? match.team_a_data?.name : match.team_b_data?.name
+  const luLogo = luTeam === 'a' ? match.team_a_data?.logo_url : match.team_b_data?.logo_url
   const lineupsEl = lineupsOn && (
     <div style={{ position: PP, inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
-      <div style={{ display: 'flex', borderRadius: 18, overflow: 'hidden', border: `2px solid ${t.acc}`,
-        boxShadow: '0 24px 70px rgba(0,0,0,.6)', animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
-        {(['a', 'b'] as const).map((side, i) => {
-          const line: string[] = ((side === 'a' ? match.lineup_a : match.lineup_b) ?? []).filter(Boolean)
-          const form = (side === 'a' ? match.formation_a : match.formation_b) ?? ''
-          const nm = side === 'a' ? match.team_a_data?.name : match.team_b_data?.name
-          const logo = side === 'a' ? match.team_a_data?.logo_url : match.team_b_data?.logo_url
-          return (
-            <div key={side} style={{ minWidth: 320, background: `linear-gradient(180deg, ${t.bg0}, ${t.bg1})`,
-              color: '#fff', padding: '20px 24px', borderLeft: i ? '1px solid rgba(255,255,255,.12)' : undefined }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 12, marginBottom: 12,
-                borderBottom: `2px solid ${t.acc}` }}>
-                <Crest name={nm} logo={logo} size={36} />
-                <div>
-                  <div style={{ fontSize: 19, fontWeight: 800, textTransform: 'uppercase' }}>{nm}</div>
-                  {form && <div style={{ fontSize: 13, fontWeight: 700, color: t.acc }}>{form}</div>}
-                </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                {line.map((id, idx) => {
-                  const p = squadMap[id]
-                  return (
-                    <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ width: 26, textAlign: 'center', fontWeight: 800, fontSize: 14, color: t.acc,
-                        fontVariantNumeric: 'tabular-nums' }}>{p?.number ?? (idx === 0 ? 'ΤΕΡ' : '·')}</span>
-                      <span style={{ fontSize: 16.5, fontWeight: 600 }}>{p?.full_name ?? '—'}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })}
+      <div key={luTeam} style={{ width: 520, animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 12 }}>
+          <Crest name={luName} logo={luLogo} size={48} />
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ fontSize: 30, fontWeight: 800, textTransform: 'uppercase', color: '#fff',
+              lineHeight: 1.05, textShadow: '0 2px 10px rgba(0,0,0,.6)' }}>{luName}</div>
+            <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '.14em', color: t.acc }}>
+              {luForm} · ΣΥΝΘΕΣΗ</div>
+          </div>
+        </div>
+        <LineupPitch formation={luForm} line={luLine} players={squadMap} accent={t.acc}
+          bg="rgba(6,16,11,0.34)" borderColor={t.acc} />
       </div>
     </div>
   )
@@ -236,13 +229,6 @@ function Overlay() {
     <div style={{ position: PP, display: 'flex', flexDirection: 'column', ...posStyle,
       transform: `scale(${userScale})`, transformOrigin: tOrigin,
       fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif' }}>
-      <div style={{ alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: 9, marginBottom: 0,
-        background: 'rgba(0,0,0,.7)', border: '1px solid rgba(255,255,255,.10)', borderBottom: 'none',
-        borderTop: `3px solid ${t.acc}`, borderRadius: '9px 9px 0 0', padding: '7px 16px' }}>
-        <Crest name={match.league?.name} logo={match.league?.logo_url} size={26} />
-        <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase',
-          color: '#fff' }}>{match.league?.name}</span>
-      </div>
       <div style={{ position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'stretch', borderRadius: 13, overflow: 'hidden',
           boxShadow: '0 12px 38px rgba(0,0,0,.55)', fontVariantNumeric: 'tabular-nums' }}>
@@ -270,8 +256,17 @@ function Overlay() {
             </div>
           )}
         </div>
+        {/* Πρωτάθλημα — καρτελάκι κάτω από τη μπάρα */}
+        <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
+          display: 'inline-flex', alignItems: 'center', gap: 9, whiteSpace: 'nowrap',
+          background: 'rgba(0,0,0,.72)', border: '1px solid rgba(255,255,255,.10)', borderTop: 'none',
+          borderBottom: `3px solid ${t.acc}`, borderRadius: '0 0 10px 10px', padding: '6px 16px' }}>
+          <Crest name={match.league?.name} logo={match.league?.logo_url} size={24} />
+          <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase',
+            color: '#fff' }}>{match.league?.name}</span>
+        </div>
         {popup && (
-          <div style={{ position: 'absolute', left: '50%', top: 'calc(100% + 10px)', transform: 'translateX(-50%)',
+          <div style={{ position: 'absolute', left: '50%', top: 'calc(100% + 48px)', transform: 'translateX(-50%)',
             display: 'flex', alignItems: 'center', gap: 16, padding: '14px 26px 14px 14px', borderRadius: 16,
             color: '#fff', whiteSpace: 'nowrap', background: `linear-gradient(180deg, ${popBg[0]}, ${popBg[1]})`,
             boxShadow: '0 18px 50px rgba(0,0,0,.5)', animation: 'ovGoal .5s cubic-bezier(.2,.9,.25,1) forwards' }}>
