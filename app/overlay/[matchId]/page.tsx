@@ -96,7 +96,7 @@ function Overlay() {
   useEffect(() => {
     const ch = supa.current.channel(`overlay:${matchId}`)
       .on('broadcast', { event: 'flash' }, ({ payload }: any) => {
-        if (payload?.kind === 'LINEUPS') { setLineupsOn(!!payload.on); return }
+        if (payload?.kind === 'LINEUPS') { setLineupsOn(false); setTimeout(() => setLineupsOn(true), 30); return }
         setFlash(payload?.kind ?? null)
         clearTimeout(flashTimer.current)
         if (payload?.kind) flashTimer.current = setTimeout(() => setFlash(null), 6000)
@@ -104,12 +104,13 @@ function Overlay() {
     return () => { supa.current.removeChannel(ch) }
   }, [matchId])
 
-  // Εναλλαγή ομάδας στις συνθέσεις (~3 δευτ. η καθεμία)
+  // Συνθέσεις: 5 δευτ. ομάδα Α, 5 δευτ. ομάδα Β, μετά εξαφανίζεται μόνο του
   useEffect(() => {
     if (!lineupsOn) return
     setLuTeam('a')
-    const iv = setInterval(() => setLuTeam(s => (s === 'a' ? 'b' : 'a')), 3000)
-    return () => clearInterval(iv)
+    const t1 = setTimeout(() => setLuTeam('b'), 5000)
+    const t2 = setTimeout(() => setLineupsOn(false), 10000)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [lineupsOn])
 
   useEffect(() => {
@@ -332,7 +333,7 @@ function Overlay() {
           {ctlBtn(POP_META.YELLOW.bg[0], '#111', '🟨 Κίτρινη', () => testPop('YELLOW'))}
           {ctlBtn(POP_META.RED.bg[0], '#fff', '🟥 Κόκκινη', () => testPop('RED'))}
           {ctlBtn('#1436b0', '#fff', '📺 VAR', () => { setFlash('VAR'); clearTimeout(flashTimer.current); flashTimer.current = setTimeout(() => setFlash(null), 6000) })}
-          {ctlBtn('#26303f', '#fff', '📋 Συνθέσεις', () => setLineupsOn(v => !v))}
+          {ctlBtn('#26303f', '#fff', '📋 Συνθέσεις', () => { setLineupsOn(false); setTimeout(() => setLineupsOn(true), 30) })}
         </div>
         <div ref={stageRef} style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9',
           borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(255,255,255,.12)',

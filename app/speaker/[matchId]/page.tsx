@@ -72,7 +72,6 @@ export default function SpeakerPanel() {
   const [saving, setSaving]   = useState(false)
   const [clockBusy, setClockBusy] = useState(false)
   const [streamUrl, setStreamUrl] = useState('')
-  const [lineupsOn, setLineupsOn] = useState(false)
   const now = useNow(1000)
 
   useEffect(() => {
@@ -137,11 +136,9 @@ export default function SpeakerPanel() {
     setTimeout(() => supabase.removeChannel(ch), 800)
   }
 
-  async function toggleLineups() {
-    const next = !lineupsOn
-    setLineupsOn(next)
-    await sendFlash('LINEUPS', { on: next })
-    toast.success(next ? 'Συνθέσεις στο overlay' : 'Απόκρυψη συνθέσεων')
+  async function sendLineups() {
+    await sendFlash('LINEUPS')
+    toast.success('Συνθέσεις στο overlay')
   }
 
   async function saveStream(url: string) {
@@ -740,9 +737,9 @@ export default function SpeakerPanel() {
                   bg-[#1436b0]/20 border border-[#1436b0]/50 text-[#8fa8ff]">
                 📺 VAR
               </button>
-              <button onClick={toggleLineups}
-                className={`flex-1 py-2.5 rounded-xl font-bold text-[12.5px] border
-                  ${lineupsOn ? 'bg-lit/15 border-lit/40 text-lit' : 'bg-chalk/[0.04] border-chalk/[0.06] text-silver'}`}>
+              <button onClick={sendLineups}
+                className="flex-1 py-2.5 rounded-xl font-bold text-[12.5px] border
+                  bg-chalk/[0.04] border-chalk/[0.06] text-silver">
                 📋 Συνθέσεις
               </button>
             </div>
