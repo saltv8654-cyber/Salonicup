@@ -12,14 +12,43 @@ export default function ResetPage() {
   const [pass2, setPass2] = useState('')
   const [busy, setBusy]   = useState(false)
   const [ready, setReady] = useState(false)
+  const [err, setErr]     = useState('')
 
-  // Ο σύνδεσμος από το email δημιουργεί προσωρινή συνεδρία (recovery)
+  // Ο σύνδεσμος από το email δημιουργεί προσωρινή συνεδρία (recovery).
+  // Καλύπτουμε όλες τις μορφές που στέλνει το Supabase:
+  //  • ?token_hash=…&type=recovery  → verifyOtp (δουλεύει και σε άλλη συσκευή)
+  //  • ?code=…                      → αυτόματη ανταλλαγή από τον client
+  //  • #access_token=…              → αυτόματη ανίχνευση από τον client
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => { if (data.session) setReady(true) })
+    let done = false
+    const url = new URL(window.location.href)
+    const token_hash = url.searchParams.get('token_hash')
+    const type = url.searchParams.get('type')
+    const linkErr = url.searchParams.get('error_description') || url.hash.includes('error')
+
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY' || session) setReady(true)
+      if (event === 'PASSWORD_RECOVERY' || session) { done = true; setReady(true); setErr('') }
     })
-    return () => sub.subscription.unsubscribe()
+
+    ;(async () => {
+      if (linkErr) { setErr('Ο σύνδεσμος έληξε ή έχει ήδη χρησιμοποιηθεί. Ζήτησε νέο email.'); return }
+      if (token_hash && (type === 'recovery' || !type)) {
+        const { error } = await supabase.auth.verifyOtp({ type: 'recovery', token_hash })
+        if (error) { setErr('Ο σύνδεσμος έληξε ή έχει ήδη χρησιμοποιηθεί. Ζήτησε νέο email.'); return }
+        done = true; setReady(true); return
+      }
+      const { data } = await supabase.auth.getSession()
+      if (data.session) { done = true; setReady(true) }
+    })()
+
+    // Αν μετά από λίγο δεν έχει «πιάσει» ο σύνδεσμος, δείξε καθαρό μήνυμα
+    const t = setTimeout(async () => {
+      if (done) return
+      const { data } = await supabase.auth.getSession()
+      if (!data.session) setErr('Ο σύνδεσμος δεν αναγνωρίστηκε. Άνοιξέ τον στον ίδιο browser που ζήτησες την επαναφορά, ή ζήτησε νέο email.')
+    }, 6000)
+
+    return () => { sub.subscription.unsubscribe(); clearTimeout(t) }
   }, [])
 
   async function submit(e: React.FormEvent) {
@@ -52,10 +81,12 @@ export default function ResetPage() {
           <h1 className="text-[26px] font-extrabold text-chalk mt-1.5 tracking-tight">
             Νέος κωδικός
           </h1>
-          <p className="text-[13px] text-dim mt-1.5">
-            {ready
-              ? 'Γράψε τον νέο σου κωδικό.'
-              : 'Άνοιξε αυτή τη σελίδα από τον σύνδεσμο που σου ήρθε στο email.'}
+          <p className={`text-[13px] mt-1.5 ${err ? 'text-red-400' : 'text-dim'}`}>
+            {err
+              ? err
+              : ready
+                ? 'Γράψε τον νέο σου κωδικό.'
+                : 'Άνοιξε αυτή τη σελίδα από τον σύνδεσμο που σου ήρθε στο email…'}
           </p>
         </div>
 
@@ -83,11 +114,11 @@ export default function ResetPage() {
             />
           </div>
 
-          <button type="submit" disabled={busy}
+          <button type="submit" disabled={busy || !ready}
             className="w-full py-3.5 rounded-xl bg-gradient-to-b from-lit to-brand
               text-white font-extrabold text-[15px] mt-2 disabled:opacity-50
               shadow-[0_4px_16px_rgba(224,91,31,0.3)]">
-            {busy ? 'Αποθήκευση…' : 'Αλλαγή κωδικού'}
+            {busy ? 'Αποθήκευση…' : ready ? 'Αλλαγή κωδικού' : 'Άνοιξε από το email…'}
           </button>
         </form>
 
