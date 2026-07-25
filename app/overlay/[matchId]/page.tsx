@@ -351,7 +351,7 @@ function Overlay() {
           {ctlBtn('#1436b0', '#fff', '📺 VAR', () => { setFlash('VAR'); clearTimeout(flashTimer.current); flashTimer.current = setTimeout(() => setFlash(null), 6000) })}
           {ctlBtn('#26303f', '#fff', '📋 Συνθέσεις', () => { setLineupsOn(false); setTimeout(() => setLineupsOn(true), 30) })}
         </div>
-        <div ref={stageRef} style={{ position: 'relative', width: '100%', height: Math.round(pscale * REF_H),
+        <div ref={stageRef} style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9',
           borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(255,255,255,.12)',
           background: 'linear-gradient(160deg,#0f2a1c,#0a1512 70%)' }}>
           <div style={{ position: 'absolute', top: 0, left: 0, width: REF_W, height: REF_H,
