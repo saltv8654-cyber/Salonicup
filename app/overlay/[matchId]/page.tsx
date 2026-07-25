@@ -193,13 +193,13 @@ function Overlay() {
   const luLogo = luTeam === 'a' ? match.team_a_data?.logo_url : match.team_b_data?.logo_url
   const lineupsEl = lineupsOn && (
     <div style={{ position: PP, inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
-      <div key={luTeam} style={{ width: 400, animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 }}>
-          <Crest name={luName} logo={luLogo} size={38} />
+      <div key={luTeam} style={{ width: 452, animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 11, marginBottom: 9 }}>
+          <Crest name={luName} logo={luLogo} size={44} />
           <div style={{ textAlign: 'left' }}>
-            <div style={{ fontSize: 23, fontWeight: 800, textTransform: 'uppercase', color: '#fff',
+            <div style={{ fontSize: 27, fontWeight: 800, textTransform: 'uppercase', color: '#fff',
               lineHeight: 1.05, textShadow: '0 2px 10px rgba(0,0,0,.6)' }}>{luName}</div>
-            <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: '.14em', color: t.acc }}>
+            <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: '.14em', color: t.acc }}>
               {luForm} · ΣΥΝΘΕΣΗ</div>
           </div>
         </div>
