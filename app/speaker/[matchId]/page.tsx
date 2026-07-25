@@ -27,6 +27,18 @@ import { CSS } from '@dnd-kit/utilities'
 
 type Side = 'a' | 'b'
 
+/** URL για το OBS overlay, με τους χορηγούς (από localStorage) ως παράμετρο. */
+function overlayUrl(matchId: string, preview: boolean) {
+  const sp = ['sponsorA', 'sponsorB']
+    .map(k => localStorage.getItem(k) || '')
+    .filter(Boolean).map(encodeURIComponent).join(',')
+  const q = new URLSearchParams()
+  if (preview) q.set('preview', '1')
+  if (sp) q.set('sponsors', sp)
+  const qs = q.toString()
+  return `${window.location.origin}/overlay/${matchId}${qs ? '?' + qs : ''}`
+}
+
 export default function SpeakerPanel() {
   const { matchId } = useParams()
   const router = useRouter()
@@ -689,14 +701,14 @@ export default function SpeakerPanel() {
               {done ? 'Κείμενο αγώνα' : 'Λήξη αγώνα'}
             </button>
             <div className="flex gap-2">
-              <a href={`/overlay/${match.match_id}?preview=1`} target="_blank" rel="noopener"
-                className="flex-1 py-3 rounded-xl text-silver font-semibold text-[12.5px] text-center
+              <button onClick={() => window.open(overlayUrl(match.match_id, true), '_blank')}
+                className="flex-1 py-3 rounded-xl text-silver font-semibold text-[12.5px]
                   bg-chalk/[0.05] border border-chalk/[0.07]">
                 👁 Προεπισκόπηση
-              </a>
+              </button>
               <button
                 onClick={() => {
-                  navigator.clipboard?.writeText(`${window.location.origin}/overlay/${match.match_id}`)
+                  navigator.clipboard?.writeText(overlayUrl(match.match_id, false))
                   toast.success('Αντιγράφηκε το OBS overlay link')
                 }}
                 className="flex-1 py-3 rounded-xl text-silver font-semibold text-[12.5px]
