@@ -65,18 +65,24 @@ function Overlay() {
     if (!preview) return
     const el = stageRef.current
     if (!el) return
-    const calc = () => { const w = el.getBoundingClientRect().width; if (w > 0) setPscale(w / REF_W) }
+    const calc = () => {
+      const w = el.getBoundingClientRect().width
+      if (w > 0) setPscale(p => (Math.abs(p - w / REF_W) > 0.002 ? w / REF_W : p))
+    }
     calc()
     const ro = new ResizeObserver(calc)
     ro.observe(el)
     window.addEventListener('resize', calc)
     window.addEventListener('orientationchange', calc)
-    const ids = [30, 200, 600].map(d => setTimeout(calc, d))
+    window.visualViewport?.addEventListener('resize', calc)
+    // συνεχής έλεγχος (φθηνός) ώστε να πιάνει σίγουρα rotation/layout
+    const iv = setInterval(calc, 300)
     return () => {
       ro.disconnect()
       window.removeEventListener('resize', calc)
       window.removeEventListener('orientationchange', calc)
-      ids.forEach(clearTimeout)
+      window.visualViewport?.removeEventListener('resize', calc)
+      clearInterval(iv)
     }
   }, [preview])
 
