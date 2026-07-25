@@ -193,18 +193,21 @@ function Overlay() {
   const luLogo = luTeam === 'a' ? match.team_a_data?.logo_url : match.team_b_data?.logo_url
   const lineupsEl = lineupsOn && (
     <div style={{ position: PP, inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
-      <div key={luTeam} style={{ width: 452, animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 11, marginBottom: 9 }}>
+      <div key={luTeam} style={{ position: 'relative', width: 440,
+        animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
+        {/* Όνομα ομάδας — επιπλέει πάνω από το γήπεδο (δεν μετακινεί το κέντρο) */}
+        <div style={{ position: 'absolute', bottom: 'calc(100% + 10px)', left: 0, right: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 11 }}>
           <Crest name={luName} logo={luLogo} size={44} />
           <div style={{ textAlign: 'left' }}>
             <div style={{ fontSize: 27, fontWeight: 800, textTransform: 'uppercase', color: '#fff',
-              lineHeight: 1.05, textShadow: '0 2px 10px rgba(0,0,0,.6)' }}>{luName}</div>
+              lineHeight: 1.05, textShadow: '0 2px 10px rgba(0,0,0,.7)' }}>{luName}</div>
             <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: '.14em', color: t.acc }}>
               {luForm} · ΣΥΝΘΕΣΗ</div>
           </div>
         </div>
         <LineupPitch formation={luForm} line={luLine} players={squadMap} accent={t.acc}
-          bg="rgba(6,16,11,0.34)" borderColor={t.acc} />
+          bg="rgba(6,16,11,0.4)" borderColor={t.acc} />
       </div>
     </div>
   )
@@ -307,8 +310,7 @@ function Overlay() {
     </div>
   )
 
-  // Στις συνθέσεις κρύβεται το scoreboard/χορηγοί για καθαρό broadcast
-  const scene = <>{styleTag}{varEl}{lineupsOn ? lineupsEl : <>{sponsorsEl}{scoreEl}</>}</>
+  const scene = <>{styleTag}{sponsorsEl}{scoreEl}{varEl}{lineupsEl}</>
 
   // Πραγματικό OBS: καμβάς 1280×720 κλιμακωμένος να γεμίσει την οθόνη
   if (!preview) return (
