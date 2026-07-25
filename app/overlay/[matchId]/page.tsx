@@ -25,7 +25,14 @@ function themeFor(leagueId: string | undefined, override: string | null): Theme 
 }
 
 type Kind = 'GOAL' | 'YELLOW' | 'RED'
-type Pop = { kind: Kind; name: string; sub: string; photo: string | null }
+type Pop = { kind: Kind; name: string; sub: string; photo: string | null; assist?: string }
+type BigKind = 'KICKOFF' | 'HT' | 'FT'
+const BIG_META: Record<BigKind, { label: string; sub: string }> = {
+  KICKOFF: { label: 'ΕΝΑΡΞΗ ΑΓΩΝΑ', sub: 'Καλή διασκέδαση' },
+  HT:      { label: 'ΗΜΙΧΡΟΝΟ',     sub: 'Τα ξαναλέμε σε λίγο' },
+  FT:      { label: 'ΤΕΛΙΚΟ',       sub: 'Τελικό αποτέλεσμα' },
+}
+type Sub = { side: 'a' | 'b'; outName: string; inName: string; team: string; min: string }
 const POP_META: Record<Kind, { icon: string; label: string; bg: [string, string] }> = {
   GOAL:   { icon: '⚽', label: 'ΓΚΟΛ',          bg: ['', ''] },
   YELLOW: { icon: '🟨', label: 'ΚΙΤΡΙΝΗ ΚΑΡΤΑ', bg: ['#F2C230', '#D8A21F'] },
@@ -54,7 +61,13 @@ function Overlay() {
   const [lineupsOn, setLineupsOn] = useState(false)
   const [luTeam, setLuTeam] = useState<'a' | 'b'>('a')
   const [squadMap, setSquadMap] = useState<Record<string, any>>({})
+  const [bigCard, setBigCard] = useState<BigKind | null>(null)
+  const [subCard, setSubCard] = useState<Sub | null>(null)
   const flashTimer = useRef<ReturnType<typeof setTimeout>>()
+  const bigTimer = useRef<ReturnType<typeof setTimeout>>()
+  const subTimer = useRef<ReturnType<typeof setTimeout>>()
+  const prevCP = useRef<string | null | undefined>(undefined)
+  const prevSubTs = useRef<number>(0)
   const supa = useRef(createClient())
 
   // Καμβάς σχεδίασης 1280×720· κλιμακώνεται για να γεμίσει την πραγματική οθόνη/OBS
@@ -139,6 +152,44 @@ function Overlay() {
       })
   }, [match?.match_id])
 
+  // Αυτόματα γραφικά από το ρολόι: Έναρξη / Ημίχρονο / Τελικό
+  useEffect(() => {
+    const cp = match?.clock_period
+    if (prevCP.current === undefined) { prevCP.current = cp ?? null; return } // αγνόησε το πρώτο render
+    if (cp === prevCP.current) return
+    const prev = prevCP.current
+    prevCP.current = cp ?? null
+    let kind: BigKind | null = null
+    if (cp === 'H1' && (prev == null || prev === 'FT')) kind = 'KICKOFF'
+    else if (cp === 'HT') kind = 'HT'
+    else if (cp === 'FT') kind = 'FT'
+    if (!kind) return
+    setBigCard(kind)
+    clearTimeout(bigTimer.current)
+    bigTimer.current = setTimeout(() => setBigCard(null), kind === 'KICKOFF' ? 8000 : 11000)
+  }, [match?.clock_period])
+
+  // Αυτόματη κάρτα αλλαγής (IN/OUT) όταν προστίθεται νέα αλλαγή
+  useEffect(() => {
+    const subs = match?.subs as any[] | undefined
+    if (!subs?.length) return
+    const last = subs[subs.length - 1]
+    const ts = last?.ts ?? 0
+    if (prevSubTs.current === 0) { prevSubTs.current = ts; return } // αγνόησε τις υπάρχουσες στο load
+    if (ts <= prevSubTs.current) return
+    prevSubTs.current = ts
+    const team = last.side === 'a' ? match.team_a_data?.name : match.team_b_data?.name
+    setSubCard({
+      side: last.side,
+      inName: squadMap[last.in]?.full_name ?? '—',
+      outName: squadMap[last.out]?.full_name ?? '—',
+      team: team ?? '',
+      min: fmtMinute(last.period as Period, last.minute),
+    })
+    clearTimeout(subTimer.current)
+    subTimer.current = setTimeout(() => setSubCard(null), 6500)
+  }, [match?.subs, squadMap])
+
   useEffect(() => {
     if (!match) return
     const kinds: Kind[] = ['GOAL', 'YELLOW', 'RED']
@@ -149,11 +200,17 @@ function Overlay() {
     if (recent.length) {
       const g = recent[recent.length - 1]
       const team = g.team_id === match.team_a ? match.team_a_data?.name : match.team_b_data?.name
+      // Ασίστ: ζευγάρωμα με γκολ ίδιας ομάδας/ημιχρόνου στο ίδιο λεπτό
+      const assist = g.event_type === 'GOAL'
+        ? events.find((e: any) => e.event_type === 'ASSIST' && e.team_id === g.team_id
+            && e.period === g.period && Math.abs((e.minute ?? 0) - (g.minute ?? 0)) <= 1)?.player?.full_name
+        : undefined
       setPopup({
         kind: g.event_type as Kind,
         name: g.player?.full_name ?? POP_META[g.event_type as Kind].label,
         sub: `${(team ?? '').toUpperCase()} · ${fmtMinute(g.period as Period, g.minute)}`,
         photo: g.player?.photo_url ?? null,
+        assist: assist || undefined,
       })
       clearTimeout(popTimer.current)
       popTimer.current = setTimeout(() => setPopup(null), 5500)
@@ -234,6 +291,69 @@ function Overlay() {
     </div>
   )
 
+  // Κάρτα αλλαγής (IN ▲ / OUT ▼) — κάτω-κέντρο
+  const subCardEl = subCard && (
+    <div style={{ position: PP, left: '50%', bottom: 80, transform: 'translateX(-50%)',
+      display: 'flex', alignItems: 'center', gap: 16, padding: '13px 24px', borderRadius: 14,
+      background: 'rgba(6,10,16,.93)', border: '2px solid #35c66b', color: '#fff', whiteSpace: 'nowrap',
+      boxShadow: '0 18px 50px rgba(0,0,0,.5)', animation: 'ovPop .4s cubic-bezier(.2,.9,.25,1) forwards' }}>
+      <span style={{ fontSize: 34 }}>🔄</span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.18em', color: '#9fe6bb' }}>
+          ΑΛΛΑΓΗ · {(subCard.team || '').toUpperCase()} · {subCard.min}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ color: '#35c66b', fontSize: 17, fontWeight: 900 }}>▲</span>
+          <span style={{ fontSize: 20, fontWeight: 800 }}>{subCard.inName}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ color: '#e0563c', fontSize: 17, fontWeight: 900 }}>▼</span>
+          <span style={{ fontSize: 16.5, fontWeight: 700, opacity: .75 }}>{subCard.outName}</span>
+        </div>
+      </div>
+    </div>
+  )
+
+  // Μεγάλη κάρτα από το ρολόι: Έναρξη / Ημίχρονο / Τελικό (+ χορηγοί στο διάλειμμα)
+  const bigCardEl = bigCard && (
+    <div style={{ position: PP, inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none',
+      background: 'rgba(3,6,10,.5)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+        padding: '32px 54px', borderRadius: 22, background: 'rgba(6,12,18,.94)', border: `2px solid ${t.acc}`,
+        boxShadow: '0 30px 90px rgba(0,0,0,.65)', animation: 'ovPop .5s cubic-bezier(.2,.9,.25,1) forwards' }}>
+        <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '.3em', color: t.acc, textTransform: 'uppercase' }}>
+          {match.league?.name}</div>
+        <div style={{ fontSize: 46, fontWeight: 900, letterSpacing: '.14em', color: '#fff', lineHeight: 1 }}>
+          {BIG_META[bigCard].label}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 26 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+            <Crest name={match.team_a_data?.name} logo={match.team_a_data?.logo_url} size={54} />
+            <span style={{ fontSize: 24, fontWeight: 800, textTransform: 'uppercase' }}>{match.team_a_data?.name}</span>
+          </div>
+          <div style={{ fontSize: 56, fontWeight: 900, lineHeight: 1 }}>
+            {match.goals_team_a}<span style={{ color: t.acc, margin: '0 12px' }}>·</span>{match.goals_team_b}</div>
+          <div style={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', gap: 13 }}>
+            <Crest name={match.team_b_data?.name} logo={match.team_b_data?.logo_url} size={54} />
+            <span style={{ fontSize: 24, fontWeight: 800, textTransform: 'uppercase' }}>{match.team_b_data?.name}</span>
+          </div>
+        </div>
+        <div style={{ fontSize: 15, fontWeight: 700, opacity: .6 }}>{BIG_META[bigCard].sub}</div>
+        {bigCard !== 'KICKOFF' && sponsors.length > 0 && (
+          <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.22em', color: 'rgba(255,255,255,.45)' }}>
+              POWERED BY</div>
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
+              {sponsors.map((u, i) => (
+                <span key={i} style={{ background: '#fff', borderRadius: 8, padding: '8px 14px', display: 'inline-flex' }}>
+                  <img src={u} alt="" style={{ height: 34, display: 'block' }} />
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
   const sponsorsEl = sponsors.length > 0 && (
     <div style={{ position: PP, left: 0, bottom: 0, display: 'flex', alignItems: 'center', gap: 12,
       transform: 'scale(1.3)', transformOrigin: 'bottom left',
@@ -310,6 +430,10 @@ function Overlay() {
                 {POP_META[popup.kind].icon} {POP_META[popup.kind].label}</div>
               <div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.1, marginTop: 2 }}>{popup.name}</div>
               <div style={{ fontSize: 13.5, fontWeight: 700, opacity: .82, marginTop: 2 }}>{popup.sub}</div>
+              {popup.assist && (
+                <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 2, color: popBg[0] }}>
+                  🅰 ασίστ: <span style={{ color: '#fff' }}>{popup.assist}</span></div>
+              )}
             </div>
           </div>
         )}
@@ -317,7 +441,7 @@ function Overlay() {
     </div>
   )
 
-  const scene = <>{styleTag}{sponsorsEl}{scoreEl}{varEl}{lineupsEl}</>
+  const scene = <>{styleTag}{sponsorsEl}{scoreEl}{subCardEl}{varEl}{lineupsEl}{bigCardEl}</>
 
   // Πραγματικό OBS: καμβάς 1280×720 κλιμακωμένος να γεμίσει την οθόνη
   if (!preview) return (
@@ -330,9 +454,21 @@ function Overlay() {
   // Προεπισκόπηση: stage 16:9 (όπως θα φαίνεται στην οθόνη) + χειριστήρια από πάνω
   function testPop(kind: Kind) {
     setPopup({ kind, name: 'Δοκιμαστικός Παίκτης',
-      sub: `${(match!.team_a_data?.name ?? '').toUpperCase()} · ${clk ?? "45'"}`, photo: null })
+      sub: `${(match!.team_a_data?.name ?? '').toUpperCase()} · ${clk ?? "45'"}`, photo: null,
+      assist: kind === 'GOAL' ? 'Δοκιμαστική Ασίστ' : undefined })
     clearTimeout(popTimer.current)
     popTimer.current = setTimeout(() => setPopup(null), 5000)
+  }
+  function testBig(kind: BigKind) {
+    setBigCard(kind)
+    clearTimeout(bigTimer.current)
+    bigTimer.current = setTimeout(() => setBigCard(null), kind === 'KICKOFF' ? 8000 : 11000)
+  }
+  function testSub() {
+    setSubCard({ side: 'a', inName: 'Νέος Παίκτης', outName: 'Παλιός Παίκτης',
+      team: match!.team_a_data?.name ?? '', min: clk ?? "70'" })
+    clearTimeout(subTimer.current)
+    subTimer.current = setTimeout(() => setSubCard(null), 6500)
   }
   const ctlBtn = (bg: string, fg: string, label: string, onClick: () => void) => (
     <button onClick={onClick} style={{ background: bg, color: fg, border: 0, borderRadius: 10,
@@ -351,6 +487,10 @@ function Overlay() {
           {ctlBtn(POP_META.RED.bg[0], '#fff', '🟥 Κόκκινη', () => testPop('RED'))}
           {ctlBtn('#1436b0', '#fff', '📺 VAR', () => { setFlash('VAR'); clearTimeout(flashTimer.current); flashTimer.current = setTimeout(() => setFlash(null), 6000) })}
           {ctlBtn('#26303f', '#fff', '📋 Συνθέσεις', () => { setLineupsOn(false); setTimeout(() => setLineupsOn(true), 30) })}
+          {ctlBtn('#35c66b', '#062', '🔄 Αλλαγή', testSub)}
+          {ctlBtn('#0e7a3a', '#fff', '🏁 Έναρξη', () => testBig('KICKOFF'))}
+          {ctlBtn('#8a6d1f', '#fff', '⏸ Ημίχρονο', () => testBig('HT'))}
+          {ctlBtn('#6d1f1f', '#fff', '🏆 Τελικό', () => testBig('FT'))}
         </div>
         <div ref={setStage} style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9',
           borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(255,255,255,.12)',
