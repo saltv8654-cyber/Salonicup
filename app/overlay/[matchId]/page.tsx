@@ -1,5 +1,5 @@
 'use client'
-import { Suspense, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useLiveMatch } from '@/lib/hooks/useLiveMatch'
@@ -59,11 +59,14 @@ function Overlay() {
 
   // Καμβάς σχεδίασης 1280×720· κλιμακώνεται για να γεμίσει την πραγματική οθόνη/OBS
   const REF_W = 1280, REF_H = 720
-  const stageRef = useRef<HTMLDivElement>(null)
   const [pscale, setPscale] = useState(0.3)
-  useEffect(() => {
-    if (!preview) return
-    const el = stageRef.current
+  // callback ref: στήνει τη μέτρηση τη στιγμή που το stage μπαίνει στο DOM
+  // (το component κάνει early-return όσο δεν έχει φορτώσει ο αγώνας, οπότε
+  //  ένα effect με deps [preview] δεν θα προλάβαινε ποτέ το πραγματικό node)
+  const cleanupRef = useRef<() => void>()
+  const setStage = useCallback((el: HTMLDivElement | null) => {
+    cleanupRef.current?.()
+    cleanupRef.current = undefined
     if (!el) return
     const calc = () => {
       const w = el.getBoundingClientRect().width
@@ -75,16 +78,15 @@ function Overlay() {
     window.addEventListener('resize', calc)
     window.addEventListener('orientationchange', calc)
     window.visualViewport?.addEventListener('resize', calc)
-    // συνεχής έλεγχος (φθηνός) ώστε να πιάνει σίγουρα rotation/layout
     const iv = setInterval(calc, 300)
-    return () => {
+    cleanupRef.current = () => {
       ro.disconnect()
       window.removeEventListener('resize', calc)
       window.removeEventListener('orientationchange', calc)
       window.visualViewport?.removeEventListener('resize', calc)
       clearInterval(iv)
     }
-  }, [preview])
+  }, [])
 
   // Κλίμακα πραγματικού overlay (OBS): γεμίζει το πλάτος της οθόνης
   const [realFit, setRealFit] = useState(1)
@@ -351,7 +353,7 @@ function Overlay() {
           {ctlBtn('#1436b0', '#fff', '📺 VAR', () => { setFlash('VAR'); clearTimeout(flashTimer.current); flashTimer.current = setTimeout(() => setFlash(null), 6000) })}
           {ctlBtn('#26303f', '#fff', '📋 Συνθέσεις', () => { setLineupsOn(false); setTimeout(() => setLineupsOn(true), 30) })}
         </div>
-        <div ref={stageRef} style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9',
+        <div ref={setStage} style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9',
           borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(255,255,255,.12)',
           background: 'linear-gradient(160deg,#0f2a1c,#0a1512 70%)' }}>
           <div style={{ position: 'absolute', top: 0, left: 0, width: REF_W, height: REF_H,
