@@ -132,11 +132,12 @@ function Overlay() {
   const half = clockHalf(match.clock_period)
   const PP: 'fixed' | 'absolute' = preview ? 'absolute' : 'fixed'
 
+  const M = Number.isFinite(parseInt(params.get('margin') || '')) ? parseInt(params.get('margin')!) : 8
   const posStyle: React.CSSProperties =
-    pos === 'tl' ? { top: 24, left: 24, alignItems: 'flex-start' }
-    : pos === 'tr' ? { top: 24, right: 24, alignItems: 'flex-end' }
-    : pos === 'br' ? { bottom: 24, right: 24, alignItems: 'flex-end' }
-    : { bottom: 24, left: 24, alignItems: 'flex-start' }
+    pos === 'tl' ? { top: M, left: M, alignItems: 'flex-start' }
+    : pos === 'tr' ? { top: M, right: M, alignItems: 'flex-end' }
+    : pos === 'br' ? { bottom: M, right: M, alignItems: 'flex-end' }
+    : { bottom: M, left: M, alignItems: 'flex-start' }
   const tOrigin = pos === 'tl' ? 'top left' : pos === 'tr' ? 'top right'
     : pos === 'br' ? 'bottom right' : 'bottom left'
 
