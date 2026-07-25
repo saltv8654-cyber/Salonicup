@@ -65,13 +65,19 @@ function Overlay() {
     if (!preview) return
     const el = stageRef.current
     if (!el) return
-    const calc = () => { const w = el.clientWidth; if (w) setPscale(w / REF_W) }
+    const calc = () => { const w = el.getBoundingClientRect().width; if (w > 0) setPscale(w / REF_W) }
     calc()
     const ro = new ResizeObserver(calc)
     ro.observe(el)
     window.addEventListener('resize', calc)
-    const id = requestAnimationFrame(calc)
-    return () => { ro.disconnect(); window.removeEventListener('resize', calc); cancelAnimationFrame(id) }
+    window.addEventListener('orientationchange', calc)
+    const ids = [30, 200, 600].map(d => setTimeout(calc, d))
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', calc)
+      window.removeEventListener('orientationchange', calc)
+      ids.forEach(clearTimeout)
+    }
   }, [preview])
 
   // Κλίμακα πραγματικού overlay (OBS): γεμίζει το πλάτος της οθόνης
@@ -300,7 +306,8 @@ function Overlay() {
     </div>
   )
 
-  const scene = <>{styleTag}{lineupsEl}{varEl}{sponsorsEl}{scoreEl}</>
+  // Στις συνθέσεις κρύβεται το scoreboard/χορηγοί για καθαρό broadcast
+  const scene = <>{styleTag}{varEl}{lineupsOn ? lineupsEl : <>{sponsorsEl}{scoreEl}</>}</>
 
   // Πραγματικό OBS: καμβάς 1280×720 κλιμακωμένος να γεμίσει την οθόνη
   if (!preview) return (
@@ -335,7 +342,7 @@ function Overlay() {
           {ctlBtn('#1436b0', '#fff', '📺 VAR', () => { setFlash('VAR'); clearTimeout(flashTimer.current); flashTimer.current = setTimeout(() => setFlash(null), 6000) })}
           {ctlBtn('#26303f', '#fff', '📋 Συνθέσεις', () => { setLineupsOn(false); setTimeout(() => setLineupsOn(true), 30) })}
         </div>
-        <div ref={stageRef} style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9',
+        <div ref={stageRef} style={{ position: 'relative', width: '100%', height: Math.round(pscale * REF_H),
           borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(255,255,255,.12)',
           background: 'linear-gradient(160deg,#0f2a1c,#0a1512 70%)' }}>
           <div style={{ position: 'absolute', top: 0, left: 0, width: REF_W, height: REF_H,
