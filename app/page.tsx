@@ -5,6 +5,7 @@ import NotificationsBell from './notifications-bell'
 import LiveTicker from './live-ticker'
 import LiveClock from './live-clock'
 import { athensDateKey, fmtDay, fmtTime } from '@/lib/time'
+import { ytWatch } from '@/lib/youtube'
 
 export const revalidate = 15
 
@@ -150,11 +151,12 @@ export default async function Home({
 function MatchRow({ m, first }: { m: any; first: boolean }) {
   const live = m.match_status === 'Live'
   const done = ['Played', 'Forfeit'].includes(m.match_status)
+  const watch = ytWatch(m.stream_url)
 
   return (
+    <div className={first ? '' : 'border-t border-chalk/[0.05]'}>
     <Link href={`/match/${m.match_id}`}
-      className={`block px-3 py-3 active:bg-[#1C1C22]
-        ${first ? '' : 'border-t border-chalk/[0.05]'}`}>
+      className={`block px-3 pt-3 ${watch ? 'pb-2' : 'pb-3'} active:bg-[#1C1C22]`}>
       <div className="grid items-center gap-2 [grid-template-columns:1fr_54px_1fr]">
         {/* Γηπεδούχος */}
         <div className="flex items-center justify-end gap-2 min-w-0">
@@ -202,5 +204,16 @@ function MatchRow({ m, first }: { m: any; first: boolean }) {
         </div>
       )}
     </Link>
+
+    {/* Ροή YouTube — ανοίγει απευθείας από τη λίστα */}
+    {watch && (
+      <a href={watch} target="_blank" rel="noopener noreferrer"
+        className="flex items-center justify-center gap-1.5 pb-2.5 -mt-0.5
+          text-[11px] font-extrabold text-live active:opacity-70">
+        <span className={live ? 'animate-pulse' : ''}>📺</span>
+        {live ? 'Δες το ζωντανά' : 'Παρακολούθηση ροής'}
+      </a>
+    )}
+    </div>
   )
 }

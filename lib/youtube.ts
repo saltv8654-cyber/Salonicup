@@ -17,3 +17,9 @@ export function ytEmbed(url?: string | null): string | null {
   const id = ytId(url)
   return id ? `https://www.youtube.com/embed/${id}?rel=0` : null
 }
+
+/** Κανονικό watch URL (ανοίγει στην εφαρμογή/καρτέλα YouTube), ή null. */
+export function ytWatch(url?: string | null): string | null {
+  const id = ytId(url)
+  return id ? `https://www.youtube.com/watch?v=${id}` : null
+}
