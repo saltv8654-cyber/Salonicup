@@ -86,6 +86,7 @@ export default async function AdminDashboard() {
           { l: '+ Αγώνας',     href: '/admin/matches' },
           { l: '+ Γήπεδο',     href: '/admin/venues' },
           { l: '+ Speaker',    href: '/admin/users' },
+          { l: '📺 YouTube',   href: '/admin/youtube' },
         ].map(a => (
           <Link key={a.l} href={a.href}
             className="bg-chalk/[0.04] rounded-xl py-3 text-center text-[12.5px]

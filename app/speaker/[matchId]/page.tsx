@@ -72,7 +72,38 @@ export default function SpeakerPanel() {
   const [saving, setSaving]   = useState(false)
   const [clockBusy, setClockBusy] = useState(false)
   const [streamUrl, setStreamUrl] = useState('')
+  const [ytChannels, setYtChannels] = useState<{ id: string; label: string }[]>([])
+  const [ytBusy, setYtBusy] = useState(false)
+  const [ytPick, setYtPick] = useState(false)
   const now = useNow(1000)
+
+  // Συνδεδεμένα κανάλια YouTube (για «Δημιουργία ροής»)
+  useEffect(() => {
+    fetch('/api/youtube/list').then(r => r.json())
+      .then(j => { if (j.ok) setYtChannels(j.channels ?? []) }).catch(() => {})
+  }, [])
+
+  async function createStream(channelId: string) {
+    if (!match) return
+    setYtPick(false); setYtBusy(true)
+    try {
+      const r = await fetch('/api/youtube/stream', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId: match.match_id, channelId, privacy: 'public' }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (j.ok) { setStreamUrl(j.watchUrl); toast.success('Η ροή δημιουργήθηκε! Πάτα «Start Streaming» στο OBS') }
+      else if (j.reason === 'not-configured') toast.error('Το YouTube δεν έχει ρυθμιστεί ακόμα (admin)')
+      else toast.error('Δεν δημιουργήθηκε η ροή — δοκίμασε ξανά')
+    } catch { toast.error('Σφάλμα δικτύου') }
+    setYtBusy(false)
+  }
+
+  function startStream() {
+    if (ytChannels.length === 0) { toast.error('Σύνδεσε πρώτα κανάλι YouTube (admin → YouTube)'); return }
+    if (ytChannels.length === 1) createStream(ytChannels[0].id)
+    else setYtPick(true)
+  }
 
   useEffect(() => {
     if (!authLoading && !isSpeaker) router.replace('/')
@@ -709,6 +740,27 @@ export default function SpeakerPanel() {
                 Αποθήκευση
               </button>
             </div>
+            {ytChannels.length > 0 && (
+              <button onClick={startStream} disabled={ytBusy}
+                className="w-full py-2.5 rounded-xl font-extrabold text-[12.5px] disabled:opacity-60
+                  bg-red-500/15 border border-red-500/40 text-red-300">
+                {ytBusy ? 'Δημιουργία ροής…' : '📡 Δημιουργία ροής YouTube'}
+              </button>
+            )}
+            {ytPick && (
+              <div className="flex flex-col gap-1.5 bg-turf rounded-xl p-2 border border-chalk/[0.08]">
+                <p className="text-[10px] font-bold text-dim px-1">Διάλεξε κανάλι:</p>
+                {ytChannels.map(c => (
+                  <button key={c.id} onClick={() => createStream(c.id)}
+                    className="w-full text-left px-3 py-2 rounded-lg bg-chalk/[0.05] text-chalk
+                      text-[12.5px] font-semibold active:bg-chalk/[0.1]">
+                    📺 {c.label}
+                  </button>
+                ))}
+                <button onClick={() => setYtPick(false)}
+                  className="text-[11px] text-dim py-1 font-semibold">Άκυρο</button>
+              </div>
+            )}
             <button onClick={() => setReport(true)}
               className="w-full py-3.5 rounded-xl bg-gradient-to-b from-lit to-brand
                 text-white font-extrabold text-[15px]
