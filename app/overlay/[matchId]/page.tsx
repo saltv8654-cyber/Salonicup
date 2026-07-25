@@ -57,7 +57,7 @@ function Overlay() {
   const flashTimer = useRef<ReturnType<typeof setTimeout>>()
   const supa = useRef(createClient())
 
-  // Κλίμακα stage προεπισκόπησης (αναφορά 1280×720)
+  // Καμβάς σχεδίασης 1280×720· κλιμακώνεται για να γεμίσει την πραγματική οθόνη/OBS
   const REF_W = 1280, REF_H = 720
   const stageRef = useRef<HTMLDivElement>(null)
   const [pscale, setPscale] = useState(0.3)
@@ -72,6 +72,16 @@ function Overlay() {
     window.addEventListener('resize', calc)
     const id = requestAnimationFrame(calc)
     return () => { ro.disconnect(); window.removeEventListener('resize', calc); cancelAnimationFrame(id) }
+  }, [preview])
+
+  // Κλίμακα πραγματικού overlay (OBS): γεμίζει το πλάτος της οθόνης
+  const [realFit, setRealFit] = useState(1)
+  useEffect(() => {
+    if (preview) return
+    const calc = () => setRealFit(window.innerWidth / REF_W)
+    calc()
+    window.addEventListener('resize', calc)
+    return () => window.removeEventListener('resize', calc)
   }, [preview])
 
   useEffect(() => {
@@ -140,7 +150,7 @@ function Overlay() {
   const t = themeFor(match.league_id, params.get('theme'))
   const clk = clockLabel(match.clock_period, match.clock_started_at, now)
   const half = clockHalf(match.clock_period)
-  const PP: 'fixed' | 'absolute' = preview ? 'absolute' : 'fixed'
+  const PP: 'fixed' | 'absolute' = 'absolute'
 
   const M = Number.isFinite(parseInt(params.get('margin') || '')) ? parseInt(params.get('margin')!) : 0
   const posStyle: React.CSSProperties =
@@ -208,8 +218,9 @@ function Overlay() {
   )
 
   const sponsorsEl = sponsors.length > 0 && (
-    <div style={{ position: PP, left: 24, bottom: 24, display: 'flex', alignItems: 'center', gap: 12,
-      background: 'rgba(0,0,0,.55)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 10, padding: '8px 14px' }}>
+    <div style={{ position: PP, left: 0, bottom: 0, display: 'flex', alignItems: 'center', gap: 12,
+      background: 'rgba(0,0,0,.6)', borderTop: '1px solid rgba(255,255,255,.1)', borderRight: '1px solid rgba(255,255,255,.1)',
+      borderRadius: '0 10px 0 0', padding: '8px 14px' }}>
       <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.14em', color: 'rgba(255,255,255,.7)',
         whiteSpace: 'nowrap' }}>POWERED BY</span>
       <div style={{ width: 200, overflow: 'hidden' }}>
@@ -290,7 +301,13 @@ function Overlay() {
 
   const scene = <>{styleTag}{lineupsEl}{varEl}{sponsorsEl}{scoreEl}</>
 
-  if (!preview) return scene
+  // Πραγματικό OBS: καμβάς 1280×720 κλιμακωμένος να γεμίσει την οθόνη
+  if (!preview) return (
+    <div style={{ position: 'fixed', top: 0, left: 0, width: REF_W, height: REF_H,
+      transformOrigin: 'top left', transform: `scale(${realFit})` }}>
+      {scene}
+    </div>
+  )
 
   // Προεπισκόπηση: stage 16:9 (όπως θα φαίνεται στην οθόνη) + χειριστήρια από πάνω
   function testPop(kind: Kind) {
