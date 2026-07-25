@@ -42,7 +42,7 @@ function Overlay() {
   const { match, events } = useLiveMatch(matchId as string)
   const now = useNow(1000)
 
-  const userScale = parseFloat(params.get('scale') || '1.3') || 1.3
+  const userScale = parseFloat(params.get('scale') || '0.91') || 0.91
   const pos = params.get('pos') || 'tl'
   const preview = params.get('preview') != null
   const sponsors = (params.get('sponsors') || '').split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean)
