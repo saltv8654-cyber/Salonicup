@@ -55,16 +55,21 @@ function Overlay() {
   const flashTimer = useRef<ReturnType<typeof setTimeout>>()
   const supa = useRef(createClient())
 
-  // Κλίμακα stage προεπισκόπησης (αναφορά 1920×1080)
+  // Κλίμακα stage προεπισκόπησης (αναφορά 1280×720)
+  const REF_W = 1280, REF_H = 720
   const stageRef = useRef<HTMLDivElement>(null)
-  const [pscale, setPscale] = useState(1)
+  const [pscale, setPscale] = useState(0.3)
   useEffect(() => {
     if (!preview) return
     const el = stageRef.current
     if (!el) return
-    const ro = new ResizeObserver(() => setPscale(el.clientWidth / 1920))
+    const calc = () => { const w = el.clientWidth; if (w) setPscale(w / REF_W) }
+    calc()
+    const ro = new ResizeObserver(calc)
     ro.observe(el)
-    return () => ro.disconnect()
+    window.addEventListener('resize', calc)
+    const id = requestAnimationFrame(calc)
+    return () => { ro.disconnect(); window.removeEventListener('resize', calc); cancelAnimationFrame(id) }
   }, [preview])
 
   useEffect(() => {
@@ -319,7 +324,7 @@ function Overlay() {
         <div ref={stageRef} style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9',
           borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(255,255,255,.12)',
           background: 'linear-gradient(160deg,#0f2a1c,#0a1512 70%)' }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, width: 1920, height: 1080,
+          <div style={{ position: 'absolute', top: 0, left: 0, width: REF_W, height: REF_H,
             transformOrigin: 'top left', transform: `scale(${pscale})` }}>
             {scene}
           </div>
