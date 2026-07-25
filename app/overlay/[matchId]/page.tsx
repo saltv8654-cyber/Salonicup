@@ -297,19 +297,19 @@ function Overlay() {
         {popup && (
           <div style={{ position: 'absolute', left: '50%', top: 'calc(100% + 48px)', transform: 'translateX(-50%)',
             display: 'flex', alignItems: 'center', gap: 16, padding: '14px 26px 14px 14px', borderRadius: 16,
-            color: '#fff', whiteSpace: 'nowrap', background: `linear-gradient(180deg, ${popBg[0]}, ${popBg[1]})`,
+            color: '#fff', whiteSpace: 'nowrap', background: 'rgba(6,10,16,.92)', border: `2px solid ${popBg[0]}`,
             boxShadow: '0 18px 50px rgba(0,0,0,.5)', animation: 'ovGoal .5s cubic-bezier(.2,.9,.25,1) forwards' }}>
             <span style={{ width: 60, height: 60, borderRadius: '50%', overflow: 'hidden', flex: 'none',
-              background: 'rgba(255,255,255,.2)', border: '2px solid rgba(255,255,255,.9)', display: 'grid',
+              background: 'rgba(255,255,255,.08)', border: `2px solid ${popBg[0]}`, display: 'grid',
               placeItems: 'center', fontSize: 30 }}>
               {popup.photo ? <img src={popup.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 : POP_META[popup.kind].icon}
             </span>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: '.2em', opacity: .95 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: '.2em', color: popBg[0] }}>
                 {POP_META[popup.kind].icon} {POP_META[popup.kind].label}</div>
               <div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.1, marginTop: 2 }}>{popup.name}</div>
-              <div style={{ fontSize: 13.5, fontWeight: 700, opacity: .92, marginTop: 2 }}>{popup.sub}</div>
+              <div style={{ fontSize: 13.5, fontWeight: 700, opacity: .82, marginTop: 2 }}>{popup.sub}</div>
             </div>
           </div>
         )}
