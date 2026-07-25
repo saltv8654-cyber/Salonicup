@@ -1,6 +1,7 @@
 'use client'
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { useLiveMatch } from '@/lib/hooks/useLiveMatch'
 import { useNow } from '@/lib/hooks/useNow'
 import { clockLabel, clockHalf } from '@/lib/clock'
@@ -49,6 +50,20 @@ function Overlay() {
   const [popup, setPopup] = useState<Pop | null>(null)
   const seen = useRef<Set<string>>(new Set())
   const popTimer = useRef<ReturnType<typeof setTimeout>>()
+
+  // VAR / flash μέσω realtime broadcast (ο σπίκερ το ενεργοποιεί)
+  const [flash, setFlash] = useState<string | null>(null)
+  const flashTimer = useRef<ReturnType<typeof setTimeout>>()
+  const supa = useRef(createClient())
+  useEffect(() => {
+    const ch = supa.current.channel(`overlay:${matchId}`)
+      .on('broadcast', { event: 'flash' }, ({ payload }: any) => {
+        setFlash(payload?.kind ?? null)
+        clearTimeout(flashTimer.current)
+        if (payload?.kind) flashTimer.current = setTimeout(() => setFlash(null), 6000)
+      }).subscribe()
+    return () => { supa.current.removeChannel(ch) }
+  }, [matchId])
 
   useEffect(() => {
     const b = document.body.style.background
@@ -121,7 +136,24 @@ function Overlay() {
       <style>{`
         @keyframes ovGoal{from{opacity:0;transform:translate(-50%,-12px) scale(.94)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
         @keyframes ovMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+        @keyframes ovPop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
       `}</style>
+
+      {/* VAR / flash — μεγάλο, κεντρικό */}
+      {flash === 'VAR' && (
+        <div style={{ position: 'fixed', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '24px 44px', borderRadius: 18,
+            background: 'linear-gradient(180deg,#1436b0,#0b2170)', color: '#fff',
+            border: '2px solid rgba(255,255,255,.85)', boxShadow: '0 22px 64px rgba(0,0,0,.6)',
+            animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
+            <span style={{ fontSize: 48 }}>📺</span>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '.28em', opacity: .9 }}>VAR</div>
+              <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.05 }}>Έλεγχος φάσης</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Πρωτάθλημα — κεντραρισμένο πάνω από το σκορ */}
       <div style={{ alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 8,
@@ -205,6 +237,11 @@ function Overlay() {
               {POP_META[k].icon} {k === 'GOAL' ? 'Γκολ' : k === 'YELLOW' ? 'Κίτρινη' : 'Κόκκινη'}
             </button>
           ))}
+          <button onClick={() => { setFlash('VAR'); clearTimeout(flashTimer.current); flashTimer.current = setTimeout(() => setFlash(null), 6000) }}
+            style={{ background: '#1436b0', color: '#fff', border: 0, borderRadius: 10,
+              padding: '8px 12px', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' }}>
+            📺 VAR
+          </button>
         </div>
       )}
 

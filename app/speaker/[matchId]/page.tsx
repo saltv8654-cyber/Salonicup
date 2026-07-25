@@ -117,6 +117,16 @@ export default function SpeakerPanel() {
     if (match) setStreamUrl(match.stream_url ?? '')
   }, [match?.match_id])
 
+  // Στέλνει «flash» (π.χ. VAR) στο OBS overlay μέσω realtime broadcast
+  async function sendFlash(kind: string) {
+    if (!match) return
+    const ch = supabase.channel(`overlay:${match.match_id}`)
+    await ch.subscribe()
+    await ch.send({ type: 'broadcast', event: 'flash', payload: { kind } })
+    setTimeout(() => supabase.removeChannel(ch), 800)
+    toast.success('Στάλθηκε στο overlay')
+  }
+
   async function saveStream(url: string) {
     if (!match) return
     const { error } = await supabase.from('matches')
@@ -716,10 +726,18 @@ export default function SpeakerPanel() {
                 📺 Αντιγραφή link
               </button>
             </div>
-            <button onClick={() => setPhase('squad')}
-              className="w-full py-2.5 rounded-xl text-dim font-semibold text-[12.5px]">
-              Αλλαγή συμμετοχών
-            </button>
+            <div className="flex gap-2">
+              <button onClick={() => sendFlash('VAR')}
+                className="flex-1 py-2.5 rounded-xl font-bold text-[12.5px]
+                  bg-[#1436b0]/20 border border-[#1436b0]/50 text-[#8fa8ff]">
+                📺 VAR στο overlay
+              </button>
+              <button onClick={() => setPhase('squad')}
+                className="flex-1 py-2.5 rounded-xl text-dim font-semibold text-[12.5px]
+                  bg-chalk/[0.04] border border-chalk/[0.06]">
+                Αλλαγή συμμετοχών
+              </button>
+            </div>
           </div>
         </>
       )}
