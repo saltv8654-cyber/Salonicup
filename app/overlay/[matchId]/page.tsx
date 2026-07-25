@@ -201,11 +201,10 @@ function Overlay() {
   const luLogo = luTeam === 'a' ? match.team_a_data?.logo_url : match.team_b_data?.logo_url
   const lineupsEl = lineupsOn && (
     <div style={{ position: PP, inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
-      <div key={luTeam} style={{ position: 'relative', width: 360, marginTop: 40,
-        animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
-        {/* Όνομα ομάδας — επιπλέει πάνω από το γήπεδο (δεν μετακινεί το κέντρο) */}
-        <div style={{ position: 'absolute', bottom: 'calc(100% + 10px)', left: 0, right: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 11 }}>
+      <div key={luTeam} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
+        width: 360, marginTop: 56, animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
+        {/* Όνομα ομάδας — μέσα στη στοίβα, ώστε τίτλος+γήπεδο να κεντράρονται μαζί */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 11 }}>
           <Crest name={luName} logo={luLogo} size={44} />
           <div style={{ textAlign: 'left' }}>
             <div style={{ fontSize: 27, fontWeight: 800, textTransform: 'uppercase', color: '#fff',
