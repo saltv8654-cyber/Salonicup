@@ -72,6 +72,7 @@ export default function SpeakerPanel() {
   const [saving, setSaving]   = useState(false)
   const [clockBusy, setClockBusy] = useState(false)
   const [streamUrl, setStreamUrl] = useState('')
+  const [lineupsOn, setLineupsOn] = useState(false)
   const now = useNow(1000)
 
   useEffect(() => {
@@ -117,14 +118,20 @@ export default function SpeakerPanel() {
     if (match) setStreamUrl(match.stream_url ?? '')
   }, [match?.match_id])
 
-  // Στέλνει «flash» (π.χ. VAR) στο OBS overlay μέσω realtime broadcast
-  async function sendFlash(kind: string) {
+  // Στέλνει «flash»/toggle στο OBS overlay μέσω realtime broadcast
+  async function sendFlash(kind: string, extra?: Record<string, any>) {
     if (!match) return
     const ch = supabase.channel(`overlay:${match.match_id}`)
     await ch.subscribe()
-    await ch.send({ type: 'broadcast', event: 'flash', payload: { kind } })
+    await ch.send({ type: 'broadcast', event: 'flash', payload: { kind, ...extra } })
     setTimeout(() => supabase.removeChannel(ch), 800)
-    toast.success('Στάλθηκε στο overlay')
+  }
+
+  async function toggleLineups() {
+    const next = !lineupsOn
+    setLineupsOn(next)
+    await sendFlash('LINEUPS', { on: next })
+    toast.success(next ? 'Συνθέσεις στο overlay' : 'Απόκρυψη συνθέσεων')
   }
 
   async function saveStream(url: string) {
@@ -727,17 +734,21 @@ export default function SpeakerPanel() {
               </button>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => sendFlash('VAR')}
+              <button onClick={() => { sendFlash('VAR'); toast.success('VAR στο overlay') }}
                 className="flex-1 py-2.5 rounded-xl font-bold text-[12.5px]
                   bg-[#1436b0]/20 border border-[#1436b0]/50 text-[#8fa8ff]">
-                📺 VAR στο overlay
+                📺 VAR
               </button>
-              <button onClick={() => setPhase('squad')}
-                className="flex-1 py-2.5 rounded-xl text-dim font-semibold text-[12.5px]
-                  bg-chalk/[0.04] border border-chalk/[0.06]">
-                Αλλαγή συμμετοχών
+              <button onClick={toggleLineups}
+                className={`flex-1 py-2.5 rounded-xl font-bold text-[12.5px] border
+                  ${lineupsOn ? 'bg-lit/15 border-lit/40 text-lit' : 'bg-chalk/[0.04] border-chalk/[0.06] text-silver'}`}>
+                📋 Συνθέσεις
               </button>
             </div>
+            <button onClick={() => setPhase('squad')}
+              className="w-full py-2.5 rounded-xl text-dim font-semibold text-[12.5px]">
+              Αλλαγή συμμετοχών
+            </button>
           </div>
         </>
       )}

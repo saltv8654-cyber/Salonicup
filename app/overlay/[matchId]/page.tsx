@@ -51,19 +51,35 @@ function Overlay() {
   const seen = useRef<Set<string>>(new Set())
   const popTimer = useRef<ReturnType<typeof setTimeout>>()
 
-  // VAR / flash μέσω realtime broadcast (ο σπίκερ το ενεργοποιεί)
+  // VAR / flash / συνθέσεις μέσω realtime broadcast (ο σπίκερ τα ενεργοποιεί)
   const [flash, setFlash] = useState<string | null>(null)
+  const [lineupsOn, setLineupsOn] = useState(false)
+  const [squadMap, setSquadMap] = useState<Record<string, any>>({})
   const flashTimer = useRef<ReturnType<typeof setTimeout>>()
   const supa = useRef(createClient())
   useEffect(() => {
     const ch = supa.current.channel(`overlay:${matchId}`)
       .on('broadcast', { event: 'flash' }, ({ payload }: any) => {
+        if (payload?.kind === 'LINEUPS') { setLineupsOn(!!payload.on); return }
         setFlash(payload?.kind ?? null)
         clearTimeout(flashTimer.current)
         if (payload?.kind) flashTimer.current = setTimeout(() => setFlash(null), 6000)
       }).subscribe()
     return () => { supa.current.removeChannel(ch) }
   }, [matchId])
+
+  // Στοιχεία παικτών για τις συνθέσεις
+  useEffect(() => {
+    if (!match) return
+    const ids = [...(match.squad_a ?? []), ...(match.squad_b ?? [])]
+    if (!ids.length) return
+    supa.current.from('players').select('player_id, full_name, number, photo_url').in('player_id', ids)
+      .then(({ data }) => {
+        const m: Record<string, any> = {}
+        ;(data ?? []).forEach((p: any) => { m[p.player_id] = p })
+        setSquadMap(m)
+      })
+  }, [match?.match_id])
 
   useEffect(() => {
     const b = document.body.style.background
@@ -155,6 +171,49 @@ function Overlay() {
         </div>
       )}
 
+      {/* Συνθέσεις — μεγάλο κεντρικό πάνελ (toggle από σπίκερ) */}
+      {lineupsOn && (
+        <div style={{ position: 'fixed', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
+          <div style={{ display: 'flex', gap: 0, borderRadius: 18, overflow: 'hidden',
+            border: `2px solid ${t.acc}`, boxShadow: '0 24px 70px rgba(0,0,0,.6)',
+            animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards', maxWidth: '90vw' }}>
+            {(['a', 'b'] as const).map((side, i) => {
+              const line: string[] = ((side === 'a' ? match.lineup_a : match.lineup_b) ?? []).filter(Boolean)
+              const form = (side === 'a' ? match.formation_a : match.formation_b) ?? ''
+              const nm = side === 'a' ? match.team_a_data?.name : match.team_b_data?.name
+              const logo = side === 'a' ? match.team_a_data?.logo_url : match.team_b_data?.logo_url
+              return (
+                <div key={side} style={{ minWidth: 300, background: `linear-gradient(180deg, ${t.bg0}, ${t.bg1})`,
+                  color: '#fff', padding: '18px 22px', borderLeft: i ? '1px solid rgba(255,255,255,.12)' : undefined }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 12,
+                    marginBottom: 12, borderBottom: `2px solid ${t.acc}` }}>
+                    <Crest name={nm} logo={logo} size={34} />
+                    <div>
+                      <div style={{ fontSize: 18, fontWeight: 800, textTransform: 'uppercase' }}>{nm}</div>
+                      {form && <div style={{ fontSize: 12, fontWeight: 700, color: t.acc }}>{form}</div>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {line.map((id, idx) => {
+                      const p = squadMap[id]
+                      return (
+                        <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ width: 24, textAlign: 'center', fontWeight: 800, fontSize: 13,
+                            color: t.acc, fontVariantNumeric: 'tabular-nums' }}>
+                            {p?.number ?? (idx === 0 ? 'ΤΕΡ' : '·')}
+                          </span>
+                          <span style={{ fontSize: 15.5, fontWeight: 600 }}>{p?.full_name ?? '—'}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Πρωτάθλημα — κεντραρισμένο πάνω από το σκορ */}
       <div style={{ alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 8,
         background: 'rgba(0,0,0,.55)', border: '1px solid rgba(255,255,255,.10)',
@@ -241,6 +300,11 @@ function Overlay() {
             style={{ background: '#1436b0', color: '#fff', border: 0, borderRadius: 10,
               padding: '8px 12px', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' }}>
             📺 VAR
+          </button>
+          <button onClick={() => setLineupsOn(v => !v)}
+            style={{ background: '#26303f', color: '#fff', border: 0, borderRadius: 10,
+              padding: '8px 12px', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' }}>
+            📋 Συνθέσεις
           </button>
         </div>
       )}
