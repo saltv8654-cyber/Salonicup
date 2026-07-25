@@ -15,7 +15,6 @@ const THEMES: Record<string, Theme> = {
   miami:  { acc: '#ff2d95', acc2: '#d81f7a', bg0: '#1a0d3d', bg1: '#0a0618' },
 }
 const KEYS = ['orange', 'yellow', 'miami']
-
 function themeFor(leagueId: string | undefined, override: string | null): Theme {
   if (override && THEMES[override]) return THEMES[override]
   let h = 0
@@ -27,7 +26,7 @@ function themeFor(leagueId: string | undefined, override: string | null): Theme 
 type Kind = 'GOAL' | 'YELLOW' | 'RED'
 type Pop = { kind: Kind; name: string; sub: string; photo: string | null }
 const POP_META: Record<Kind, { icon: string; label: string; bg: [string, string] }> = {
-  GOAL:   { icon: '⚽', label: 'ΓΚΟΛ',          bg: ['', ''] }, // bg από θέμα
+  GOAL:   { icon: '⚽', label: 'ΓΚΟΛ',          bg: ['', ''] },
   YELLOW: { icon: '🟨', label: 'ΚΙΤΡΙΝΗ ΚΑΡΤΑ', bg: ['#F2C230', '#D8A21F'] },
   RED:    { icon: '🟥', label: 'ΚΟΚΚΙΝΗ ΚΑΡΤΑ', bg: ['#D8483C', '#B23227'] },
 }
@@ -42,7 +41,7 @@ function Overlay() {
   const { match, events } = useLiveMatch(matchId as string)
   const now = useNow(1000)
 
-  const scale = parseFloat(params.get('scale') || '1') || 1
+  const userScale = parseFloat(params.get('scale') || '1') || 1
   const pos = params.get('pos') || 'bl'
   const preview = params.get('preview') != null
   const sponsors = (params.get('sponsors') || '').split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean)
@@ -50,13 +49,33 @@ function Overlay() {
   const [popup, setPopup] = useState<Pop | null>(null)
   const seen = useRef<Set<string>>(new Set())
   const popTimer = useRef<ReturnType<typeof setTimeout>>()
-
-  // VAR / flash / συνθέσεις μέσω realtime broadcast (ο σπίκερ τα ενεργοποιεί)
   const [flash, setFlash] = useState<string | null>(null)
   const [lineupsOn, setLineupsOn] = useState(false)
   const [squadMap, setSquadMap] = useState<Record<string, any>>({})
   const flashTimer = useRef<ReturnType<typeof setTimeout>>()
   const supa = useRef(createClient())
+
+  // Κλίμακα stage προεπισκόπησης (αναφορά 1920×1080)
+  const stageRef = useRef<HTMLDivElement>(null)
+  const [pscale, setPscale] = useState(1)
+  useEffect(() => {
+    if (!preview) return
+    const el = stageRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setPscale(el.clientWidth / 1920))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [preview])
+
+  useEffect(() => {
+    if (preview) return
+    const b = document.body.style.background
+    const h = document.documentElement.style.background
+    document.body.style.background = 'transparent'
+    document.documentElement.style.background = 'transparent'
+    return () => { document.body.style.background = b; document.documentElement.style.background = h }
+  }, [preview])
+
   useEffect(() => {
     const ch = supa.current.channel(`overlay:${matchId}`)
       .on('broadcast', { event: 'flash' }, ({ payload }: any) => {
@@ -68,7 +87,6 @@ function Overlay() {
     return () => { supa.current.removeChannel(ch) }
   }, [matchId])
 
-  // Στοιχεία παικτών για τις συνθέσεις
   useEffect(() => {
     if (!match) return
     const ids = [...(match.squad_a ?? []), ...(match.squad_b ?? [])]
@@ -81,16 +99,6 @@ function Overlay() {
       })
   }, [match?.match_id])
 
-  useEffect(() => {
-    const b = document.body.style.background
-    const h = document.documentElement.style.background
-    const bg = preview ? 'linear-gradient(160deg,#0f2a1c,#0a1512 70%)' : 'transparent'
-    document.body.style.background = bg
-    document.documentElement.style.background = preview ? '#0a1512' : 'transparent'
-    return () => { document.body.style.background = b; document.documentElement.style.background = h }
-  }, [preview])
-
-  // Pop-up σε νέο γκολ / κίτρινη / κόκκινη
   useEffect(() => {
     if (!match) return
     const kinds: Kind[] = ['GOAL', 'YELLOW', 'RED']
@@ -117,14 +125,14 @@ function Overlay() {
   const t = themeFor(match.league_id, params.get('theme'))
   const clk = clockLabel(match.clock_period, match.clock_started_at, now)
   const half = clockHalf(match.clock_period)
+  const PP: 'fixed' | 'absolute' = preview ? 'absolute' : 'fixed'
 
   const posStyle: React.CSSProperties =
     pos === 'tl' ? { top: 24, left: 24, alignItems: 'flex-start' }
     : pos === 'tr' ? { top: 24, right: 24, alignItems: 'flex-end' }
     : pos === 'br' ? { bottom: 24, right: 24, alignItems: 'flex-end' }
     : { bottom: 24, left: 24, alignItems: 'flex-start' }
-  const tOrigin =
-    pos === 'tl' ? 'top left' : pos === 'tr' ? 'top right'
+  const tOrigin = pos === 'tl' ? 'top left' : pos === 'tr' ? 'top right'
     : pos === 'br' ? 'bottom right' : 'bottom left'
 
   const Crest = ({ name, logo, size }: { name?: string; logo?: string | null; size: number }) => (
@@ -138,92 +146,97 @@ function Overlay() {
 
   const popBg = popup ? (popup.kind === 'GOAL' ? [t.acc, t.acc2] : POP_META[popup.kind].bg) : ['', '']
 
-  function testPop(kind: Kind) {
-    setPopup({ kind, name: kind === 'GOAL' ? 'Δοκιμαστικός Παίκτης' : 'Δοκιμαστικός Παίκτης',
-      sub: `${(match.team_a_data?.name ?? '').toUpperCase()} · ${clk ?? "45'"}`, photo: null })
-    clearTimeout(popTimer.current)
-    popTimer.current = setTimeout(() => setPopup(null), 5000)
-  }
+  const styleTag = (
+    <style>{`
+      @keyframes ovGoal{from{opacity:0;transform:translate(-50%,-12px) scale(.94)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
+      @keyframes ovMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+      @keyframes ovPop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+    `}</style>
+  )
 
-  return (
-    <div style={{ position: 'fixed', display: 'flex', flexDirection: 'column', ...posStyle,
-      transform: `scale(${scale})`, transformOrigin: tOrigin,
-      fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif' }}>
-      <style>{`
-        @keyframes ovGoal{from{opacity:0;transform:translate(-50%,-12px) scale(.94)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
-        @keyframes ovMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-        @keyframes ovPop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
-      `}</style>
-
-      {/* VAR / flash — μεγάλο, κεντρικό */}
-      {flash === 'VAR' && (
-        <div style={{ position: 'fixed', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '24px 44px', borderRadius: 18,
-            background: 'linear-gradient(180deg,#1436b0,#0b2170)', color: '#fff',
-            border: '2px solid rgba(255,255,255,.85)', boxShadow: '0 22px 64px rgba(0,0,0,.6)',
-            animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
-            <span style={{ fontSize: 48 }}>📺</span>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '.28em', opacity: .9 }}>VAR</div>
-              <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.05 }}>Έλεγχος φάσης</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Συνθέσεις — μεγάλο κεντρικό πάνελ (toggle από σπίκερ) */}
-      {lineupsOn && (
-        <div style={{ position: 'fixed', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
-          <div style={{ display: 'flex', gap: 0, borderRadius: 18, overflow: 'hidden',
-            border: `2px solid ${t.acc}`, boxShadow: '0 24px 70px rgba(0,0,0,.6)',
-            animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards', maxWidth: '90vw' }}>
-            {(['a', 'b'] as const).map((side, i) => {
-              const line: string[] = ((side === 'a' ? match.lineup_a : match.lineup_b) ?? []).filter(Boolean)
-              const form = (side === 'a' ? match.formation_a : match.formation_b) ?? ''
-              const nm = side === 'a' ? match.team_a_data?.name : match.team_b_data?.name
-              const logo = side === 'a' ? match.team_a_data?.logo_url : match.team_b_data?.logo_url
-              return (
-                <div key={side} style={{ minWidth: 300, background: `linear-gradient(180deg, ${t.bg0}, ${t.bg1})`,
-                  color: '#fff', padding: '18px 22px', borderLeft: i ? '1px solid rgba(255,255,255,.12)' : undefined }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 12,
-                    marginBottom: 12, borderBottom: `2px solid ${t.acc}` }}>
-                    <Crest name={nm} logo={logo} size={34} />
-                    <div>
-                      <div style={{ fontSize: 18, fontWeight: 800, textTransform: 'uppercase' }}>{nm}</div>
-                      {form && <div style={{ fontSize: 12, fontWeight: 700, color: t.acc }}>{form}</div>}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {line.map((id, idx) => {
-                      const p = squadMap[id]
-                      return (
-                        <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span style={{ width: 24, textAlign: 'center', fontWeight: 800, fontSize: 13,
-                            color: t.acc, fontVariantNumeric: 'tabular-nums' }}>
-                            {p?.number ?? (idx === 0 ? 'ΤΕΡ' : '·')}
-                          </span>
-                          <span style={{ fontSize: 15.5, fontWeight: 600 }}>{p?.full_name ?? '—'}</span>
-                        </div>
-                      )
-                    })}
-                  </div>
+  const lineupsEl = lineupsOn && (
+    <div style={{ position: PP, inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
+      <div style={{ display: 'flex', borderRadius: 18, overflow: 'hidden', border: `2px solid ${t.acc}`,
+        boxShadow: '0 24px 70px rgba(0,0,0,.6)', animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
+        {(['a', 'b'] as const).map((side, i) => {
+          const line: string[] = ((side === 'a' ? match.lineup_a : match.lineup_b) ?? []).filter(Boolean)
+          const form = (side === 'a' ? match.formation_a : match.formation_b) ?? ''
+          const nm = side === 'a' ? match.team_a_data?.name : match.team_b_data?.name
+          const logo = side === 'a' ? match.team_a_data?.logo_url : match.team_b_data?.logo_url
+          return (
+            <div key={side} style={{ minWidth: 320, background: `linear-gradient(180deg, ${t.bg0}, ${t.bg1})`,
+              color: '#fff', padding: '20px 24px', borderLeft: i ? '1px solid rgba(255,255,255,.12)' : undefined }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 12, marginBottom: 12,
+                borderBottom: `2px solid ${t.acc}` }}>
+                <Crest name={nm} logo={logo} size={36} />
+                <div>
+                  <div style={{ fontSize: 19, fontWeight: 800, textTransform: 'uppercase' }}>{nm}</div>
+                  {form && <div style={{ fontSize: 13, fontWeight: 700, color: t.acc }}>{form}</div>}
                 </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {line.map((id, idx) => {
+                  const p = squadMap[id]
+                  return (
+                    <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ width: 26, textAlign: 'center', fontWeight: 800, fontSize: 14, color: t.acc,
+                        fontVariantNumeric: 'tabular-nums' }}>{p?.number ?? (idx === 0 ? 'ΤΕΡ' : '·')}</span>
+                      <span style={{ fontSize: 16.5, fontWeight: 600 }}>{p?.full_name ?? '—'}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 
-      {/* Πρωτάθλημα — κεντραρισμένο πάνω από το σκορ */}
+  const varEl = flash === 'VAR' && (
+    <div style={{ position: PP, inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '24px 44px', borderRadius: 18,
+        background: 'linear-gradient(180deg,#1436b0,#0b2170)', color: '#fff',
+        border: '2px solid rgba(255,255,255,.85)', boxShadow: '0 22px 64px rgba(0,0,0,.6)',
+        animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
+        <span style={{ fontSize: 48 }}>📺</span>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '.28em', opacity: .9 }}>VAR</div>
+          <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.05 }}>Έλεγχος φάσης</div>
+        </div>
+      </div>
+    </div>
+  )
+
+  const sponsorsEl = sponsors.length > 0 && (
+    <div style={{ position: PP, left: 24, bottom: 24, display: 'flex', alignItems: 'center', gap: 12,
+      background: 'rgba(0,0,0,.55)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 10, padding: '8px 14px' }}>
+      <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.14em', color: 'rgba(255,255,255,.7)',
+        whiteSpace: 'nowrap' }}>POWERED BY</span>
+      <div style={{ width: 200, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', gap: 22, width: 'max-content',
+          animation: `ovMarquee ${Math.max(8, sponsors.length * 6)}s linear infinite` }}>
+          {[...sponsors, ...sponsors].map((u, i) => (
+            <span key={i} style={{ background: '#fff', borderRadius: 6, padding: '4px 9px', display: 'inline-flex' }}>
+              <img src={u} alt="" style={{ height: 26, display: 'block' }} />
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+
+  const scoreEl = (
+    <div style={{ position: PP, display: 'flex', flexDirection: 'column', ...posStyle,
+      transform: `scale(${userScale})`, transformOrigin: tOrigin,
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif' }}>
       <div style={{ alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 8,
         background: 'rgba(0,0,0,.55)', border: '1px solid rgba(255,255,255,.10)',
         borderTop: `3px solid ${t.acc}`, borderRadius: 8, padding: '6px 14px' }}>
         <Crest name={match.league?.name} logo={match.league?.logo_url} size={22} />
-        <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: '.06em',
-          textTransform: 'uppercase', color: '#fff' }}>{match.league?.name}</span>
+        <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase',
+          color: '#fff' }}>{match.league?.name}</span>
       </div>
-
-      {/* Μπάρα σκορ + pop-up από κάτω */}
       <div style={{ position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'stretch', borderRadius: 12, overflow: 'hidden',
           boxShadow: '0 10px 34px rgba(0,0,0,.55)', fontVariantNumeric: 'tabular-nums' }}>
@@ -231,104 +244,87 @@ function Overlay() {
             background: `linear-gradient(180deg, ${t.bg0}, ${t.bg1})`, color: '#fff', height: 56 }}>
             <Crest name={match.team_a_data?.name} logo={match.team_a_data?.logo_url} size={34} />
             <span style={{ fontSize: 19, fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-              {match.team_a_data?.name}
-            </span>
+              {match.team_a_data?.name}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-            padding: '0 20px', background: 'rgba(4,6,12,.9)', color: '#fff', fontSize: 34, fontWeight: 800 }}>
-            <span>{match.goals_team_a}</span>
-            <span style={{ color: t.acc, fontWeight: 700 }}>·</span>
-            <span>{match.goals_team_b}</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '0 20px',
+            background: 'rgba(4,6,12,.9)', color: '#fff', fontSize: 34, fontWeight: 800 }}>
+            <span>{match.goals_team_a}</span><span style={{ color: t.acc, fontWeight: 700 }}>·</span><span>{match.goals_team_b}</span>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', gap: 11,
-            padding: '0 18px', background: `linear-gradient(180deg, ${t.bg0}, ${t.bg1})`, color: '#fff' }}>
+          <div style={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', gap: 11, padding: '0 18px',
+            background: `linear-gradient(180deg, ${t.bg0}, ${t.bg1})`, color: '#fff' }}>
             <Crest name={match.team_b_data?.name} logo={match.team_b_data?.logo_url} size={34} />
             <span style={{ fontSize: 19, fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-              {match.team_b_data?.name}
-            </span>
+              {match.team_b_data?.name}</span>
           </div>
           {clk && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
-              justifyContent: 'center', minWidth: 70, padding: '0 14px', color: '#fff',
-              background: `linear-gradient(180deg, ${t.acc}, ${t.acc2})` }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              minWidth: 70, padding: '0 14px', color: '#fff', background: `linear-gradient(180deg, ${t.acc}, ${t.acc2})` }}>
               {half && <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.08em', lineHeight: 1 }}>{half}</span>}
               <span style={{ fontSize: 19, fontWeight: 800, lineHeight: 1.1 }}>{clk}</span>
             </div>
           )}
         </div>
-
-        {/* Pop-up κάτω από τη λωρίδα */}
         {popup && (
-          <div style={{ position: 'absolute', left: '50%', top: 'calc(100% + 10px)',
-            transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 16,
-            padding: '14px 26px 14px 14px', borderRadius: 16, color: '#fff', whiteSpace: 'nowrap',
-            background: `linear-gradient(180deg, ${popBg[0]}, ${popBg[1]})`,
+          <div style={{ position: 'absolute', left: '50%', top: 'calc(100% + 10px)', transform: 'translateX(-50%)',
+            display: 'flex', alignItems: 'center', gap: 16, padding: '14px 26px 14px 14px', borderRadius: 16,
+            color: '#fff', whiteSpace: 'nowrap', background: `linear-gradient(180deg, ${popBg[0]}, ${popBg[1]})`,
             boxShadow: '0 18px 50px rgba(0,0,0,.5)', animation: 'ovGoal .5s cubic-bezier(.2,.9,.25,1) forwards' }}>
             <span style={{ width: 60, height: 60, borderRadius: '50%', overflow: 'hidden', flex: 'none',
-              background: 'rgba(255,255,255,.2)', border: '2px solid rgba(255,255,255,.9)',
-              display: 'grid', placeItems: 'center', fontSize: 30 }}>
-              {popup.photo
-                ? <img src={popup.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              background: 'rgba(255,255,255,.2)', border: '2px solid rgba(255,255,255,.9)', display: 'grid',
+              placeItems: 'center', fontSize: 30 }}>
+              {popup.photo ? <img src={popup.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 : POP_META[popup.kind].icon}
             </span>
             <div>
               <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: '.2em', opacity: .95 }}>
-                {POP_META[popup.kind].icon} {POP_META[popup.kind].label}
-              </div>
+                {POP_META[popup.kind].icon} {POP_META[popup.kind].label}</div>
               <div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.1, marginTop: 2 }}>{popup.name}</div>
               <div style={{ fontSize: 13.5, fontWeight: 700, opacity: .92, marginTop: 2 }}>{popup.sub}</div>
             </div>
           </div>
         )}
       </div>
+    </div>
+  )
 
-      {/* Χειριστήρια προεπισκόπησης */}
-      {preview && (
-        <div style={{ position: 'fixed', top: 14, left: '50%', transform: 'translateX(-50%)',
-          display: 'flex', gap: 8, alignItems: 'center', zIndex: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.16em',
-            color: 'rgba(255,255,255,.6)', textTransform: 'uppercase' }}>Προεπισκόπηση</span>
-          {(['GOAL', 'YELLOW', 'RED'] as Kind[]).map(k => (
-            <button key={k} onClick={() => testPop(k)}
-              style={{ background: k === 'GOAL' ? t.acc : POP_META[k].bg[0], color: '#111', border: 0,
-                borderRadius: 10, padding: '8px 12px', fontWeight: 800, fontSize: 12.5, cursor: 'pointer',
-                fontFamily: 'inherit' }}>
-              {POP_META[k].icon} {k === 'GOAL' ? 'Γκολ' : k === 'YELLOW' ? 'Κίτρινη' : 'Κόκκινη'}
-            </button>
-          ))}
-          <button onClick={() => { setFlash('VAR'); clearTimeout(flashTimer.current); flashTimer.current = setTimeout(() => setFlash(null), 6000) }}
-            style={{ background: '#1436b0', color: '#fff', border: 0, borderRadius: 10,
-              padding: '8px 12px', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' }}>
-            📺 VAR
-          </button>
-          <button onClick={() => setLineupsOn(v => !v)}
-            style={{ background: '#26303f', color: '#fff', border: 0, borderRadius: 10,
-              padding: '8px 12px', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' }}>
-            📋 Συνθέσεις
-          </button>
+  const scene = <>{styleTag}{lineupsEl}{varEl}{sponsorsEl}{scoreEl}</>
+
+  if (!preview) return scene
+
+  // Προεπισκόπηση: stage 16:9 (όπως θα φαίνεται στην οθόνη) + χειριστήρια από πάνω
+  function testPop(kind: Kind) {
+    setPopup({ kind, name: 'Δοκιμαστικός Παίκτης',
+      sub: `${(match!.team_a_data?.name ?? '').toUpperCase()} · ${clk ?? "45'"}`, photo: null })
+    clearTimeout(popTimer.current)
+    popTimer.current = setTimeout(() => setPopup(null), 5000)
+  }
+  const ctlBtn = (bg: string, fg: string, label: string, onClick: () => void) => (
+    <button onClick={onClick} style={{ background: bg, color: fg, border: 0, borderRadius: 10,
+      padding: '8px 12px', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' }}>{label}</button>
+  )
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#05060a', padding: 16, boxSizing: 'border-box',
+      fontFamily: 'system-ui, -apple-system, Arial, sans-serif' }}>
+      <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.14em', color: 'rgba(255,255,255,.6)',
+            textTransform: 'uppercase' }}>Προεπισκόπηση · όπως θα φαίνεται στην οθόνη</span>
+          {ctlBtn(t.acc, '#111', '⚽ Γκολ', () => testPop('GOAL'))}
+          {ctlBtn(POP_META.YELLOW.bg[0], '#111', '🟨 Κίτρινη', () => testPop('YELLOW'))}
+          {ctlBtn(POP_META.RED.bg[0], '#fff', '🟥 Κόκκινη', () => testPop('RED'))}
+          {ctlBtn('#1436b0', '#fff', '📺 VAR', () => { setFlash('VAR'); clearTimeout(flashTimer.current); flashTimer.current = setTimeout(() => setFlash(null), 6000) })}
+          {ctlBtn('#26303f', '#fff', '📋 Συνθέσεις', () => setLineupsOn(v => !v))}
         </div>
-      )}
-
-      {/* Powered by — χορηγοί με κύλιση (κάτω-αριστερά οθόνης) */}
-      {sponsors.length > 0 && (
-        <div style={{ position: 'fixed', left: 24, bottom: 24, display: 'flex', alignItems: 'center', gap: 12,
-          background: 'rgba(0,0,0,.55)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 10,
-          padding: '8px 14px', maxWidth: 320 }}>
-          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.14em', color: 'rgba(255,255,255,.7)',
-            whiteSpace: 'nowrap' }}>POWERED BY</span>
-          <div style={{ width: 200, overflow: 'hidden' }}>
-            <div style={{ display: 'flex', gap: 22, width: 'max-content',
-              animation: `ovMarquee ${Math.max(8, sponsors.length * 6)}s linear infinite` }}>
-              {[...sponsors, ...sponsors].map((u, i) => (
-                <span key={i} style={{ background: '#fff', borderRadius: 6, padding: '4px 9px',
-                  display: 'inline-flex', alignItems: 'center' }}>
-                  <img src={u} alt="" style={{ height: 26, display: 'block' }} />
-                </span>
-              ))}
-            </div>
+        <div ref={stageRef} style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9',
+          borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(255,255,255,.12)',
+          background: 'linear-gradient(160deg,#0f2a1c,#0a1512 70%)' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: 1920, height: 1080,
+            transformOrigin: 'top left', transform: `scale(${pscale})` }}>
+            {scene}
           </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }
