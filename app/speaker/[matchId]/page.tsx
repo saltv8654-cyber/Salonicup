@@ -102,10 +102,20 @@ export default function SpeakerPanel() {
       clock_period: cp,
       clock_started_at: started ? new Date().toISOString() : null,
     }
-    if (cp && match.match_status === 'Scheduled') payload.match_status = 'Live'
+    const kickoff = !!cp && match.match_status === 'Scheduled'
+    if (kickoff) payload.match_status = 'Live'
     const { error } = await supabase.from('matches').update(payload).eq('match_id', match.match_id)
     setClockBusy(false)
-    if (error) toast.error('Το χρονόμετρο χρειάζεται ενημέρωση βάσης')
+    if (error) { toast.error('Το χρονόμετρο χρειάζεται ενημέρωση βάσης'); return }
+    // Ο αγώνας ξεκίνησε → ειδοποίηση (μία φορά, στο πρώτο ξεκίνημα)
+    if (kickoff) {
+      notifyPush({
+        title: '🟢 Έναρξη αγώνα',
+        body: `${match.team_a_data?.name} εναντίον ${match.team_b_data?.name} — ${match.league?.name ?? ''}`.trim(),
+        url: `/match/${match.match_id}`,
+        type: 'start', leagueId: match.league_id,
+      })
+    }
   }
 
   // Σχόλια παικτών (μόνο γι' αυτό το ματς) — αρχικοποίηση μία φορά ανά ματς
@@ -186,7 +196,8 @@ export default function SpeakerPanel() {
       setBenchA([...setA].filter(id => !startersA.includes(id)))
       setBenchB([...setB].filter(id => !startersB.includes(id)))
 
-      if (match.match_status !== 'Scheduled') setPhase('live')
+      // Αν έχει ήδη αποθηκευτεί σύνθεση (ή έχει ξεκινήσει), πήγαινε στην καταχώρηση
+      if (match.match_status !== 'Scheduled' || match.squad_set_at) setPhase('live')
     })
   }, [match?.match_id])
 
@@ -219,19 +230,17 @@ export default function SpeakerPanel() {
   const hasLineupLive = startersLiveA.length > 0 || startersLiveB.length > 0
   const tallies = playerTallies(events)
 
-  /* ── Συνθέσεις ── */
+  /* ── Συνθέσεις: μόνο αποθήκευση (ο αγώνας ξεκινά με «Έναρξη Α΄») ── */
   async function saveSquad() {
-    const starting = match.match_status === 'Scheduled'
     const squadA = [...new Set([...(lineA.filter(Boolean) as string[]), ...benchA])]
     const squadB = [...new Set([...(lineB.filter(Boolean) as string[]), ...benchB])]
     setSaving(true)
-    // Βασικά (δουλεύει και χωρίς τις νέες στήλες διάταξης)
+    // Βασικά (δουλεύει και χωρίς τις νέες στήλες διάταξης). Δεν αλλάζει κατάσταση.
     const { error } = await supabase.from('matches').update({
       squad_a: squadA,
       squad_b: squadB,
       squad_set_at: new Date().toISOString(),
       squad_set_by: profile?.id,
-      match_status: starting ? 'Live' : match.match_status,
     }).eq('match_id', match.match_id)
 
     // Διάταξη (χρειάζεται νέες στήλες· αν λείπουν, αγνοείται)
@@ -244,15 +253,7 @@ export default function SpeakerPanel() {
     if (error) { toast.error('Δεν αποθηκεύτηκε'); return }
     if (fErr) toast('Η διάταξη χρειάζεται ενημέρωση βάσης', { icon: 'ℹ️' })
     setInA(new Set(squadA)); setInB(new Set(squadB))
-    if (starting) {
-      notifyPush({
-        title: '🟢 Έναρξη αγώνα',
-        body: `${match.team_a_data?.name} εναντίον ${match.team_b_data?.name} — ${match.league?.name ?? ''}`.trim(),
-        url: `/match/${match.match_id}`,
-        type: 'start', leagueId: match.league_id,
-      })
-    }
-    toast.success('Συμμετοχές αποθηκεύτηκαν')
+    toast.success('Η σύνθεση αποθηκεύτηκε')
     setPhase('live')
   }
 
@@ -1075,10 +1076,10 @@ function LineupBuilder({
           className="w-full py-3.5 rounded-xl bg-gradient-to-b from-lit to-brand
             text-white font-extrabold text-[15px] disabled:opacity-25
             shadow-[0_4px_16px_rgba(224,91,31,0.3)]">
-          {saving ? 'Αποθήκευση…' : 'Έναρξη αγώνα'}
+          {saving ? 'Αποθήκευση…' : 'Αποθήκευση & συνέχεια'}
         </button>
         <p className="text-[10px] text-off text-center mt-1.5">
-          {teamName}: {starters} βασικοί · {benchPlayers.length} πάγκος
+          {teamName}: {starters} βασικοί · {benchPlayers.length} πάγκος · ο αγώνας ξεκινά με «Έναρξη Α΄»
         </p>
       </div>
 
