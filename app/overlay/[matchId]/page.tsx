@@ -291,23 +291,24 @@ function Overlay() {
     </div>
   )
 
-  // Κάρτα αλλαγής (IN ▲ / OUT ▼) — κάτω-κέντρο
+  // Κάρτα αλλαγής (IN ▲ / OUT ▼) — κέντρο οθόνης, όπως VAR/Συνθέσεις
   const subCardEl = subCard && (
-    <div style={{ position: PP, left: '50%', bottom: 80, transform: 'translateX(-50%)',
-      display: 'flex', alignItems: 'center', gap: 16, padding: '13px 24px', borderRadius: 14,
-      background: 'rgba(6,10,16,.93)', border: '2px solid #35c66b', color: '#fff', whiteSpace: 'nowrap',
-      boxShadow: '0 18px 50px rgba(0,0,0,.5)', animation: 'ovPop .4s cubic-bezier(.2,.9,.25,1) forwards' }}>
-      <span style={{ fontSize: 34 }}>🔄</span>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.18em', color: '#9fe6bb' }}>
-          ΑΛΛΑΓΗ · {(subCard.team || '').toUpperCase()} · {subCard.min}</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#35c66b', fontSize: 17, fontWeight: 900 }}>▲</span>
-          <span style={{ fontSize: 20, fontWeight: 800 }}>{subCard.inName}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#e0563c', fontSize: 17, fontWeight: 900 }}>▼</span>
-          <span style={{ fontSize: 16.5, fontWeight: 700, opacity: .75 }}>{subCard.outName}</span>
+    <div style={{ position: PP, inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 18, padding: '18px 34px', borderRadius: 16,
+        background: 'rgba(6,10,16,.93)', border: '2px solid #35c66b', color: '#fff', whiteSpace: 'nowrap',
+        boxShadow: '0 22px 64px rgba(0,0,0,.6)', animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
+        <span style={{ fontSize: 44 }}>🔄</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: '.18em', color: '#9fe6bb' }}>
+            ΑΛΛΑΓΗ · {(subCard.team || '').toUpperCase()} · {subCard.min}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            <span style={{ color: '#35c66b', fontSize: 20, fontWeight: 900 }}>▲</span>
+            <span style={{ fontSize: 24, fontWeight: 800 }}>{subCard.inName}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            <span style={{ color: '#e0563c', fontSize: 20, fontWeight: 900 }}>▼</span>
+            <span style={{ fontSize: 19, fontWeight: 700, opacity: .75 }}>{subCard.outName}</span>
+          </div>
         </div>
       </div>
     </div>
