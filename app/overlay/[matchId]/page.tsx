@@ -42,7 +42,7 @@ function Overlay() {
   const now = useNow(1000)
 
   const userScale = parseFloat(params.get('scale') || '1') || 1
-  const pos = params.get('pos') || 'bl'
+  const pos = params.get('pos') || 'tl'
   const preview = params.get('preview') != null
   const sponsors = (params.get('sponsors') || '').split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean)
 
@@ -235,37 +235,37 @@ function Overlay() {
     <div style={{ position: PP, display: 'flex', flexDirection: 'column', ...posStyle,
       transform: `scale(${userScale})`, transformOrigin: tOrigin,
       fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif' }}>
-      <div style={{ alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 8,
+      <div style={{ alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: 9, marginBottom: 9,
         background: 'rgba(0,0,0,.55)', border: '1px solid rgba(255,255,255,.10)',
-        borderTop: `3px solid ${t.acc}`, borderRadius: 8, padding: '6px 14px' }}>
-        <Crest name={match.league?.name} logo={match.league?.logo_url} size={22} />
-        <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase',
+        borderTop: `3px solid ${t.acc}`, borderRadius: 9, padding: '7px 16px' }}>
+        <Crest name={match.league?.name} logo={match.league?.logo_url} size={26} />
+        <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase',
           color: '#fff' }}>{match.league?.name}</span>
       </div>
       <div style={{ position: 'relative' }}>
-        <div style={{ display: 'flex', alignItems: 'stretch', borderRadius: 12, overflow: 'hidden',
-          boxShadow: '0 10px 34px rgba(0,0,0,.55)', fontVariantNumeric: 'tabular-nums' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '0 18px',
-            background: `linear-gradient(180deg, ${t.bg0}, ${t.bg1})`, color: '#fff', height: 56 }}>
-            <Crest name={match.team_a_data?.name} logo={match.team_a_data?.logo_url} size={34} />
-            <span style={{ fontSize: 19, fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+        <div style={{ display: 'flex', alignItems: 'stretch', borderRadius: 13, overflow: 'hidden',
+          boxShadow: '0 12px 38px rgba(0,0,0,.55)', fontVariantNumeric: 'tabular-nums' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '0 22px',
+            background: `linear-gradient(180deg, ${t.bg0}, ${t.bg1})`, color: '#fff', height: 70 }}>
+            <Crest name={match.team_a_data?.name} logo={match.team_a_data?.logo_url} size={44} />
+            <span style={{ fontSize: 24, fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
               {match.team_a_data?.name}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '0 20px',
-            background: 'rgba(4,6,12,.9)', color: '#fff', fontSize: 34, fontWeight: 800 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '0 26px',
+            background: 'rgba(4,6,12,.9)', color: '#fff', fontSize: 44, fontWeight: 800 }}>
             <span>{match.goals_team_a}</span><span style={{ color: t.acc, fontWeight: 700 }}>·</span><span>{match.goals_team_b}</span>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', gap: 11, padding: '0 18px',
+          <div style={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', gap: 13, padding: '0 22px',
             background: `linear-gradient(180deg, ${t.bg0}, ${t.bg1})`, color: '#fff' }}>
-            <Crest name={match.team_b_data?.name} logo={match.team_b_data?.logo_url} size={34} />
-            <span style={{ fontSize: 19, fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+            <Crest name={match.team_b_data?.name} logo={match.team_b_data?.logo_url} size={44} />
+            <span style={{ fontSize: 24, fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
               {match.team_b_data?.name}</span>
           </div>
           {clk && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              minWidth: 70, padding: '0 14px', color: '#fff', background: `linear-gradient(180deg, ${t.acc}, ${t.acc2})` }}>
-              {half && <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.08em', lineHeight: 1 }}>{half}</span>}
-              <span style={{ fontSize: 19, fontWeight: 800, lineHeight: 1.1 }}>{clk}</span>
+              minWidth: 88, padding: '0 18px', color: '#fff', background: `linear-gradient(180deg, ${t.acc}, ${t.acc2})` }}>
+              {half && <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.08em', lineHeight: 1 }}>{half}</span>}
+              <span style={{ fontSize: 24, fontWeight: 800, lineHeight: 1.1 }}>{clk}</span>
             </div>
           )}
         </div>
