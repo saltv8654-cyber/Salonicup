@@ -20,8 +20,10 @@ export function saltForField(field?: string | null): string | null {
   return (n && SALT_BY_FIELD_NUMBER[n]) || null
 }
 
-/** Ετικέτα γηπέδου για τα posts: ο λογαριασμός κάμερας αν υπάρχει, αλλιώς το γήπεδο. */
+/** Ετικέτα γηπέδου για τα posts: «Γηπ. 4 · Saltv1» (γήπεδο + κανάλι). */
 export function fieldPostLabel(field?: string | null): string | undefined {
   if (!field) return undefined
-  return saltForField(field) ?? field
+  const pitch = /^\d+$/.test(String(field).trim()) ? `Γηπ. ${field}` : String(field)
+  const salt = saltForField(field)
+  return salt ? `${pitch} · ${salt}` : pitch
 }
