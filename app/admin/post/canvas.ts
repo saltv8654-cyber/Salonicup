@@ -479,7 +479,7 @@ function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEl
         ctx.fillText(m.score, S / 2, m.field ? cy - 13 : cy)
       } else {
         ctx.fillStyle = pal.accent
-        ctx.font = font(700, 48)
+        ctx.font = font(700, 42)
         ctx.fillText(m.time ?? '', S / 2, m.field ? cy - 13 : cy)
       }
       if (m.field) {
