@@ -28,7 +28,7 @@ export const THEMES: Record<ThemeId, { label: string; accent: string; accent2: s
 export interface Versus {
   homeName: string; homeLogo: string | null
   awayName: string; awayLogo: string | null
-  day?: string; time?: string; field?: string; yt?: boolean
+  day?: string; time?: string; field?: string
   homePos?: number; homePts?: number; homeForm?: ('W' | 'D' | 'L')[]
   awayPos?: number; awayPts?: number; awayForm?: ('W' | 'D' | 'L')[]
 }
@@ -36,7 +36,7 @@ export interface Versus {
 export interface MatchRow {
   homeName: string; homeLogo: string | null
   awayName: string; awayLogo: string | null
-  time?: string; score?: string; field?: string; yt?: boolean
+  time?: string; score?: string; field?: string
 }
 export interface StandRow {
   position: number; name: string; logo: string | null
@@ -91,25 +91,6 @@ function roundRect(ctx: any, x: number, y: number, w: number, h: number, r: numb
   ctx.arcTo(x, y + h, x, y, r)
   ctx.arcTo(x, y, x + w, y, r)
   ctx.closePath()
-}
-
-/** Σήμα YouTube (κόκκινο πλακίδιο + άσπρο τρίγωνο) κεντραρισμένο στο (cx,cy). Επιστρέφει πλάτος. */
-function ytBadge(ctx: any, cx: number, cy: number, h: number) {
-  const w = h * 1.42
-  ctx.save()
-  ctx.fillStyle = '#FF0000'
-  roundRect(ctx, cx - w / 2, cy - h / 2, w, h, h * 0.28)
-  ctx.fill()
-  ctx.fillStyle = '#ffffff'
-  const tw = h * 0.32
-  ctx.beginPath()
-  ctx.moveTo(cx - tw / 2, cy - h * 0.24)
-  ctx.lineTo(cx - tw / 2, cy + h * 0.24)
-  ctx.lineTo(cx + tw * 0.75, cy)
-  ctx.closePath()
-  ctx.fill()
-  ctx.restore()
-  return w
 }
 
 function fit(ctx: any, text: string, maxW: number) {
@@ -198,21 +179,21 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
   ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
   ctx.fillStyle = pal.accent
-  ctx.font = font(600, 26)
-  ctx.fillText('SALONICUP', tx, 96)
+  ctx.font = font(600, 29)
+  ctx.fillText('SALONICUP', tx, 94)
   ctx.fillStyle = COL.white
-  ctx.font = font(700, 52)
-  ctx.fillText(fit(ctx, d.leagueName.toUpperCase(), W - tx - 260), tx, 150)
+  ctx.font = font(700, 60)
+  ctx.fillText(fit(ctx, d.leagueName.toUpperCase(), W - tx - 260), tx, 152)
   ctx.fillStyle = COL.blue
-  ctx.font = font(500, 27)
-  ctx.fillText(d.sub, tx, 188)
+  ctx.font = font(500, 30)
+  ctx.fillText(d.sub, tx, 192)
 
   /* ετικέτα τύπου (δεξιά) */
-  ctx.font = font(700, 26)
+  ctx.font = font(700, 29)
   const label = d.typeLabel.toUpperCase()
   const lw = ctx.measureText(label).width
-  const pillW = lw + 44
-  const pillH = 52
+  const pillW = lw + 48
+  const pillH = 56
   const pillX = W - PAD - pillW
   const pill = ctx.createLinearGradient(pillX, 0, pillX + pillW, 0)
   pill.addColorStop(0, pal.accent)
@@ -222,7 +203,7 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
   ctx.fill()
   ctx.fillStyle = COL.white
   ctx.textAlign = 'center'
-  ctx.fillText(label, pillX + pillW / 2, 78 + 35)
+  ctx.fillText(label, pillX + pillW / 2, 78 + 38)
 
   /* γραμμή διαχωρισμού */
   ctx.strokeStyle = 'rgba(255,255,255,0.10)'
@@ -247,7 +228,7 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
 
   /* υποσέλιδο */
   ctx.fillStyle = COL.dim
-  ctx.font = font(600, 24)
+  ctx.font = font(600, 26)
   ctx.textAlign = 'center'
   ctx.textBaseline = 'alphabetic'
   ctx.save()
@@ -380,8 +361,8 @@ function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEle
   // Ονόματα + θέση
   ctx.textBaseline = 'alphabetic'
   ctx.textAlign = 'center'
-  const nameY = cy + box / 2 + 62
-  const nameSize = Math.min(box * 0.22, 54)
+  const nameY = cy + box / 2 + 66
+  const nameSize = Math.min(box * 0.25, 62)
 
   const team = (name: string, x: number) => {
     ctx.fillStyle = COL.white
@@ -392,33 +373,22 @@ function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEle
   team(v.awayName, rightX)
   const bottomOfTeams = nameY
 
-  // Γήπεδο (+ σήμα YouTube) · μέρα · ώρα ανάμεσα σε δύο οριζόντιες γραμμές
-  const fStr = v.field ? `📍 ${v.field}`.toUpperCase() : ''
-  const restStr = [v.day, v.time].filter(Boolean).join('   ·   ').toUpperCase()
+  // Γήπεδο · μέρα · ώρα ανάμεσα σε δύο οριζόντιες γραμμές
+  const parts = [v.field ? `📍 ${v.field}` : '', v.day, v.time].filter(Boolean)
+  const line = parts.join('   ·   ').toUpperCase()
   const venueY = H - 150
-  if (fStr || restStr) {
-    ctx.font = font(600, 38)
-    ctx.textAlign = 'left'
+  if (line) {
+    ctx.font = font(600, 44)
+    ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    const bh = 34, g = 12
-    const sep = fStr && restStr ? '   ·   ' : ''
-    const fw = fStr ? ctx.measureText(fStr).width : 0
-    const bw = (v.yt && v.field) ? bh * 1.42 + g : 0
-    const restW = ctx.measureText(sep + restStr).width
-    const total = fw + bw + restW
-
-    const ruleW = Math.min(W - 160, total + 140)
+    const tw = ctx.measureText(line).width
+    const ruleW = Math.min(W - 160, tw + 140)
     ctx.strokeStyle = pal.accent
     ctx.lineWidth = 3
     ctx.beginPath(); ctx.moveTo(cx - ruleW / 2, venueY - 38); ctx.lineTo(cx + ruleW / 2, venueY - 38); ctx.stroke()
     ctx.beginPath(); ctx.moveTo(cx - ruleW / 2, venueY + 38); ctx.lineTo(cx + ruleW / 2, venueY + 38); ctx.stroke()
-
     ctx.fillStyle = COL.white
-    let x = cx - total / 2
-    if (fStr) { ctx.fillText(fStr, x, venueY + 2); x += fw }
-    if (v.yt && v.field) { ytBadge(ctx, x + g / 2 + (bh * 1.42) / 2, venueY + 2, bh); x += bw }
-    if (restStr) { ctx.fillText(sep + restStr, x, venueY + 2) }
-    ctx.textAlign = 'center'
+    ctx.fillText(line, cx, venueY + 2)
   }
 
   // Powered by — χορηγοί (λογότυπα σε άσπρα chips, το ένα κάτω από το άλλο)
@@ -428,7 +398,7 @@ function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEle
     const labelGap = 18
     const blockH = 22 + labelGap + sImgs.length * chipH + (sImgs.length - 1) * gap
     const regionTop = bottomOfTeams + 40
-    const regionBottom = (fStr || restStr) ? venueY - 38 - 30 : venueY + 30
+    const regionBottom = line ? venueY - 38 - 30 : venueY + 30
     let y = regionTop + Math.max(0, (regionBottom - regionTop - blockH) / 2)
 
     ctx.fillStyle = COL.dim
@@ -463,10 +433,10 @@ function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEl
   const total = d.groups.reduce((n, g) => n + g.matches.length, 0)
   const nDays = d.groups.length
   const gap = 14
-  const dayH = 54
-  const top = 260
+  const dayH = 58
+  const top = 264
   // ύψος κάρτας ώστε να χωράνε όλες πάνω από το υποσέλιδο/χορηγούς
-  let cardH = 96
+  let cardH = 108
   const needed = nDays * dayH + total * (cardH + gap) + nDays * 6
   if (needed > bottom - top) {
     cardH = Math.max(60, (bottom - top - nDays * dayH - total * gap - nDays * 6) / Math.max(total, 1))
@@ -476,10 +446,10 @@ function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEl
   d.groups.forEach((g) => {
     // τίτλος ημέρας (μπλε, κεντραρισμένος)
     ctx.fillStyle = COL.blue
-    ctx.font = font(600, 30)
+    ctx.font = font(600, 36)
     ctx.textAlign = 'center'
     ctx.textBaseline = 'alphabetic'
-    ctx.fillText(g.day.toUpperCase(), S / 2, y + 34)
+    ctx.fillText(g.day.toUpperCase(), S / 2, y + 36)
     y += dayH
 
     g.matches.forEach((m) => {
@@ -494,48 +464,37 @@ function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEl
 
       const cy = y + cardH / 2
       // γηπεδούχος (αριστερά)
-      crest(ctx, L(m.homeLogo), m.homeName, PAD + 30 + 28, cy, 56)
+      crest(ctx, L(m.homeLogo), m.homeName, PAD + 30 + 30, cy, 62)
       ctx.fillStyle = COL.white
-      ctx.font = font(600, 30)
+      ctx.font = font(600, 36)
       ctx.textAlign = 'left'
       ctx.textBaseline = 'middle'
-      ctx.fillText(fit(ctx, m.homeName, 300), PAD + 100, cy)
+      ctx.fillText(fit(ctx, m.homeName, 316), PAD + 104, cy)
 
       // κέντρο: ώρα (πορτοκαλί) ή σκορ (άσπρο) + γήπεδο από κάτω
       ctx.textAlign = 'center'
       if (m.score != null) {
         ctx.fillStyle = COL.white
-        ctx.font = font(700, 46)
-        ctx.fillText(m.score, S / 2, m.field ? cy - 12 : cy)
+        ctx.font = font(700, 56)
+        ctx.fillText(m.score, S / 2, m.field ? cy - 13 : cy)
       } else {
         ctx.fillStyle = pal.accent
-        ctx.font = font(700, 40)
-        ctx.fillText(m.time ?? '', S / 2, m.field ? cy - 12 : cy)
+        ctx.font = font(700, 48)
+        ctx.fillText(m.time ?? '', S / 2, m.field ? cy - 13 : cy)
       }
       if (m.field) {
         ctx.fillStyle = COL.dim
-        ctx.font = font(600, 22)
-        if (m.yt) {
-          const bh = 24, g = 9
-          const tw = ctx.measureText(m.field).width
-          const bw = bh * 1.42
-          const left = S / 2 - (tw + g + bw) / 2
-          ctx.textAlign = 'left'
-          ctx.fillText(m.field, left, cy + 26)
-          ytBadge(ctx, left + tw + g + bw / 2, cy + 26, bh)
-          ctx.textAlign = 'center'
-        } else {
-          ctx.fillText(m.field, S / 2, cy + 26)
-        }
+        ctx.font = font(600, 26)
+        ctx.fillText(m.field, S / 2, cy + 28)
       }
 
       // φιλοξενούμενος (δεξιά)
-      const rx = S - PAD - 30 - 28
-      crest(ctx, L(m.awayLogo), m.awayName, rx, cy, 56)
+      const rx = S - PAD - 30 - 30
+      crest(ctx, L(m.awayLogo), m.awayName, rx, cy, 62)
       ctx.fillStyle = COL.white
-      ctx.font = font(600, 30)
+      ctx.font = font(600, 36)
       ctx.textAlign = 'right'
-      ctx.fillText(fit(ctx, m.awayName, 300), S - PAD - 100, cy)
+      ctx.fillText(fit(ctx, m.awayName, 316), S - PAD - 104, cy)
 
       y += cardH + gap
     })
@@ -562,9 +521,9 @@ function drawStandings(ctx: any, d: PostData, L: (u: string | null) => HTMLImage
   const colA = colN - 68
 
   // κεφαλίδα στηλών
-  let y = 262
+  let y = 264
   ctx.fillStyle = COL.blue
-  ctx.font = font(600, 22)
+  ctx.font = font(600, 24)
   ctx.textBaseline = 'alphabetic'
   ctx.textAlign = 'center'
   ctx.fillText('#', PAD + 22, y)
@@ -593,17 +552,17 @@ function drawStandings(ctx: any, d: PostData, L: (u: string | null) => HTMLImage
     ctx.textBaseline = 'middle'
     // θέση
     ctx.fillStyle = i === 0 ? pal.accent : i < 3 ? COL.white : COL.dim
-    ctx.font = font(700, 30)
+    ctx.font = font(700, 34)
     ctx.textAlign = 'center'
     ctx.fillText(String(t.position), PAD + 22, cy)
     // λογότυπο + όνομα
-    crest(ctx, L(t.logo), t.name, PAD + 82, cy, 42)
+    crest(ctx, L(t.logo), t.name, PAD + 84, cy, 46)
     ctx.fillStyle = COL.white
-    ctx.font = font(600, 28)
+    ctx.font = font(600, 32)
     ctx.textAlign = 'left'
-    ctx.fillText(fit(ctx, t.name, colA - (PAD + 112) - 20), PAD + 112, cy)
+    ctx.fillText(fit(ctx, t.name, colA - (PAD + 116) - 20), PAD + 116, cy)
     // στατιστικά
-    ctx.font = font(500, 26)
+    ctx.font = font(500, 28)
     ctx.textAlign = 'center'
     ctx.fillStyle = COL.dim
     ctx.fillText(String(t.played), colA, cy)
@@ -615,7 +574,7 @@ function drawStandings(ctx: any, d: PostData, L: (u: string | null) => HTMLImage
     ctx.fillStyle = t.gd > 0 ? pal.accent : t.gd < 0 ? '#9E5148' : COL.dim
     ctx.fillText(t.gd > 0 ? `+${t.gd}` : String(t.gd), colGD, cy)
     ctx.fillStyle = COL.white
-    ctx.font = font(700, 28)
+    ctx.font = font(700, 32)
     ctx.fillText(String(t.points), colB, cy)
   })
 }
