@@ -29,16 +29,20 @@ export default async function SpeakerHome() {
       league:league_id(name),
       venue:venue_id(name)
     `)
-    .in('match_status', ['Scheduled', 'Live', 'Played'])
-    .order('match_date', { ascending: true })
-    .limit(40)
+    .in('match_status', ['Scheduled', 'Live', 'Played', 'Forfeit', 'Postponed'])
+    .order('match_date', { ascending: false })
+    .limit(120)
+
+  // Επόμενοι: αύξουσα σειρά (πλησιέστεροι πρώτα)· ολοκληρωμένοι: πιο πρόσφατοι πρώτα
+  const byDateAsc = (a: any, b: any) => (a.match_date ?? '').localeCompare(b.match_date ?? '')
+  const finishedStatuses = ['Played', 'Forfeit', 'Postponed']
 
   const live  = matches?.filter(m => m.match_status === 'Live') ?? []
-  const today = matches?.filter(m =>
-    m.match_status === 'Scheduled' && isToday(m.match_date)) ?? []
-  const soon  = matches?.filter(m =>
-    m.match_status === 'Scheduled' && !isToday(m.match_date)) ?? []
-  const past  = matches?.filter(m => m.match_status === 'Played') ?? []
+  const today = (matches?.filter(m =>
+    m.match_status === 'Scheduled' && isToday(m.match_date)) ?? []).sort(byDateAsc)
+  const soon  = (matches?.filter(m =>
+    m.match_status === 'Scheduled' && !isToday(m.match_date)) ?? []).sort(byDateAsc)
+  const past  = matches?.filter(m => finishedStatuses.includes(m.match_status)) ?? []
 
   return (
     <div className="min-h-screen bg-pitch pb-10">
@@ -90,7 +94,9 @@ function Group({ label, live, children }: {
 
 function Row({ m }: { m: any }) {
   const live = m.match_status === 'Live'
-  const done = m.match_status === 'Played'
+  const done = ['Played', 'Forfeit'].includes(m.match_status)
+  const postponed = m.match_status === 'Postponed'
+  const statusLabel = postponed ? 'ΑΝΑΒΛΗΘΗΚΕ' : done ? 'ΤΕΛΙΚΟ' : fmt(m.match_date)
   const place = [m.venue?.name, m.field].filter(Boolean).join(' · ')
 
   return (
@@ -109,7 +115,7 @@ function Row({ m }: { m: any }) {
           </span>
         ) : (
           <span className="text-[9.5px] text-dim font-bold">
-            {done ? 'ΤΕΛΙΚΟ' : fmt(m.match_date)}
+            {statusLabel}
           </span>
         )}
       </div>
