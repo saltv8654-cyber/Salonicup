@@ -1,9 +1,9 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Crest, Loading, Empty } from '@/app/ui'
+import { Crest, Loading, Empty, FieldBadge } from '@/app/ui'
 import { Modal, Field, Select, SaveBtn } from '../ui'
-import { toDatetimeLocal } from '@/lib/time'
+import { toDatetimeLocal, fmtDay, fmtTime } from '@/lib/time'
 import toast from 'react-hot-toast'
 import type { Team, League, Venue, MatchState } from '@/lib/types'
 
@@ -20,6 +20,70 @@ const STATUS_DOT: Record<string, string> = {
   Postponed: '#c9a227', Forfeit: '#8a6d1f',
 }
 
+/** Ζευγάρωμα αγώνων ανά αντίπαλο: Α΄ γύρος (πρώτη συνάντηση) | Β΄ γύρος (δεύτερη). */
+function buildFixtureRows(teamId: string, matches: any[]) {
+  const oppMap = new Map<string, { oppName: string; oppLogo: string | null; legs: any[] }>()
+  for (const m of matches) {
+    const oppId = m.team_a === teamId ? m.team_b : m.team_a
+    const od = m.team_a === teamId ? m.team_b_data : m.team_a_data
+    if (!oppMap.has(oppId)) oppMap.set(oppId, { oppName: od?.name ?? '—', oppLogo: od?.logo_url ?? null, legs: [] })
+    oppMap.get(oppId)!.legs.push(m)
+  }
+  return [...oppMap.values()]
+    .map(r => {
+      const legs = r.legs.slice().sort((a, b) => (a.round ?? 0) - (b.round ?? 0))
+      return { ...r, leg1: legs[0] ?? null, leg2: legs[1] ?? null, firstRound: legs[0]?.round ?? 999 }
+    })
+    .sort((a, b) => a.firstRound - b.firstRound)
+}
+
+/** Κελί αγώνα (ένας γύρος) — πάτημα ανοίγει επεξεργασία. */
+function AdminLeg({ m, teamId, onEdit }: { m: any; teamId: string; onEdit: () => void }) {
+  if (!m) {
+    return (
+      <div className="rounded-lg bg-chalk/[0.02] border border-dashed border-chalk/[0.06]
+        px-2 py-2.5 grid place-items-center min-h-[54px]">
+        <span className="text-[11px] text-off">—</span>
+      </div>
+    )
+  }
+  const live = m.match_status === 'Live'
+  const done = ['Played', 'Forfeit'].includes(m.match_status)
+  const us = m.team_a === teamId
+  const gf = us ? m.goals_team_a : m.goals_team_b
+  const ga = us ? m.goals_team_b : m.goals_team_a
+  const resColor = !done ? 'text-chalk'
+    : gf > ga ? 'text-[#2FA84F]' : gf < ga ? 'text-[#D8483C]' : 'text-dim'
+
+  return (
+    <button onClick={onEdit}
+      className={`block w-full rounded-lg bg-turf border px-2 py-2 text-center active:bg-[#1C1C22]
+        min-h-[54px] flex flex-col justify-center relative
+        ${live ? 'border-live/35' : 'border-chalk/[0.05]'}`}>
+      <span className="absolute top-1.5 left-1.5 w-1.5 h-1.5 rounded-full"
+        style={{ background: STATUS_DOT[m.match_status] ?? '#8a8a93' }} />
+      <div className="text-[7.5px] font-extrabold text-off tracking-[0.06em] mb-0.5">Αγ.{m.round}</div>
+      {live || done ? (
+        <div className={`text-[16px] font-extrabold tnum leading-none ${resColor}`}>
+          {gf}<span className="text-dim mx-0.5">-</span>{ga}
+        </div>
+      ) : m.match_date ? (
+        <div className="leading-tight">
+          <div className="text-[10px] font-bold text-silver">{fmtDay(m.match_date)}</div>
+          <div className="text-[9.5px] text-dim tnum">{fmtTime(m.match_date)}</div>
+        </div>
+      ) : (
+        <div className="text-[11px] font-extrabold text-off">VS</div>
+      )}
+      {m.field && (
+        <div className="flex justify-center mt-1.5">
+          <FieldBadge field={m.field} size="xs" />
+        </div>
+      )}
+    </button>
+  )
+}
+
 export default function AdminMatches() {
   const supabase = createClient()
   const [rows, setRows]       = useState<any[]>([])
@@ -30,9 +94,9 @@ export default function AdminMatches() {
   const [load, setLoad]       = useState(true)
   const [open, setOpen]       = useState(false)
   const [edit, setEdit]       = useState<any>(null)
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
-  const toggleRound = (key: string) => setCollapsed(prev => {
+  const toggleTeam = (key: string) => setExpanded(prev => {
     const next = new Set(prev)
     next.has(key) ? next.delete(key) : next.add(key)
     return next
@@ -68,23 +132,28 @@ export default function AdminMatches() {
 
   const filtered = filter ? rows.filter(r => r.league_id === filter) : rows
 
-  // Ομαδοποίηση: πρωτάθλημα → αγωνιστική (φθίνουσα) → αγώνες
+  // Ομαδοποίηση: πρωτάθλημα → ομάδα → οι αγώνες της ομάδας
   const leagueOrder = leagues.map(l => l.league_id)
-  const byLeague = new Map<string, { id: string; name: string; rounds: Map<number, any[]> }>()
+  const leagueName = (id: string) => leagues.find(l => l.league_id === id)?.name ?? '—'
+  const leagueMap = new Map<string, Map<string, { name: string; logo: string | null; matches: any[] }>>()
   for (const m of filtered) {
-    if (!byLeague.has(m.league_id)) {
-      byLeague.set(m.league_id, { id: m.league_id, name: m.league?.name ?? '—', rounds: new Map() })
+    if (!leagueMap.has(m.league_id)) leagueMap.set(m.league_id, new Map())
+    const tmap = leagueMap.get(m.league_id)!
+    for (const side of ['a', 'b'] as const) {
+      const tid = side === 'a' ? m.team_a : m.team_b
+      const td = side === 'a' ? m.team_a_data : m.team_b_data
+      if (!tid) continue
+      if (!tmap.has(tid)) tmap.set(tid, { name: td?.name ?? '—', logo: td?.logo_url ?? null, matches: [] })
+      tmap.get(tid)!.matches.push(m)
     }
-    const g = byLeague.get(m.league_id)!
-    const r = m.round ?? 0
-    if (!g.rounds.has(r)) g.rounds.set(r, [])
-    g.rounds.get(r)!.push(m)
   }
-  const groups = [...byLeague.values()]
-    .sort((a, b) => leagueOrder.indexOf(a.id) - leagueOrder.indexOf(b.id))
-    .map(g => ({
-      ...g,
-      roundList: [...g.rounds.entries()].sort((a, b) => b[0] - a[0]),
+  const groups = leagueOrder
+    .filter(id => leagueMap.has(id))
+    .map(id => ({
+      id, name: leagueName(id),
+      teams: [...leagueMap.get(id)!.entries()]
+        .map(([team_id, v]) => ({ team_id, ...v }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'el')),
     }))
 
   return (
@@ -115,60 +184,52 @@ export default function AdminMatches() {
               {!filter && (
                 <div className="flex items-center gap-2 mb-2 px-0.5">
                   <span className="text-[13px] font-extrabold text-lit">{g.name}</span>
-                  <span className="text-[10px] text-dim font-bold">
-                    {g.roundList.reduce((n, [, ms]) => n + ms.length, 0)} αγώνες
-                  </span>
+                  <span className="text-[10px] text-dim font-bold">{g.teams.length} ομάδες</span>
                 </div>
               )}
-              <div className="flex flex-col gap-2">
-                {g.roundList.map(([round, ms]) => {
-                  const key = `${g.id}:${round}`
-                  const openR = !collapsed.has(key)
+              <div className="flex flex-col gap-1.5">
+                {g.teams.map(team => {
+                  const key = `${g.id}:${team.team_id}`
+                  const openT = expanded.has(key)
+                  const fixtures = buildFixtureRows(team.team_id, team.matches)
                   return (
                     <div key={key} className="bg-turf rounded-xl border border-chalk/[0.05] overflow-hidden">
-                      <button onClick={() => toggleRound(key)}
-                        className="w-full flex items-center justify-between px-3.5 py-2.5 active:bg-chalk/[0.03]">
-                        <span className="text-[12px] font-extrabold text-silver">
-                          Αγωνιστική {round}
+                      {/* Κεφαλίδα ομάδας — μαζεμένη */}
+                      <button onClick={() => toggleTeam(key)}
+                        className="w-full flex items-center gap-2.5 px-3.5 py-3 active:bg-chalk/[0.03]">
+                        <Crest url={team.logo} name={team.name} size={26} />
+                        <span className="flex-1 text-left text-[13.5px] font-extrabold text-chalk truncate">
+                          {team.name}
                         </span>
-                        <span className="flex items-center gap-2">
-                          <span className="text-[10px] text-dim font-bold tnum">{ms.length}</span>
-                          <span className="text-dim text-[10px]">{openR ? '▾' : '▸'}</span>
-                        </span>
+                        <span className="text-[10px] text-dim font-bold tnum">{team.matches.length}</span>
+                        <span className="text-dim text-[11px]">{openT ? '▾' : '▸'}</span>
                       </button>
-                      {openR && (
-                        <div className="flex flex-col">
-                          {ms.map(m => {
-                            const played = ['Played', 'Forfeit'].includes(m.match_status)
-                            const live = m.match_status === 'Live'
-                            return (
-                              <div key={m.match_id}
-                                className="flex items-center gap-1.5 px-2.5 py-2 border-t border-chalk/[0.05]">
-                                <span className="w-1.5 h-1.5 rounded-full shrink-0"
-                                  style={{ background: STATUS_DOT[m.match_status] ?? '#8a8a93' }} />
-                                <button onClick={() => { setEdit(m); setOpen(true) }}
-                                  className="flex-1 flex items-center gap-1.5 min-w-0 text-left active:opacity-70">
-                                  <Crest url={m.team_a_data?.logo_url} name={m.team_a_data?.name} size={18} />
-                                  <span className="flex-1 text-[12px] font-semibold text-chalk truncate text-right">
-                                    {m.team_a_data?.name}
-                                  </span>
-                                  <span className="shrink-0 px-1 text-[12px] font-extrabold text-silver tnum">
-                                    {live || played ? `${m.goals_team_a}·${m.goals_team_b}` : 'vs'}
-                                  </span>
-                                  <span className="flex-1 text-[12px] font-semibold text-chalk truncate">
-                                    {m.team_b_data?.name}
-                                  </span>
-                                  <Crest url={m.team_b_data?.logo_url} name={m.team_b_data?.name} size={18} />
-                                </button>
-                                <a href={`/speaker/${m.match_id}`} title="Panel"
-                                  className="w-7 h-7 shrink-0 grid place-items-center rounded-lg
-                                    bg-chalk/[0.05] text-silver text-[13px] active:bg-chalk/10">🎙</a>
-                                <button onClick={() => remove(m.match_id)} title="Διαγραφή"
-                                  className="w-7 h-7 shrink-0 grid place-items-center rounded-lg
-                                    bg-danger/15 text-danger text-[11px] active:bg-danger/25">✕</button>
+
+                      {/* Αγωνιστικές — Α΄ / Β΄ γύρος */}
+                      {openT && (
+                        <div className="px-2.5 pb-3 pt-1 border-t border-chalk/[0.05]">
+                          <div className="grid items-center gap-2 px-1 pb-1.5
+                            [grid-template-columns:1fr_84px_1fr]">
+                            <span className="text-[8px] font-extrabold text-dim tracking-[0.1em] text-center">Α΄ ΓΥΡΟΣ</span>
+                            <span />
+                            <span className="text-[8px] font-extrabold text-dim tracking-[0.1em] text-center">Β΄ ΓΥΡΟΣ</span>
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            {fixtures.map((r, i) => (
+                              <div key={i} className="grid items-center gap-2
+                                [grid-template-columns:1fr_84px_1fr]">
+                                <AdminLeg m={r.leg1} teamId={team.team_id}
+                                  onEdit={() => { setEdit(r.leg1); setOpen(true) }} />
+                                <div className="flex flex-col items-center gap-1 min-w-0">
+                                  <Crest url={r.oppLogo} name={r.oppName} size={24} />
+                                  <span className="text-[9.5px] font-semibold text-silver text-center
+                                    leading-tight truncate max-w-[84px]">{r.oppName}</span>
+                                </div>
+                                <AdminLeg m={r.leg2} teamId={team.team_id}
+                                  onEdit={() => { setEdit(r.leg2); setOpen(true) }} />
                               </div>
-                            )
-                          })}
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -183,15 +244,16 @@ export default function AdminMatches() {
       {open && (
         <MatchForm row={edit} leagues={leagues} teams={teams} venues={venues}
           onClose={() => setOpen(false)}
-          onSaved={() => { setOpen(false); fetchAll() }} />
+          onSaved={() => { setOpen(false); fetchAll() }}
+          onDelete={edit ? () => { setOpen(false); remove(edit.match_id) } : undefined} />
       )}
     </div>
   )
 }
 
-function MatchForm({ row, leagues, teams, venues, onClose, onSaved }: {
+function MatchForm({ row, leagues, teams, venues, onClose, onSaved, onDelete }: {
   row: any; leagues: League[]; teams: Team[]; venues: Venue[]
-  onClose: () => void; onSaved: () => void
+  onClose: () => void; onSaved: () => void; onDelete?: () => void
 }) {
   const supabase = createClient()
   const [league, setLeague]   = useState(row?.league_id ?? '')
@@ -271,6 +333,17 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved }: {
         placeholder="https://youtu.be/… ή https://youtube.com/watch?v=…" />
 
       <SaveBtn busy={busy} onClick={save} />
+
+      {row && (
+        <div className="flex gap-2 mt-2">
+          <a href={`/speaker/${row.match_id}`}
+            className="flex-1 py-2.5 rounded-xl bg-chalk/[0.05] border border-chalk/[0.08]
+              text-silver text-[12.5px] font-bold text-center">🎙 Panel</a>
+          <button onClick={onDelete}
+            className="flex-1 py-2.5 rounded-xl bg-danger/15 border border-danger/30
+              text-danger text-[12.5px] font-bold">Διαγραφή</button>
+        </div>
+      )}
     </Modal>
   )
 }
