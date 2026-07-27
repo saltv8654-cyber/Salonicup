@@ -299,8 +299,9 @@ export default function SpeakerPanel() {
     setMinute('')
   }
 
-  // Πάτημα παίκτη: σε λειτουργία ασίστ → ασίστ· αλλιώς → επιλογή φάσης
+  // Πάτημα παίκτη: αλλαγή → επιλογή εξόδου· ασίστ → ασίστ· αλλιώς → επιλογή φάσης
   function onPlayerTap(player: Player, s: Side) {
+    if (subMode && subMode.side === s) { setSubMode({ side: s, out: player.player_id }); return }
     if (assistSide) {
       if (s === assistSide) { logEvent(player, 'ASSIST', s); setAssistSide(null) }
       return
@@ -614,6 +615,48 @@ export default function SpeakerPanel() {
                 <TeamGrid name={match.team_b_data?.name} players={activeB} side="b"
                   notes={notes} dimmed={assistSide === 'a'} onTap={onPlayerTap} stats={tallies} />
               </div>
+
+              {/* Αλλαγές — και από τη λίστα */}
+              {hasLineupLive && (
+                <div className="mt-2.5">
+                  {subMode ? (
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-black/40
+                        border border-lit/40 text-[12px] font-bold text-lit">
+                        <span className="flex-1 leading-tight">
+                          {subMode.out
+                            ? `🔄 Βγαίνει: ${allById[subMode.out]?.full_name ?? ''} → πάτα ποιος μπαίνει (πάγκος)`
+                            : `🔄 Διάλεξε ποιος βγαίνει — ${subMode.side === 'a' ? match.team_a_data?.name : match.team_b_data?.name}`}
+                        </span>
+                        <button onClick={() => setSubMode(null)}
+                          className="shrink-0 text-[11px] font-bold text-silver bg-white/10 rounded-lg px-2.5 py-1.5">
+                          ✕ Άκυρο
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(subMode.side === 'a' ? benchLiveA : benchLiveB).map(p => (
+                          <button key={p.player_id} onClick={() => benchTap(p, subMode.side)}
+                            onPointerDown={(e) => e.preventDefault()} style={{ touchAction: 'manipulation' }}
+                            className="flex items-center gap-1.5 bg-turf border border-lit/50 rounded-lg pl-1.5 pr-2 py-1.5 active:bg-brand/25">
+                            <span className="text-[11px] font-extrabold text-dim tnum">{p.number ?? '·'}</span>
+                            <span className="text-[12px] font-semibold text-chalk">{shortName(p.full_name)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      {(['a', 'b'] as Side[]).map(s => (
+                        <button key={s} onClick={() => setSubMode({ side: s, out: null })}
+                          className="flex-1 py-2 rounded-xl text-[12px] font-bold bg-chalk/[0.06]
+                            border border-chalk/[0.08] text-silver truncate">
+                          🔄 Αλλαγή {s === 'a' ? match.team_a_data?.name : match.team_b_data?.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
