@@ -69,6 +69,7 @@ export default function SpeakerPanel() {
   const [pitchSide, setPitchSide]   = useState<Side>('a')
   const [subMode, setSubMode]       = useState<{ side: Side; out: string | null } | null>(null)
   const [report, setReport]   = useState(false)
+  const [editEv, setEditEv]   = useState<any>(null)
   const [saving, setSaving]   = useState(false)
   const [clockBusy, setClockBusy] = useState(false)
   const [streamUrl, setStreamUrl] = useState('')
@@ -352,6 +353,23 @@ export default function SpeakerPanel() {
     const { error } = await supabase.from('events').delete().eq('event_id', id)
     if (error) { toast.error('Δεν διαγράφηκε'); return }
     refresh()   // άμεση ενημέρωση (το realtime DELETE δεν φτάνει πάντα)
+  }
+
+  // Επεξεργασία φάσης: αλλαγή παίκτη / είδους / λεπτού
+  async function saveEventEdit(id: string, patch: { player_id?: string; event_type?: string; period?: string; minute?: number | null }) {
+    const { error } = await supabase.from('events').update(patch).eq('event_id', id)
+    if (error) { toast.error('Δεν ενημερώθηκε'); return }
+    setEditEv(null); refresh(); toast.success('Ενημερώθηκε')
+  }
+
+  // Προσθήκη ασίστ σε γκολ (ίδια ομάδα/ημίχρονο/λεπτό)
+  async function addAssistTo(ev: any, playerId: string) {
+    const { error } = await supabase.from('events').insert({
+      match_id: match.match_id, team_id: ev.team_id, player_id: playerId,
+      event_type: 'ASSIST', period: ev.period, minute: ev.minute, created_by: profile?.id,
+    })
+    if (error) { toast.error('Δεν προστέθηκε η ασίστ'); return }
+    setEditEv(null); refresh(); toast.success('Ασίστ προστέθηκε')
   }
 
   async function undoLast() {
@@ -659,6 +677,12 @@ export default function SpeakerPanel() {
                                     : match.team_b_data?.name}
                                 </p>
                               </div>
+                              <button onClick={() => setEditEv(e)}
+                                className="w-6 h-6 rounded-md bg-chalk/[0.05] text-silver
+                                  text-[11px] shrink-0 grid place-items-center
+                                  active:bg-chalk/10">
+                                ✏️
+                              </button>
                               <button onClick={() => removeEvent(e.event_id)}
                                 className="w-6 h-6 rounded-md bg-chalk/[0.05] text-dim
                                   text-[10px] shrink-0 grid place-items-center
@@ -775,6 +799,117 @@ export default function SpeakerPanel() {
           onFinished={() => { setReport(false); router.push('/speaker') }}
         />
       )}
+
+      {/* Επεξεργασία φάσης */}
+      {editEv && (
+        <EditEventSheet
+          ev={editEv}
+          roster={editEv.team_id === match.team_a ? activeA : activeB}
+          teamName={editEv.team_id === match.team_a ? match.team_a_data?.name : match.team_b_data?.name}
+          onClose={() => setEditEv(null)}
+          onSave={saveEventEdit}
+          onAddAssist={addAssistTo}
+          onDelete={() => { removeEvent(editEv.event_id); setEditEv(null) }}
+        />
+      )}
+    </div>
+  )
+}
+
+/* ── Επεξεργασία καταχωρημένης φάσης ── */
+function EditEventSheet({ ev, roster, teamName, onClose, onSave, onAddAssist, onDelete }: {
+  ev: any; roster: Player[]; teamName?: string
+  onClose: () => void
+  onSave: (id: string, patch: { player_id?: string; event_type?: string; period?: string; minute?: number | null }) => void
+  onAddAssist: (ev: any, playerId: string) => void
+  onDelete: () => void
+}) {
+  const [player, setPlayer] = useState<string>(ev.player_id ?? '')
+  const [type, setType]     = useState<string>(ev.event_type)
+  const [period, setPeriod] = useState<string>(ev.period ?? 'H1')
+  const [minute, setMinute] = useState<string>(ev.minute != null ? String(ev.minute) : '')
+  const [assist, setAssist] = useState<string>('')
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-3"
+      onClick={onClose}>
+      <div onClick={e => e.stopPropagation()}
+        className="w-full max-w-sm bg-pitch rounded-2xl border border-chalk/10 p-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-extrabold text-chalk">Επεξεργασία φάσης</h3>
+          <span className="text-[11px] text-dim font-bold">{teamName}</span>
+        </div>
+
+        <div>
+          <label className="block text-[8.5px] font-extrabold text-dim tracking-[0.12em] mb-1.5">ΠΑΙΚΤΗΣ</label>
+          <select value={player} onChange={e => setPlayer(e.target.value)}
+            className="w-full bg-turf rounded-xl px-3 py-2.5 text-chalk text-sm outline-none border border-chalk/[0.07]">
+            {roster.map(p => <option key={p.player_id} value={p.player_id}>{p.full_name}</option>)}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-[8.5px] font-extrabold text-dim tracking-[0.12em] mb-1.5">ΕΙΔΟΣ</label>
+            <select value={type} onChange={e => setType(e.target.value)}
+              className="w-full bg-turf rounded-xl px-3 py-2.5 text-chalk text-sm outline-none border border-chalk/[0.07]">
+              {PLAY_EVENTS.map(t => <option key={t} value={t}>{EVENTS[t].icon} {EVENTS[t].label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[8.5px] font-extrabold text-dim tracking-[0.12em] mb-1.5">ΛΕΠΤΟ</label>
+            <input value={minute} inputMode="numeric"
+              onChange={e => setMinute(e.target.value.replace(/\D/g, ''))}
+              className="w-full bg-turf rounded-xl px-3 py-2.5 text-chalk text-sm text-center tnum outline-none border border-chalk/[0.07]" />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-[8.5px] font-extrabold text-dim tracking-[0.12em] mb-1.5">ΗΜΙΧΡΟΝΟ</label>
+          <div className="flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
+            {PERIODS.map(P => (
+              <button key={P.id} onClick={() => setPeriod(P.id)}
+                className={`flex-1 py-2 rounded-lg text-xs font-bold ${period === P.id ? 'bg-brand text-chalk' : 'text-dim'}`}>
+                {P.short}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Προσθήκη ασίστ (για γκολ) */}
+        {(type === 'GOAL' || ev.event_type === 'GOAL') && (
+          <div>
+            <label className="block text-[8.5px] font-extrabold text-dim tracking-[0.12em] mb-1.5">🅰 ΠΡΟΣΘΗΚΗ ΑΣΙΣΤ</label>
+            <div className="flex gap-2">
+              <select value={assist} onChange={e => setAssist(e.target.value)}
+                className="flex-1 bg-turf rounded-xl px-3 py-2.5 text-chalk text-sm outline-none border border-chalk/[0.07]">
+                <option value="">— διάλεξε —</option>
+                {roster.filter(p => p.player_id !== player).map(p =>
+                  <option key={p.player_id} value={p.player_id}>{p.full_name}</option>)}
+              </select>
+              <button disabled={!assist} onClick={() => assist && onAddAssist(ev, assist)}
+                className="px-3.5 py-2.5 rounded-xl bg-lit/15 border border-lit/40 text-lit text-[12px] font-bold disabled:opacity-40">
+                + Ασίστ
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-2 mt-1">
+          <button onClick={onDelete}
+            className="px-3.5 py-3 rounded-xl bg-danger/15 border border-danger/30 text-danger text-[13px] font-bold">
+            Διαγραφή
+          </button>
+          <button
+            onClick={() => onSave(ev.event_id, {
+              player_id: player, event_type: type, period,
+              minute: minute ? parseInt(minute) : null,
+            })}
+            className="flex-1 py-3 rounded-xl bg-gradient-to-b from-lit to-brand text-white font-extrabold text-[14px]">
+            Αποθήκευση
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
