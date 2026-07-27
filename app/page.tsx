@@ -78,20 +78,33 @@ export default async function Home({
         <div className="absolute -right-6 -top-4 w-32 h-36">
           <Watermark opacity={0.05} />
         </div>
-        <div className="relative">
-          <div className="text-center">
-            <p className="text-[10px] tracking-[0.28em] uppercase text-lit font-extrabold">Salonicup</p>
-            <h1 className="text-[26px] font-extrabold text-chalk mt-0.5 tracking-tight">Livescore</h1>
+        <div className="relative flex items-center justify-between gap-2">
+          {/* Αναζήτηση — αριστερά */}
+          <Link href="/search" aria-label="Αναζήτηση"
+            className="relative z-10 w-[32px] h-[32px] shrink-0 rounded-full grid place-items-center
+              text-[13px] bg-turf border border-chalk/[0.08] text-silver">
+            🔎
+          </Link>
+
+          {/* Τίτλος — κέντρο, fantasy */}
+          <div className="flex-1 min-w-0 text-center">
+            <p className="text-[9px] tracking-[0.42em] uppercase font-extrabold text-lit/90">Salonicup</p>
+            <h1 className="mt-0.5 text-[26px] font-black italic tracking-tight leading-none"
+              style={{
+                backgroundImage: 'linear-gradient(100deg,#FFD98A 0%,#FF9E3D 42%,#E05B1F 100%)',
+                WebkitBackgroundClip: 'text', backgroundClip: 'text',
+                WebkitTextFillColor: 'transparent', color: 'transparent',
+                filter: 'drop-shadow(0 2px 12px rgba(224,91,31,0.45))',
+              }}>
+              Livescore
+            </h1>
           </div>
-          <div className="flex items-center justify-end gap-2 mt-3">
-            <Link href="/search" aria-label="Αναζήτηση"
-              className="relative z-10 w-[38px] h-[38px] rounded-full grid place-items-center
-                text-base bg-turf border border-chalk/[0.08] text-silver">
-              🔎
-            </Link>
+
+          {/* Ρυθμίσεις + ειδοποιήσεις — δεξιά */}
+          <div className="flex items-center gap-1.5 shrink-0">
             <Link href="/settings/notifications" aria-label="Ρυθμίσεις ειδοποιήσεων"
-              className="relative z-10 w-[38px] h-[38px] rounded-full grid place-items-center
-                text-base bg-turf border border-chalk/[0.08] text-silver">
+              className="relative z-10 w-[32px] h-[32px] rounded-full grid place-items-center
+                text-[13px] bg-turf border border-chalk/[0.08] text-silver">
               ⚙️
             </Link>
             <NotificationsBell />

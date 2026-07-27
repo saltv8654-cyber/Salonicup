@@ -71,11 +71,11 @@ export default function NotificationsBell() {
   return (
     <button onClick={toggle} disabled={busy}
       aria-label="Ειδοποιήσεις"
-      className={`relative z-10 flex items-center gap-1.5 px-3 py-2 rounded-full
-        text-[11px] font-extrabold border transition-colors disabled:opacity-50
+      className={`relative z-10 flex items-center gap-1 px-2.5 py-1.5 rounded-full
+        text-[10px] font-extrabold border transition-colors disabled:opacity-50
         ${on ? 'bg-lit/[0.14] text-lit border-lit/30'
              : 'bg-turf text-silver border-chalk/[0.08]'}`}>
-      <span className="text-sm">{on ? '🔔' : '🔕'}</span>
+      <span className="text-[12px]">{on ? '🔔' : '🔕'}</span>
       {on ? 'Ενεργές' : 'Ειδοποιήσεις'}
     </button>
   )
