@@ -78,16 +78,9 @@ export default async function Home({
         <div className="absolute -right-6 -top-4 w-32 h-36">
           <Watermark opacity={0.05} />
         </div>
-        <div className="relative flex items-center justify-between gap-2">
-          {/* Αναζήτηση — αριστερά */}
-          <Link href="/search" aria-label="Αναζήτηση"
-            className="relative z-10 w-[32px] h-[32px] shrink-0 rounded-full grid place-items-center
-              text-[13px] bg-turf border border-chalk/[0.08] text-silver">
-            🔎
-          </Link>
-
-          {/* Τίτλος — κέντρο, fantasy */}
-          <div className="flex-1 min-w-0 text-center">
+        <div className="relative">
+          {/* Τίτλος — αληθινό κέντρο */}
+          <div className="text-center px-10">
             <div className="flex items-center justify-center gap-2 leading-none">
               <span className="text-lit/50 text-[15px]">✦</span>
               <span className="text-[30px] font-black tracking-tight"
@@ -103,16 +96,33 @@ export default async function Home({
               </span>
               <span className="text-lit/50 text-[15px]">✦</span>
             </div>
-            <p className="mt-1 text-[13px] font-extrabold tracking-[0.34em] uppercase text-white"
-              style={{ textShadow: '0 1px 10px rgba(255,255,255,0.22)' }}>
-              Livescore
-            </p>
+            <div className="mt-1 flex items-center justify-center gap-2">
+              <span className="h-px w-6 bg-gradient-to-r from-transparent to-lit/45" />
+              <span className="text-[13px] font-black tracking-[0.34em] uppercase"
+                style={{
+                  fontStyle: 'italic',
+                  backgroundImage: 'linear-gradient(180deg,#FFFFFF 0%,#E8ECF6 55%,#B9C2D6 100%)',
+                  WebkitBackgroundClip: 'text', backgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent', color: 'transparent',
+                  filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.35))',
+                }}>
+                Livescore
+              </span>
+              <span className="h-px w-6 bg-gradient-to-l from-transparent to-lit/45" />
+            </div>
           </div>
 
-          {/* Ρυθμίσεις + ειδοποιήσεις — δεξιά */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          {/* Αναζήτηση — αριστερά (απόλυτη) */}
+          <Link href="/search" aria-label="Αναζήτηση"
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-[32px] h-[32px]
+              rounded-full grid place-items-center text-[13px] bg-turf border border-chalk/[0.08] text-silver">
+            🔎
+          </Link>
+
+          {/* Ρυθμίσεις + ειδοποιήσεις — δεξιά (απόλυτα) */}
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10 flex items-center gap-1.5">
             <Link href="/settings/notifications" aria-label="Ρυθμίσεις ειδοποιήσεων"
-              className="relative z-10 w-[32px] h-[32px] rounded-full grid place-items-center
+              className="w-[32px] h-[32px] rounded-full grid place-items-center
                 text-[13px] bg-turf border border-chalk/[0.08] text-silver">
               ⚙️
             </Link>
