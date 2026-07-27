@@ -88,13 +88,19 @@ export default async function Home({
 
           {/* Τίτλος — κέντρο, fantasy */}
           <div className="flex-1 min-w-0 text-center">
-            <p className="text-[9px] tracking-[0.42em] uppercase font-extrabold text-lit/90">Salonicup</p>
-            <h1 className="mt-0.5 text-[26px] font-black italic tracking-tight leading-none"
+            <p className="flex items-center justify-center gap-2 text-[9px] tracking-[0.4em]
+              uppercase font-extrabold text-lit/80">
+              <span className="text-lit/60">✦</span> Salonicup <span className="text-lit/60">✦</span>
+            </p>
+            <h1 className="mt-0.5 text-[31px] font-black tracking-tight leading-none"
               style={{
-                backgroundImage: 'linear-gradient(100deg,#FFD98A 0%,#FF9E3D 42%,#E05B1F 100%)',
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontStyle: 'italic',
+                letterSpacing: '0.01em',
+                backgroundImage: 'linear-gradient(180deg,#FFF6CF 0%,#FFDD86 26%,#F6B24A 58%,#D98A2B 100%)',
                 WebkitBackgroundClip: 'text', backgroundClip: 'text',
                 WebkitTextFillColor: 'transparent', color: 'transparent',
-                filter: 'drop-shadow(0 2px 12px rgba(224,91,31,0.45))',
+                filter: 'drop-shadow(0 1px 0 rgba(120,60,0,0.35)) drop-shadow(0 3px 14px rgba(255,180,60,0.5))',
               }}>
               Livescore
             </h1>
