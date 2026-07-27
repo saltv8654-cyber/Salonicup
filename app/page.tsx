@@ -88,22 +88,25 @@ export default async function Home({
 
           {/* Τίτλος — κέντρο, fantasy */}
           <div className="flex-1 min-w-0 text-center">
-            <p className="flex items-center justify-center gap-2 text-[9px] tracking-[0.4em]
-              uppercase font-extrabold text-lit/80">
-              <span className="text-lit/60">✦</span> Salonicup <span className="text-lit/60">✦</span>
-            </p>
-            <h1 className="mt-0.5 text-[31px] font-black tracking-tight leading-none"
-              style={{
-                fontFamily: 'Georgia, "Times New Roman", serif',
-                fontStyle: 'italic',
-                letterSpacing: '0.01em',
-                backgroundImage: 'linear-gradient(180deg,#FFF6CF 0%,#FFDD86 26%,#F6B24A 58%,#D98A2B 100%)',
-                WebkitBackgroundClip: 'text', backgroundClip: 'text',
-                WebkitTextFillColor: 'transparent', color: 'transparent',
-                filter: 'drop-shadow(0 1px 0 rgba(120,60,0,0.35)) drop-shadow(0 3px 14px rgba(255,180,60,0.5))',
-              }}>
+            <div className="flex items-center justify-center gap-2 leading-none">
+              <span className="text-lit/50 text-[15px]">✦</span>
+              <span className="text-[30px] font-black tracking-tight"
+                style={{
+                  fontFamily: 'Georgia, "Times New Roman", serif',
+                  fontStyle: 'italic',
+                  backgroundImage: 'linear-gradient(180deg,#FFF6CF 0%,#FFDD86 26%,#F6B24A 58%,#D98A2B 100%)',
+                  WebkitBackgroundClip: 'text', backgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent', color: 'transparent',
+                  filter: 'drop-shadow(0 1px 0 rgba(120,60,0,0.35)) drop-shadow(0 3px 14px rgba(255,180,60,0.5))',
+                }}>
+                Salonicup
+              </span>
+              <span className="text-lit/50 text-[15px]">✦</span>
+            </div>
+            <p className="mt-1 text-[13px] font-extrabold tracking-[0.34em] uppercase text-white"
+              style={{ textShadow: '0 1px 10px rgba(255,255,255,0.22)' }}>
               Livescore
-            </h1>
+            </p>
           </div>
 
           {/* Ρυθμίσεις + ειδοποιήσεις — δεξιά */}
