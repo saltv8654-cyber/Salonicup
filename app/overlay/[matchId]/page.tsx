@@ -49,7 +49,7 @@ function Overlay() {
   const { match, events } = useLiveMatch(matchId as string)
   const now = useNow(1000)
 
-  const userScale = parseFloat(params.get('scale') || '0.91') || 0.91
+  const userScale = parseFloat(params.get('scale') || '1.5') || 1.5
   const pos = params.get('pos') || 'tl'
   const preview = params.get('preview') != null
   const urlSponsors = (params.get('sponsors') || '').split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean)
@@ -366,7 +366,7 @@ function Overlay() {
 
   const sponsorsEl = sponsors.length > 0 && (
     <div style={{ position: PP, left: 0, bottom: 0, display: 'flex', alignItems: 'center', gap: 12,
-      transform: 'scale(1.3)', transformOrigin: 'bottom left',
+      transform: 'scale(1.7)', transformOrigin: 'bottom left',
       background: 'rgba(0,0,0,.6)', borderTop: '1px solid rgba(255,255,255,.1)', borderRight: '1px solid rgba(255,255,255,.1)',
       borderRadius: '0 10px 0 0', padding: '8px 14px' }}>
       <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.14em', color: 'rgba(255,255,255,.7)',
