@@ -61,6 +61,8 @@ function Overlay() {
   const popTimer = useRef<ReturnType<typeof setTimeout>>()
   const [flash, setFlash] = useState<string | null>(null)
   const [lineupsOn, setLineupsOn] = useState(false)
+  const [scorersOn, setScorersOn] = useState(false)
+  const scorersTimer = useRef<ReturnType<typeof setTimeout>>()
   const [luTeam, setLuTeam] = useState<'a' | 'b'>('a')
   const [squadMap, setSquadMap] = useState<Record<string, any>>({})
   const [bigCard, setBigCard] = useState<BigKind | null>(null)
@@ -128,6 +130,12 @@ function Overlay() {
     const ch = supa.current.channel(`overlay:${matchId}`)
       .on('broadcast', { event: 'flash' }, ({ payload }: any) => {
         if (payload?.kind === 'LINEUPS') { setLineupsOn(false); setTimeout(() => setLineupsOn(true), 30); return }
+        if (payload?.kind === 'SCORERS') {
+          setScorersOn(false); setTimeout(() => setScorersOn(true), 30)
+          clearTimeout(scorersTimer.current)
+          scorersTimer.current = setTimeout(() => setScorersOn(false), 4000)
+          return
+        }
         setFlash(payload?.kind ?? null)
         clearTimeout(flashTimer.current)
         if (payload?.kind) flashTimer.current = setTimeout(() => setFlash(null), 6000)
@@ -283,6 +291,49 @@ function Overlay() {
         </div>
         <LineupPitch formation={luForm} line={luLine} players={squadMap} accent={t.acc}
           bg="rgba(6,16,11,0.4)" borderColor={t.acc} />
+      </div>
+    </div>
+  )
+
+  // Σκόρερς — γκολ ανά παίκτη, ανά ομάδα
+  const scorersOf = (teamId: string) => {
+    const m = new Map<string, number>()
+    events.filter((e: any) => e.event_type === 'GOAL' && e.team_id === teamId && e.period !== 'PEN')
+      .forEach((e: any) => { const n = e.player?.full_name ?? '—'; m.set(n, (m.get(n) ?? 0) + 1) })
+    return [...m.entries()]
+  }
+  const scCol = (teamId: string, name?: string, logo?: string | null) => {
+    const list = scorersOf(teamId)
+    return (
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
+          <Crest name={name} logo={logo} size={30} />
+          <span style={{ fontSize: 17, fontWeight: 800, textTransform: 'uppercase', color: '#fff',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
+        </div>
+        {list.length ? list.map(([n, c], i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0',
+            fontSize: 16, color: '#fff' }}>
+            <span style={{ color: t.acc }}>⚽</span>
+            <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {n}{c > 1 ? ` ×${c}` : ''}</span>
+          </div>
+        )) : <div style={{ fontSize: 14, color: 'rgba(255,255,255,.5)' }}>—</div>}
+      </div>
+    )
+  }
+  const scorersEl = scorersOn && (
+    <div style={{ position: PP, inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
+      <div style={{ width: 620, padding: '22px 30px', borderRadius: 18,
+        background: 'rgba(6,12,18,.94)', border: `2px solid ${t.acc}`, boxShadow: '0 26px 70px rgba(0,0,0,.6)',
+        animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
+        <div style={{ textAlign: 'center', fontSize: 15, fontWeight: 800, letterSpacing: '.28em',
+          color: t.acc, marginBottom: 16 }}>ΣΚΟΡΕΡΣ</div>
+        <div style={{ display: 'flex', gap: 26 }}>
+          {scCol(match.team_a, match.team_a_data?.name, match.team_a_data?.logo_url)}
+          <div style={{ width: 1, background: 'rgba(255,255,255,.12)' }} />
+          {scCol(match.team_b, match.team_b_data?.name, match.team_b_data?.logo_url)}
+        </div>
       </div>
     </div>
   )
@@ -453,7 +504,7 @@ function Overlay() {
     </div>
   )
 
-  const scene = <>{styleTag}{sponsorsEl}{scoreEl}{subCardEl}{varEl}{lineupsEl}{bigCardEl}</>
+  const scene = <>{styleTag}{sponsorsEl}{scoreEl}{subCardEl}{varEl}{lineupsEl}{scorersEl}{bigCardEl}</>
 
   // Πραγματικό OBS: καμβάς 1280×720 κλιμακωμένος να γεμίσει την οθόνη
   if (!preview) return (
@@ -499,6 +550,10 @@ function Overlay() {
           {ctlBtn(POP_META.RED.bg[0], '#fff', '🟥 Κόκκινη', () => testPop('RED'))}
           {ctlBtn('#1436b0', '#fff', '📺 VAR', () => { setFlash('VAR'); clearTimeout(flashTimer.current); flashTimer.current = setTimeout(() => setFlash(null), 6000) })}
           {ctlBtn('#26303f', '#fff', '📋 Συνθέσεις', () => { setLineupsOn(false); setTimeout(() => setLineupsOn(true), 30) })}
+          {ctlBtn('#1f5e3a', '#fff', '⚽ Σκόρερς', () => {
+            setScorersOn(false); setTimeout(() => setScorersOn(true), 30)
+            clearTimeout(scorersTimer.current); scorersTimer.current = setTimeout(() => setScorersOn(false), 4000)
+          })}
           {ctlBtn('#35c66b', '#062', '🔄 Αλλαγή', testSub)}
           {ctlBtn('#0e7a3a', '#fff', '🏁 Έναρξη', () => testBig('KICKOFF'))}
           {ctlBtn('#8a6d1f', '#fff', '⏸ Ημίχρονο', () => testBig('HT'))}
