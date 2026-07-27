@@ -1,7 +1,7 @@
 'use client'
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Crest, LiveDot, SectionLabel, Empty } from '@/app/ui'
+import { Crest, LiveDot, Empty } from '@/app/ui'
 import LiveClock from '@/app/live-clock'
 import { fmtDateTime as fmt } from '@/lib/time'
 
@@ -10,10 +10,17 @@ function norm(s?: string | null) {
   return (s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 }
 
-const byDateAsc = (a: any, b: any) => (a.match_date ?? '').localeCompare(b.match_date ?? '')
+const byDateAsc  = (a: any, b: any) => (a.match_date ?? '').localeCompare(b.match_date ?? '')
+const byDateDesc = (a: any, b: any) => (b.match_date ?? '').localeCompare(a.match_date ?? '')
+const PAST = ['Played', 'Forfeit']
+type Tab = 'past' | 'live' | 'next'
+const catOf = (m: any): Tab =>
+  m.match_status === 'Live' ? 'live' : PAST.includes(m.match_status) ? 'past' : 'next'
 
 export default function SpeakerList({ matches }: { matches: any[] }) {
   const [q, setQ] = useState('')
+  const [tab, setTab] = useState<Tab>(() =>
+    matches.some(m => m.match_status === 'Live') ? 'live' : 'next')
 
   const filtered = useMemo(() => {
     const needle = norm(q.trim())
@@ -27,14 +34,23 @@ export default function SpeakerList({ matches }: { matches: any[] }) {
     })
   }, [matches, q])
 
-  // Σε εξέλιξη πάνω-πάνω· όλοι οι υπόλοιποι σε χρονολογική σειρά (παλιότερος → νεότερος)
-  const live = filtered.filter(m => m.match_status === 'Live').sort(byDateAsc)
-  const rest = filtered.filter(m => m.match_status !== 'Live').sort(byDateAsc)
+  const groups = useMemo(() => ({
+    past: filtered.filter(m => catOf(m) === 'past').sort(byDateDesc), // πιο πρόσφατοι πρώτα
+    live: filtered.filter(m => catOf(m) === 'live').sort(byDateAsc),
+    next: filtered.filter(m => catOf(m) === 'next').sort(byDateAsc),  // πλησιέστεροι πρώτα
+  }), [filtered])
+
+  const TABS: { id: Tab; label: string }[] = [
+    { id: 'past', label: 'Προηγούμενοι' },
+    { id: 'live', label: 'Σε εξέλιξη' },
+    { id: 'next', label: 'Επόμενοι' },
+  ]
+  const shown = groups[tab]
 
   return (
     <div className="px-3.5">
       {/* Αναζήτηση */}
-      <div className="relative mb-4">
+      <div className="relative mb-3">
         <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-silver text-sm">🔎</span>
         <input
           value={q}
@@ -52,28 +68,41 @@ export default function SpeakerList({ matches }: { matches: any[] }) {
         )}
       </div>
 
-      {live.length > 0 && (
-        <Group label="Σε εξέλιξη" live>{live.map(m => <Row key={m.match_id} m={m} />)}</Group>
-      )}
-      {rest.length > 0 && (
-        <Group label="Όλοι οι αγώνες">{rest.map(m => <Row key={m.match_id} m={m} />)}</Group>
-      )}
+      {/* Tabs */}
+      <div className="flex bg-turf rounded-xl p-[3px] mb-4 border border-chalk/[0.05]">
+        {TABS.map(t => {
+          const on = tab === t.id
+          const n = groups[t.id].length
+          return (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg
+                text-[12.5px] font-bold transition-colors
+                ${on ? 'bg-brand text-chalk' : 'text-dim'}`}>
+              {t.id === 'live' && n > 0 && <LiveDot />}
+              {t.label}
+              {n > 0 && (
+                <span className={`text-[10px] font-extrabold tnum ${on ? 'text-chalk/70' : 'text-off'}`}>
+                  {n}
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
 
-      {!filtered.length && (
-        <Empty>{q ? 'Κανένας αγώνας δεν ταιριάζει.' : 'Δεν υπάρχουν αγώνες.'}</Empty>
+      {shown.length > 0 ? (
+        <div className="flex flex-col gap-1.5">
+          {shown.map(m => <Row key={m.match_id} m={m} />)}
+        </div>
+      ) : (
+        <Empty>
+          {q ? 'Κανένας αγώνας δεν ταιριάζει.'
+            : tab === 'live' ? 'Κανένας αγώνας σε εξέλιξη.'
+            : tab === 'past' ? 'Δεν υπάρχουν ολοκληρωμένοι αγώνες.'
+            : 'Δεν υπάρχουν προγραμματισμένοι αγώνες.'}
+        </Empty>
       )}
     </div>
-  )
-}
-
-function Group({ label, live, children }: {
-  label: string; live?: boolean; children: React.ReactNode
-}) {
-  return (
-    <section className="mb-5">
-      <SectionLabel live={live}>{label}</SectionLabel>
-      <div className="flex flex-col gap-1.5">{children}</div>
-    </section>
   )
 }
 
