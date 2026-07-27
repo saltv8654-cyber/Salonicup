@@ -31,10 +31,10 @@ export default async function SpeakerHome() {
   const [finished, upcoming] = await Promise.all([
     supabase.from('matches').select(SELECT)
       .in('match_status', ['Played', 'Forfeit'])
-      .order('match_date', { ascending: false }).limit(200),
+      .order('match_date', { ascending: false }),
     supabase.from('matches').select(SELECT)
       .in('match_status', ['Scheduled', 'Live', 'Postponed'])
-      .order('match_date', { ascending: true }).limit(300),
+      .order('match_date', { ascending: true }),
   ])
   const matches = [...(finished.data ?? []), ...(upcoming.data ?? [])]
 
