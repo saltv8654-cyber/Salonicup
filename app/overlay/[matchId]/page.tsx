@@ -52,7 +52,9 @@ function Overlay() {
   const userScale = parseFloat(params.get('scale') || '0.91') || 0.91
   const pos = params.get('pos') || 'tl'
   const preview = params.get('preview') != null
-  const sponsors = (params.get('sponsors') || '').split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean)
+  const urlSponsors = (params.get('sponsors') || '').split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean)
+  const [dbSponsors, setDbSponsors] = useState<string[]>([])
+  const sponsors = urlSponsors.length ? urlSponsors : dbSponsors
 
   const [popup, setPopup] = useState<Pop | null>(null)
   const seen = useRef<Set<string>>(new Set())
@@ -130,6 +132,13 @@ function Overlay() {
       }).subscribe()
     return () => { supa.current.removeChannel(ch) }
   }, [matchId])
+
+  // Χορηγοί από τη βάση (καθολικοί) — αν δεν δόθηκαν στο URL
+  useEffect(() => {
+    if (urlSponsors.length) return
+    supa.current.from('app_settings').select('sponsors').eq('id', 1).maybeSingle()
+      .then(({ data }: any) => { if (data?.sponsors?.length) setDbSponsors(data.sponsors) })
+  }, [])
 
   // Συνθέσεις: 5 δευτ. ομάδα Α, 5 δευτ. ομάδα Β, μετά εξαφανίζεται μόνο του
   useEffect(() => {

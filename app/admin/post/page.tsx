@@ -70,13 +70,23 @@ export default function AdminPost() {
   const [sponsorA, setSponsorA]   = useState('')
   const [sponsorB, setSponsorB]   = useState('')
 
-  // Λογότυπα χορηγών — αποθηκεύονται τοπικά ανά συσκευή
+  // Λογότυπα χορηγών — τοπικά + καθολικά στη βάση (για OBS από οποιαδήποτε συσκευή)
   useEffect(() => {
     setSponsorA(localStorage.getItem('sponsorA') || '')
     setSponsorB(localStorage.getItem('sponsorB') || '')
+    // Καθολικοί χορηγοί από τη βάση κερδίζουν, αν υπάρχουν
+    supabase.from('app_settings').select('sponsors').eq('id', 1).maybeSingle()
+      .then(({ data }: any) => {
+        const sp: string[] = data?.sponsors ?? []
+        if (sp[0] !== undefined) { setSponsorA(sp[0] ?? ''); localStorage.setItem('sponsorA', sp[0] ?? '') }
+        if (sp[1] !== undefined) { setSponsorB(sp[1] ?? ''); localStorage.setItem('sponsorB', sp[1] ?? '') }
+      })
   }, [])
-  const saveSponsorA = (u: string) => { setSponsorA(u); localStorage.setItem('sponsorA', u); setReady(false) }
-  const saveSponsorB = (u: string) => { setSponsorB(u); localStorage.setItem('sponsorB', u); setReady(false) }
+  const syncSponsors = (a: string, b: string) =>
+    supabase.from('app_settings').upsert({ id: 1, sponsors: [a, b].filter(Boolean), updated_at: new Date().toISOString() })
+      .then(() => {}, () => {})
+  const saveSponsorA = (u: string) => { setSponsorA(u); localStorage.setItem('sponsorA', u); setReady(false); syncSponsors(u, sponsorB) }
+  const saveSponsorB = (u: string) => { setSponsorB(u); localStorage.setItem('sponsorB', u); setReady(false); syncSponsors(sponsorA, u) }
   const [busy, setBusy]           = useState(false)
   const [ready, setReady]         = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
