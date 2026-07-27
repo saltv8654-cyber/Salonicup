@@ -45,7 +45,7 @@ export default async function SpeakerHome() {
           Salonicup · Speaker
         </p>
         <h1 className="text-2xl font-extrabold text-chalk mt-1.5 tracking-tight">
-          Οι αγώνες μου
+          Αγώνες
         </h1>
       </header>
 
