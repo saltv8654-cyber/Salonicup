@@ -15,6 +15,11 @@ const STATUSES: { value: MatchState; label: string }[] = [
   { value: 'Forfeit',   label: 'Απουσία (0-0)' },
 ]
 
+const STATUS_DOT: Record<string, string> = {
+  Scheduled: '#8a8a93', Live: '#e0563c', Played: '#2FA84F',
+  Postponed: '#c9a227', Forfeit: '#8a6d1f',
+}
+
 export default function AdminMatches() {
   const supabase = createClient()
   const [rows, setRows]       = useState<any[]>([])
@@ -25,6 +30,13 @@ export default function AdminMatches() {
   const [load, setLoad]       = useState(true)
   const [open, setOpen]       = useState(false)
   const [edit, setEdit]       = useState<any>(null)
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+
+  const toggleRound = (key: string) => setCollapsed(prev => {
+    const next = new Set(prev)
+    next.has(key) ? next.delete(key) : next.add(key)
+    return next
+  })
 
   async function fetchAll() {
     const [m, l, t, v] = await Promise.all([
@@ -56,6 +68,25 @@ export default function AdminMatches() {
 
   const filtered = filter ? rows.filter(r => r.league_id === filter) : rows
 
+  // Ομαδοποίηση: πρωτάθλημα → αγωνιστική (φθίνουσα) → αγώνες
+  const leagueOrder = leagues.map(l => l.league_id)
+  const byLeague = new Map<string, { id: string; name: string; rounds: Map<number, any[]> }>()
+  for (const m of filtered) {
+    if (!byLeague.has(m.league_id)) {
+      byLeague.set(m.league_id, { id: m.league_id, name: m.league?.name ?? '—', rounds: new Map() })
+    }
+    const g = byLeague.get(m.league_id)!
+    const r = m.round ?? 0
+    if (!g.rounds.has(r)) g.rounds.set(r, [])
+    g.rounds.get(r)!.push(m)
+  }
+  const groups = [...byLeague.values()]
+    .sort((a, b) => leagueOrder.indexOf(a.id) - leagueOrder.indexOf(b.id))
+    .map(g => ({
+      ...g,
+      roundList: [...g.rounds.entries()].sort((a, b) => b[0] - a[0]),
+    }))
+
   return (
     <div className="p-4 max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-3">
@@ -78,41 +109,71 @@ export default function AdminMatches() {
       </div>
 
       {!filtered.length ? <Empty>Δεν υπάρχουν αγώνες.</Empty> : (
-        <div className="flex flex-col gap-1.5">
-          {filtered.map(m => (
-            <div key={m.match_id}
-              className="bg-turf rounded-xl px-3.5 py-3 border border-chalk/[0.05]">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[9.5px] text-dim font-bold">
-                  {m.league?.name} · Αγ. {m.round}
-                </span>
-                <span className="text-[9.5px] font-bold text-lit">
-                  {STATUSES.find(s => s.value === m.match_status)?.label}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 mb-2.5">
-                <Crest url={m.team_a_data?.logo_url} name={m.team_a_data?.name} size={20} />
-                <span className="flex-1 text-[13px] font-semibold text-chalk truncate">
-                  {m.team_a_data?.name}
-                </span>
-                <span className="text-base font-extrabold text-chalk tnum">
-                  {m.goals_team_a}·{m.goals_team_b}
-                </span>
-                <span className="flex-1 text-[13px] font-semibold text-chalk truncate text-right">
-                  {m.team_b_data?.name}
-                </span>
-                <Crest url={m.team_b_data?.logo_url} name={m.team_b_data?.name} size={20} />
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => { setEdit(m); setOpen(true) }}
-                  className="flex-1 py-2 rounded-lg bg-chalk/[0.05] text-silver
-                    text-[11px] font-bold">Επεξεργασία</button>
-                <a href={`/speaker/${m.match_id}`}
-                  className="flex-1 py-2 rounded-lg bg-chalk/[0.05] text-silver
-                    text-[11px] font-bold text-center">Panel</a>
-                <button onClick={() => remove(m.match_id)}
-                  className="px-3 py-2 rounded-lg bg-danger/15 text-danger
-                    text-[11px] font-bold">✕</button>
+        <div className="flex flex-col gap-4">
+          {groups.map(g => (
+            <div key={g.id}>
+              {!filter && (
+                <div className="flex items-center gap-2 mb-2 px-0.5">
+                  <span className="text-[13px] font-extrabold text-lit">{g.name}</span>
+                  <span className="text-[10px] text-dim font-bold">
+                    {g.roundList.reduce((n, [, ms]) => n + ms.length, 0)} αγώνες
+                  </span>
+                </div>
+              )}
+              <div className="flex flex-col gap-2">
+                {g.roundList.map(([round, ms]) => {
+                  const key = `${g.id}:${round}`
+                  const openR = !collapsed.has(key)
+                  return (
+                    <div key={key} className="bg-turf rounded-xl border border-chalk/[0.05] overflow-hidden">
+                      <button onClick={() => toggleRound(key)}
+                        className="w-full flex items-center justify-between px-3.5 py-2.5 active:bg-chalk/[0.03]">
+                        <span className="text-[12px] font-extrabold text-silver">
+                          Αγωνιστική {round}
+                        </span>
+                        <span className="flex items-center gap-2">
+                          <span className="text-[10px] text-dim font-bold tnum">{ms.length}</span>
+                          <span className="text-dim text-[10px]">{openR ? '▾' : '▸'}</span>
+                        </span>
+                      </button>
+                      {openR && (
+                        <div className="flex flex-col">
+                          {ms.map(m => {
+                            const played = ['Played', 'Forfeit'].includes(m.match_status)
+                            const live = m.match_status === 'Live'
+                            return (
+                              <div key={m.match_id}
+                                className="flex items-center gap-1.5 px-2.5 py-2 border-t border-chalk/[0.05]">
+                                <span className="w-1.5 h-1.5 rounded-full shrink-0"
+                                  style={{ background: STATUS_DOT[m.match_status] ?? '#8a8a93' }} />
+                                <button onClick={() => { setEdit(m); setOpen(true) }}
+                                  className="flex-1 flex items-center gap-1.5 min-w-0 text-left active:opacity-70">
+                                  <Crest url={m.team_a_data?.logo_url} name={m.team_a_data?.name} size={18} />
+                                  <span className="flex-1 text-[12px] font-semibold text-chalk truncate text-right">
+                                    {m.team_a_data?.name}
+                                  </span>
+                                  <span className="shrink-0 px-1 text-[12px] font-extrabold text-silver tnum">
+                                    {live || played ? `${m.goals_team_a}·${m.goals_team_b}` : 'vs'}
+                                  </span>
+                                  <span className="flex-1 text-[12px] font-semibold text-chalk truncate">
+                                    {m.team_b_data?.name}
+                                  </span>
+                                  <Crest url={m.team_b_data?.logo_url} name={m.team_b_data?.name} size={18} />
+                                </button>
+                                <a href={`/speaker/${m.match_id}`} title="Panel"
+                                  className="w-7 h-7 shrink-0 grid place-items-center rounded-lg
+                                    bg-chalk/[0.05] text-silver text-[13px] active:bg-chalk/10">🎙</a>
+                                <button onClick={() => remove(m.match_id)} title="Διαγραφή"
+                                  className="w-7 h-7 shrink-0 grid place-items-center rounded-lg
+                                    bg-danger/15 text-danger text-[11px] active:bg-danger/25">✕</button>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           ))}
