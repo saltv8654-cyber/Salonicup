@@ -127,20 +127,35 @@ function Overlay() {
   }, [preview])
 
   useEffect(() => {
-    const ch = supa.current.channel(`overlay:${matchId}`)
-      .on('broadcast', { event: 'flash' }, ({ payload }: any) => {
-        if (payload?.kind === 'LINEUPS') { setLineupsOn(false); setTimeout(() => setLineupsOn(true), 30); return }
-        if (payload?.kind === 'SCORERS') {
-          setScorersOn(false); setTimeout(() => setScorersOn(true), 30)
-          clearTimeout(scorersTimer.current)
-          scorersTimer.current = setTimeout(() => setScorersOn(false), 4000)
-          return
-        }
-        setFlash(payload?.kind ?? null)
-        clearTimeout(flashTimer.current)
-        if (payload?.kind) flashTimer.current = setTimeout(() => setFlash(null), 6000)
-      }).subscribe()
-    return () => { supa.current.removeChannel(ch) }
+    let ch: any
+    let dead = false
+    const onFlash = ({ payload }: any) => {
+      if (payload?.kind === 'LINEUPS') { setLineupsOn(false); setTimeout(() => setLineupsOn(true), 30); return }
+      if (payload?.kind === 'SCORERS') {
+        setScorersOn(false); setTimeout(() => setScorersOn(true), 30)
+        clearTimeout(scorersTimer.current)
+        scorersTimer.current = setTimeout(() => setScorersOn(false), 4000)
+        return
+      }
+      setFlash(payload?.kind ?? null)
+      clearTimeout(flashTimer.current)
+      if (payload?.kind) flashTimer.current = setTimeout(() => setFlash(null), 6000)
+    }
+    // Επανασύνδεση αν πέσει το κανάλι (π.χ. στο OBS μετά από ώρα)
+    const connect = () => {
+      ch = supa.current.channel(`overlay:${matchId}`)
+        .on('broadcast', { event: 'flash' }, onFlash)
+        .subscribe((status: string) => {
+          if (!dead && (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED')) {
+            supa.current.removeChannel(ch)
+            setTimeout(() => { if (!dead) connect() }, 2500)
+          }
+        })
+    }
+    connect()
+    const onVis = () => { if (document.visibilityState === 'visible' && !dead) { supa.current.removeChannel(ch); connect() } }
+    document.addEventListener('visibilitychange', onVis)
+    return () => { dead = true; document.removeEventListener('visibilitychange', onVis); supa.current.removeChannel(ch) }
   }, [matchId])
 
   // Χορηγοί από τη βάση (καθολικοί) — αν δεν δόθηκαν στο URL

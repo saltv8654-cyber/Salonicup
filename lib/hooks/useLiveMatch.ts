@@ -51,7 +51,11 @@ export function useLiveMatch(matchId: string) {
         () => fetchMatch())
       .subscribe()
 
-    return () => { alive = false; supabase.removeChannel(channel) }
+    // Δίχτυ ασφαλείας: αν πέσει το realtime (π.χ. στο OBS μετά από ώρα),
+    // τραβάμε ξανά τα δεδομένα κάθε 12 δευτ. ώστε σκορ/ρολόι να μένουν φρέσκα.
+    const poll = setInterval(() => { if (alive) { fetchMatch(); fetchEvents() } }, 12000)
+
+    return () => { alive = false; clearInterval(poll); supabase.removeChannel(channel) }
   }, [matchId, fetchMatch, fetchEvents])
 
   return { match, events, loading, refresh: fetchEvents }
