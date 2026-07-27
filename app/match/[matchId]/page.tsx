@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useLiveMatch } from '@/lib/hooks/useLiveMatch'
 import { useAuth } from '@/lib/hooks/useAuth'
-import { Watermark, Crest, Avatar, LiveDot, SectionLabel, Loading, Empty } from '@/app/ui'
+import { Watermark, Crest, Avatar, LiveDot, SectionLabel, Loading, Empty, FieldBadge } from '@/app/ui'
+import { fmtTime, fmtDay } from '@/lib/time'
 import { PERIODS, EVENTS, fmtMinute, absMinute, playerTallies } from '@/lib/match'
 import { clockLabel, clockHalf } from '@/lib/clock'
 import { useNow } from '@/lib/hooks/useNow'
@@ -53,11 +54,14 @@ export default function PublicMatch() {
 
   const live = match.match_status === 'Live'
   const done = ['Played', 'Forfeit'].includes(match.match_status)
+  const notStarted = !live && !done
   const hasPens = match.pens_team_a > 0 || match.pens_team_b > 0
   const clkMin = clockLabel(match.clock_period, match.clock_started_at, now)
   const clkHalf = clockHalf(match.clock_period)
   const clk = clkMin ? (clkHalf ? `${clkHalf} · ${clkMin}` : clkMin) : null
   const place = [match.venue?.name, match.field].filter(Boolean).join(' · ')
+  // Πριν την έναρξη δείχνουμε το γήπεδο κάτω από την ώρα, οπότε στο κάτω μέρος μόνο το όνομα γηπέδου
+  const placeLine = notStarted ? (match.venue?.name ?? '') : place
 
   // Γκολ ανά παίκτη (για σήμανση στη σύνθεση)
   const goalsBy = new Map<string, number>()
@@ -124,39 +128,62 @@ export default function PublicMatch() {
           <div className="flex items-start gap-2.5">
             <Side team={match.team_a_data} />
             <div className="shrink-0 text-center pt-1.5">
-              <div className="text-[40px] font-extrabold text-chalk leading-none
-                tracking-tight tnum">
-                {match.goals_team_a}
-                <span className="text-dim mx-1.5 font-normal">·</span>
-                {match.goals_team_b}
-              </div>
-              {hasPens && (
-                <div className="text-[11px] font-extrabold text-lit mt-1.5 tnum">
-                  πέν. {match.pens_team_a}–{match.pens_team_b}
-                </div>
-              )}
-              <div className="mt-2">
-                {live ? (
-                  <div className="flex items-center justify-center gap-1.5">
-                    <LiveDot />
-                    {clk && (
-                      <span className="text-[12px] font-extrabold text-live tnum leading-none">
-                        {clk}
+              {notStarted ? (
+                <>
+                  {/* Πριν την έναρξη: ώρα αντί για 0-0, γήπεδο από κάτω */}
+                  <div className="text-[30px] font-extrabold text-chalk leading-none tnum">
+                    {match.match_date ? fmtTime(match.match_date) : 'VS'}
+                  </div>
+                  <div className="mt-2 flex flex-col items-center gap-1.5">
+                    {match.match_date && (
+                      <span className="text-[9px] font-extrabold text-dim tracking-[0.12em]">
+                        {fmtDay(match.match_date).toUpperCase()}
+                      </span>
+                    )}
+                    {match.field
+                      ? <FieldBadge field={match.field} />
+                      : <span className="text-[9px] font-extrabold text-dim tracking-[0.14em]">
+                          ΠΡΟΓΡΑΜΜΑΤΙΣΜΕΝΟΣ
+                        </span>}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-[40px] font-extrabold text-chalk leading-none
+                    tracking-tight tnum">
+                    {match.goals_team_a}
+                    <span className="text-dim mx-1.5 font-normal">·</span>
+                    {match.goals_team_b}
+                  </div>
+                  {hasPens && (
+                    <div className="text-[11px] font-extrabold text-lit mt-1.5 tnum">
+                      πέν. {match.pens_team_a}–{match.pens_team_b}
+                    </div>
+                  )}
+                  <div className="mt-2">
+                    {live ? (
+                      <div className="flex items-center justify-center gap-1.5">
+                        <LiveDot />
+                        {clk && (
+                          <span className="text-[12px] font-extrabold text-live tnum leading-none">
+                            {clk}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-[9px] font-extrabold text-dim tracking-[0.14em]">
+                        ΤΕΛΙΚΟ
                       </span>
                     )}
                   </div>
-                ) : (
-                  <span className="text-[9px] font-extrabold text-dim tracking-[0.14em]">
-                    {done ? 'ΤΕΛΙΚΟ' : 'ΠΡΟΓΡΑΜΜΑΤΙΣΜΕΝΟΣ'}
-                  </span>
-                )}
-              </div>
+                </>
+              )}
             </div>
             <Side team={match.team_b_data} />
           </div>
 
-          {place && (
-            <p className="text-[9.5px] text-off text-center mt-4">{place}</p>
+          {placeLine && (
+            <p className="text-[9.5px] text-off text-center mt-4">{placeLine}</p>
           )}
         </div>
       </div>
