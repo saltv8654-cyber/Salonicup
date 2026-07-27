@@ -78,12 +78,12 @@ export default async function Home({
         <div className="absolute -right-6 -top-4 w-32 h-36">
           <Watermark opacity={0.05} />
         </div>
-        <div className="relative flex items-start justify-between">
-          <div>
-            <p className="text-[9.5px] tracking-[0.22em] uppercase text-lit font-extrabold">Salonicup</p>
-            <h1 className="text-2xl font-extrabold text-chalk mt-1 tracking-tight">Αγώνες</h1>
+        <div className="relative">
+          <div className="text-center">
+            <p className="text-[10px] tracking-[0.28em] uppercase text-lit font-extrabold">Salonicup</p>
+            <h1 className="text-[26px] font-extrabold text-chalk mt-0.5 tracking-tight">Livescore</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-end gap-2 mt-3">
             <Link href="/search" aria-label="Αναζήτηση"
               className="relative z-10 w-[38px] h-[38px] rounded-full grid place-items-center
                 text-base bg-turf border border-chalk/[0.08] text-silver">
