@@ -19,18 +19,24 @@ export default async function SpeakerHome() {
     redirect('/')
   }
 
-  const { data: matches } = await supabase
-    .from('matches')
-    .select(`
+  const SELECT = `
       *,
       team_a_data:team_a(name, logo_url),
       team_b_data:team_b(name, logo_url),
       league:league_id(name),
       venue:venue_id(name)
-    `)
-    .in('match_status', ['Scheduled', 'Live', 'Played', 'Forfeit', 'Postponed'])
-    .order('match_date', { ascending: false })
-    .limit(120)
+    `
+  // Ξεχωριστά ερωτήματα ώστε οι ολοκληρωμένοι να μη «κόβονται» από τους πολλούς
+  // προγραμματισμένους (κοινό όριο θα γέμιζε με μελλοντικές ημερομηνίες).
+  const [finished, upcoming] = await Promise.all([
+    supabase.from('matches').select(SELECT)
+      .in('match_status', ['Played', 'Forfeit'])
+      .order('match_date', { ascending: false }).limit(200),
+    supabase.from('matches').select(SELECT)
+      .in('match_status', ['Scheduled', 'Live', 'Postponed'])
+      .order('match_date', { ascending: true }).limit(300),
+  ])
+  const matches = [...(finished.data ?? []), ...(upcoming.data ?? [])]
 
   return (
     <div className="min-h-screen bg-pitch pb-10">
