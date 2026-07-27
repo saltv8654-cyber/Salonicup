@@ -3,18 +3,33 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Loading } from '@/app/ui'
 import { Select, LogoUpload } from '../ui'
-import { athensDateKey, fmtDay } from '@/lib/time'
+import { athensDateKey, fmtDay, fmtTime } from '@/lib/time'
 import toast from 'react-hot-toast'
-import { drawPost, THEMES, type PostType, type PostData, type DayGroup, type MatchRow, type ThemeId } from './canvas'
+import { drawPost, THEMES, type PostType, type PostData, type DayGroup, type MatchRow, type WeekDay, type ThemeId } from './canvas'
 
 const TYPES: { id: PostType; label: string }[] = [
   { id: 'schedule',  label: 'Πρόγραμμα' },
   { id: 'results',   label: 'Αποτελέσματα' },
   { id: 'standings', label: 'Βαθμολογία' },
   { id: 'versus',    label: 'Αναμέτρηση' },
+  { id: 'week',      label: 'Εβδομάδα' },
 ]
 
 const DAY_FMT: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'numeric' }
+
+/** Οι 7 ημέρες (Δευτ→Κυρ) της εβδομάδας που περιέχει το dateKey, ως {key, label}. */
+function weekDays(dateKey: string): { key: string; label: string }[] {
+  const base = new Date(`${dateKey}T12:00:00Z`)
+  const dow = (base.getUTCDay() + 6) % 7 // 0=Δευτ … 6=Κυρ
+  const mon = new Date(base); mon.setUTCDate(base.getUTCDate() - dow)
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(mon); d.setUTCDate(mon.getUTCDate() + i)
+    return {
+      key: d.toISOString().slice(0, 10),
+      label: d.toLocaleDateString('el-GR', { weekday: 'long', day: 'numeric', month: 'numeric' }),
+    }
+  })
+}
 
 async function ensureOswald() {
   if (!document.getElementById('oswald-font')) {
@@ -46,6 +61,9 @@ export default function AdminPost() {
   const [scope, setScope]         = useState<'round' | 'day'>('round')
   const [day, setDay]             = useState(() => athensDateKey(new Date().toISOString()))
   const [matchId, setMatchId]     = useState('')
+  const [weekDate, setWeekDate]   = useState(() => athensDateKey(new Date().toISOString()))
+  const [weekMode, setWeekMode]   = useState<'program' | 'results'>('program')
+  const [weekLeagues, setWeekLeagues] = useState<Set<string>>(new Set())
   const [format, setFormat]       = useState<'square' | 'story' | 'yt'>('square')
   const [theme, setTheme]         = useState<ThemeId>('orange')
   const [showSponsors, setShowSponsors] = useState(true)
@@ -67,6 +85,7 @@ export default function AdminPost() {
     supabase.from('leagues').select('*').order('sort_order').then(({ data }) => {
       setLeagues(data ?? [])
       if (data?.length) setLeague(data[0].league_id)
+      setWeekLeagues(new Set((data ?? []).map((l: any) => l.league_id)))
       setLoad(false)
     })
   }, [])
@@ -134,6 +153,55 @@ export default function AdminPost() {
       const typeLabel = TYPES.find(t => t.id === type)!.label
       const season = leagueObj.season ?? ''
       const dayLabel = day ? fmtDay(new Date(`${day}T12:00:00`).toISOString()) : ''
+
+      // Εβδομαδιαίο πρόγραμμα/αποτελέσματα (πολλά πρωταθλήματα)
+      if (type === 'week') {
+        if (!weekLeagues.size) { toast.error('Διάλεξε πρωταθλήματα'); setBusy(false); return }
+        const wdays = weekDays(weekDate)
+        const keys = new Set(wdays.map(w => w.key))
+        const want = weekMode === 'results' ? ['Played', 'Forfeit'] : ['Scheduled', 'Live']
+        const { data: wm } = await supabase.from('matches')
+          .select('*, team_a_data:team_a(name,logo_url), team_b_data:team_b(name,logo_url), league:league_id(name,logo_url)')
+          .in('league_id', [...weekLeagues])
+          .not('match_date', 'is', null)
+        const byKey = new Map<string, any[]>()
+        for (const m of wm ?? []) {
+          const k = athensDateKey(m.match_date)
+          if (!keys.has(k) || !want.includes(m.match_status)) continue
+          if (!byKey.has(k)) byKey.set(k, [])
+          byKey.get(k)!.push(m)
+        }
+        const week: WeekDay[] = wdays.filter(w => byKey.has(w.key)).map(w => ({
+          day: w.label,
+          matches: (byKey.get(w.key) ?? [])
+            .sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? '')
+              || (a.field ?? '').localeCompare(b.field ?? ''))
+            .map(m => ({
+              time: fmtTime(m.match_date),
+              score: ['Played', 'Forfeit'].includes(m.match_status)
+                ? `${m.goals_team_a}-${m.goals_team_b}` : undefined,
+              field: m.field ?? undefined,
+              leagueName: m.league?.name, leagueLogo: m.league?.logo_url ?? null,
+              homeName: m.team_a_data?.name ?? '—', awayName: m.team_b_data?.name ?? '—',
+            })),
+        }))
+        const dm = (key: string) => { const [, mo, da] = key.split('-'); return `${+da}/${+mo}` }
+        const weekPost: PostData = {
+          type: 'week',
+          leagueName: weekMode === 'results' ? 'Αποτελέσματα' : 'Πρόγραμμα',
+          sub: `Εβδομάδα ${dm(wdays[0].key)} – ${dm(wdays[6].key)}`,
+          typeLabel: 'ΕΒΔΟΜΑΔΑ',
+          leagueLogo: null,
+          groups: [], standings: [],
+          week,
+          sponsors: showSponsors ? [sponsorA, sponsorB].filter(Boolean) : [],
+          theme,
+        }
+        await drawPost(canvasRef.current, weekPost, { w: size.w, h: size.h })
+        setReady(true)
+        toast.success('Έτοιμο! Κατέβασέ το.')
+        return
+      }
 
       // Αναμέτρηση (1vs1)
       let versus: PostData['versus']
@@ -235,16 +303,19 @@ export default function AdminPost() {
       <h1 className="text-lg font-extrabold text-chalk mb-4">Δημιουργία Post</h1>
 
       <div className="flex flex-col gap-3 mb-4">
-        <Select label="ΠΡΩΤΑΘΛΗΜΑ" value={league} onChange={setLeague}
-          options={leagues.map(l => ({ value: l.league_id, label: l.name }))} />
+        {type !== 'week' && (
+          <Select label="ΠΡΩΤΑΘΛΗΜΑ" value={league} onChange={setLeague}
+            options={leagues.map(l => ({ value: l.league_id, label: l.name }))} />
+        )}
 
         <div>
           <label className="block text-[8.5px] font-extrabold text-dim
             tracking-[0.12em] mb-1.5 pl-0.5">ΤΥΠΟΣ</label>
-          <div className="grid grid-cols-2 gap-[3px] bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
+          <div className="grid grid-cols-3 gap-[3px] bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
             {TYPES.map(t => (
-              <button key={t.id} onClick={() => { setType(t.id); setReady(false) }}
-                className={`py-2.5 rounded-lg text-[12.5px] font-bold transition-colors
+              <button key={t.id}
+                onClick={() => { setType(t.id); setReady(false); if (t.id === 'week') setFormat('story') }}
+                className={`py-2.5 rounded-lg text-[12px] font-bold transition-colors
                   ${type === t.id ? 'bg-brand text-chalk' : 'text-dim'}`}>
                 {t.label}
               </button>
@@ -321,6 +392,76 @@ export default function AdminPost() {
           </>
         )}
 
+        {type === 'week' && (
+          <>
+            {/* Πρόγραμμα ή Αποτελέσματα */}
+            <div>
+              <label className="block text-[8.5px] font-extrabold text-dim
+                tracking-[0.12em] mb-1.5 pl-0.5">ΤΙ ΝΑ ΔΕΙΞΕΙ</label>
+              <div className="flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
+                {([['program', 'Πρόγραμμα'], ['results', 'Αποτελέσματα']] as const).map(([v, l]) => (
+                  <button key={v} onClick={() => { setWeekMode(v); setReady(false) }}
+                    className={`flex-1 py-2.5 rounded-lg text-[12.5px] font-bold transition-colors
+                      ${weekMode === v ? 'bg-brand text-chalk' : 'text-dim'}`}>{l}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Εβδομάδα (οποιαδήποτε μέρα της) */}
+            <div>
+              <label className="block text-[8.5px] font-extrabold text-dim
+                tracking-[0.12em] mb-1.5 pl-0.5">ΕΒΔΟΜΑΔΑ</label>
+              <input type="date" value={weekDate} onChange={e => { setWeekDate(e.target.value); setReady(false) }}
+                className="w-full bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-sm
+                  outline-none border border-chalk/[0.07] focus:border-lit/50" />
+              <p className="text-[10px] text-dim mt-1 pl-0.5">
+                {(() => { const w = weekDays(weekDate); return `Δευτέρα – Κυριακή (${w[0].label.split(' ').pop()}–${w[6].label.split(' ').pop()})` })()}
+              </p>
+            </div>
+
+            {/* Πρωταθλήματα (πολλαπλή επιλογή) */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5 pl-0.5">
+                <label className="text-[8.5px] font-extrabold text-dim tracking-[0.12em]">ΠΡΩΤΑΘΛΗΜΑΤΑ</label>
+                <div className="flex gap-2">
+                  <button onClick={() => { setWeekLeagues(new Set(leagues.map(l => l.league_id))); setReady(false) }}
+                    className="text-[10px] font-bold text-lit">Όλα</button>
+                  <button onClick={() => { setWeekLeagues(new Set()); setReady(false) }}
+                    className="text-[10px] font-bold text-dim">Κανένα</button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {leagues.map(l => {
+                  const on = weekLeagues.has(l.league_id)
+                  return (
+                    <button key={l.league_id}
+                      onClick={() => { setWeekLeagues(prev => { const n = new Set(prev); n.has(l.league_id) ? n.delete(l.league_id) : n.add(l.league_id); return n }); setReady(false) }}
+                      className={`px-3 py-1.5 rounded-full text-[11.5px] font-bold border transition-colors
+                        ${on ? 'bg-lit/15 border-lit/50 text-lit' : 'bg-turf border-chalk/[0.07] text-dim'}`}>
+                      {on ? '✓ ' : ''}{l.name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Μέγεθος */}
+            <div>
+              <label className="block text-[8.5px] font-extrabold text-dim
+                tracking-[0.12em] mb-1.5 pl-0.5">ΜΕΓΕΘΟΣ</label>
+              <div className="flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
+                {(['story', 'square', 'yt'] as const).map(f => (
+                  <button key={f} onClick={() => { setFormat(f); setReady(false) }}
+                    className={`flex-1 py-2.5 rounded-lg text-[12px] font-bold transition-colors
+                      ${format === f ? 'bg-brand text-chalk' : 'text-dim'}`}>
+                    {SIZES[f].label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
         {/* Χορηγοί — για όλους τους τύπους */}
         <div className="rounded-xl border border-chalk/[0.06] p-3 bg-turf/40">
           <label className="flex items-center justify-between mb-2">
@@ -348,7 +489,8 @@ export default function AdminPost() {
       <button onClick={generate}
         disabled={busy || !league
           || (needsRound && (scope === 'round' ? !round : !day))
-          || (type === 'versus' && !matchId)}
+          || (type === 'versus' && !matchId)
+          || (type === 'week' && weekLeagues.size === 0)}
         className="w-full py-3.5 rounded-xl bg-gradient-to-b from-lit to-brand
           text-white font-extrabold text-[15px] disabled:opacity-40
           shadow-[0_4px_16px_rgba(224,91,31,0.3)]">
@@ -359,12 +501,12 @@ export default function AdminPost() {
       <div className="mt-5">
         <canvas ref={canvasRef}
           className={`w-full rounded-2xl border border-chalk/[0.08] ${ready ? 'block' : 'hidden'}`}
-          style={{ aspectRatio: type === 'versus' ? `${size.w} / ${size.h}` : '1 / 1' }} />
+          style={{ aspectRatio: (type === 'versus' || type === 'week') ? `${size.w} / ${size.h}` : '1 / 1' }} />
         {ready && (
           <button onClick={download}
             className="w-full mt-3 py-3.5 rounded-xl bg-chalk/[0.06] text-chalk
               font-extrabold text-[14px] border border-chalk/[0.08]">
-            ⬇︎ Κατέβασμα PNG ({type === 'versus' ? `${size.w}×${size.h}` : '1080×1080'})
+            ⬇︎ Κατέβασμα PNG ({(type === 'versus' || type === 'week') ? `${size.w}×${size.h}` : '1080×1080'})
           </button>
         )}
         {!ready && (

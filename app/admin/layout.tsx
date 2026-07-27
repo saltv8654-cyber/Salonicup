@@ -39,22 +39,32 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </p>
           <p className="text-sm font-bold text-chalk">Διαχείριση</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex bg-turf rounded-lg p-[3px] border border-chalk/[0.06]">
-            <span className="px-2 py-1.5 rounded-md text-[10.5px] font-extrabold
-              bg-brand text-chalk">Admin</span>
-            <Link href="/speaker"
-              className="px-2 py-1.5 rounded-md text-[10.5px] font-bold text-dim">Speaker</Link>
-            <Link href="/schedule"
-              className="px-2 py-1.5 rounded-md text-[10.5px] font-bold text-dim">Captain</Link>
-            <Link href="/"
-              className="px-2 py-1.5 rounded-md text-[10.5px] font-bold text-dim">Θεατής</Link>
+        <div className="flex flex-col items-end gap-1.5">
+          <span className="flex items-center gap-1 text-[10px] font-bold text-silver
+            max-w-[180px] truncate">
+            <span className="w-4 h-4 rounded-full bg-gradient-to-br from-lit to-brand
+              grid place-items-center text-[8px] font-black text-white shrink-0">
+              {(profile?.full_name?.trim()?.[0] ?? profile?.email?.[0] ?? '?').toUpperCase()}
+            </span>
+            <span className="truncate">{profile?.full_name ?? profile?.email}</span>
+          </span>
+          <div className="flex items-center gap-2">
+            <div className="flex bg-turf rounded-lg p-[3px] border border-chalk/[0.06]">
+              <span className="px-2 py-1.5 rounded-md text-[10.5px] font-extrabold
+                bg-brand text-chalk">Admin</span>
+              <Link href="/speaker"
+                className="px-2 py-1.5 rounded-md text-[10.5px] font-bold text-dim">Speaker</Link>
+              <Link href="/schedule"
+                className="px-2 py-1.5 rounded-md text-[10.5px] font-bold text-dim">Captain</Link>
+              <Link href="/"
+                className="px-2 py-1.5 rounded-md text-[10.5px] font-bold text-dim">Θεατής</Link>
+            </div>
+            <button onClick={async () => { await signOut(); router.push('/') }}
+              aria-label="Έξοδος"
+              className="text-[13px] text-dim font-semibold px-2.5 py-2 bg-turf rounded-lg">
+              ⎋
+            </button>
           </div>
-          <button onClick={async () => { await signOut(); router.push('/') }}
-            aria-label="Έξοδος"
-            className="text-[13px] text-dim font-semibold px-2.5 py-2 bg-turf rounded-lg">
-            ⎋
-          </button>
         </div>
       </header>
 

@@ -15,7 +15,7 @@ const COL = {
   highlight: 'rgba(224,91,31,0.22)',
 }
 
-export type PostType = 'schedule' | 'results' | 'standings' | 'versus'
+export type PostType = 'schedule' | 'results' | 'standings' | 'versus' | 'week'
 
 /* Χρωματικά θέματα ανά πρωτάθλημα (accent + φόντο). */
 export type ThemeId = 'orange' | 'yellow' | 'miami'
@@ -45,6 +45,13 @@ export interface StandRow {
 }
 export interface DayGroup { day: string; matches: MatchRow[] }
 
+export interface WeekMatch {
+  time?: string; score?: string; field?: string
+  leagueName?: string; leagueLogo?: string | null
+  homeName: string; awayName: string
+}
+export interface WeekDay { day: string; matches: WeekMatch[] }
+
 export interface PostData {
   type: PostType
   leagueName: string
@@ -54,6 +61,7 @@ export interface PostData {
   groups: DayGroup[]
   standings: StandRow[]
   versus?: Versus
+  week?: WeekDay[]
   sponsors?: string[]
   theme?: ThemeId
 }
@@ -151,6 +159,7 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
     if (m.awayLogo) teamUrls.add(m.awayLogo)
   }))
   d.standings.forEach((s) => { if (s.logo) teamUrls.add(s.logo) })
+  d.week?.forEach((dd) => dd.matches.forEach((m) => { if (m.leagueLogo) teamUrls.add(m.leagueLogo) }))
   if (d.versus?.homeLogo) teamUrls.add(d.versus.homeLogo)
   if (d.versus?.awayLogo) teamUrls.add(d.versus.awayLogo)
   d.sponsors?.forEach((u) => { if (u) teamUrls.add(u) })
@@ -234,6 +243,7 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
   const bodyBottom = hasSp ? H - 165 : H - 64
   if (d.type === 'standings') drawStandings(ctx, d, L, pal, bodyBottom)
   else if (d.type === 'versus') drawVersus(ctx, d, L, W, H, pal)
+  else if (d.type === 'week') drawWeek(ctx, d, L, W, pal, bodyBottom)
   else drawMatches(ctx, d, L, pal, bodyBottom)
 
   /* λωρίδα χορηγών (μη-Αναμέτρηση· η Αναμέτρηση τους ζωγραφίζει στοιβαγμένους) */
@@ -586,4 +596,75 @@ function drawStandings(ctx: any, d: PostData, L: (u: string | null) => HTMLImage
     ctx.font = font(700, 32)
     ctx.fillText(String(t.points), colB, cy)
   })
+}
+
+/* Εβδομαδιαίο πρόγραμμα/αποτελέσματα: ημέρες Δευτ→Κυρ με τους αγώνες. */
+function drawWeek(ctx: any, d: PostData, L: (u: string | null) => HTMLImageElement | null,
+  W: number, pal: Pal, bottom: number) {
+  const PAD = 60
+  const days = (d.week ?? []).filter(dd => dd.matches.length)
+  const nMatches = days.reduce((n, dd) => n + dd.matches.length, 0)
+  const top = 258
+
+  // Δυναμικά μεγέθη ώστε να χωρέσει η εβδομάδα
+  let dayH = 52, rowH = 66, dayGap = 16
+  const need = () => days.reduce((h, dd) => h + dayH + 4 + dd.matches.length * rowH + dayGap, 0)
+  while (need() > bottom - top && rowH > 34) { rowH -= 2; if (dayH > 40) dayH -= 1; if (dayGap > 8) dayGap -= 1 }
+
+  let y = top
+  for (const dd of days) {
+    // Μπάρα ημέρας
+    ctx.fillStyle = rgba(pal.accent, 0.16)
+    roundRect(ctx, PAD, y, W - PAD * 2, dayH, 10); ctx.fill()
+    ctx.fillStyle = pal.accent
+    ctx.font = font(700, Math.min(27, dayH * 0.52))
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+    ctx.fillText(dd.day.toUpperCase(), PAD + 16, y + dayH / 2)
+    ctx.fillStyle = COL.dim
+    ctx.font = font(600, 16); ctx.textAlign = 'right'
+    ctx.fillText(`${dd.matches.length}`, W - PAD - 16, y + dayH / 2)
+    y += dayH + 4
+
+    for (const m of dd.matches) {
+      const cy = y + rowH / 2
+      ctx.textBaseline = 'middle'
+
+      // Αριστερά: ώρα (accent) ή σκορ (άσπρο)
+      ctx.textAlign = 'left'
+      const lead = m.score ?? m.time ?? ''
+      ctx.fillStyle = m.score ? COL.white : pal.accent
+      ctx.font = font(700, Math.min(27, rowH * 0.42))
+      ctx.fillText(lead, PAD + 4, cy)
+
+      // Σήμα πρωταθλήματος
+      const lx = PAD + 110
+      const cs = Math.min(30, rowH * 0.5)
+      crest(ctx, L(m.leagueLogo ?? null), m.leagueName ?? '', lx, cy, cs)
+
+      // Ομάδες (μικραίνει για να χωρέσει)
+      const teamsX = lx + cs / 2 + 16
+      const fieldW = m.field ? 78 : 8
+      const teamsMax = (W - PAD - fieldW) - teamsX
+      ctx.fillStyle = COL.white
+      const teams = `${m.homeName}  –  ${m.awayName}`
+      const t = fitFont(ctx, teams, teamsMax, 600, Math.min(26, rowH * 0.4), 15)
+      ctx.textAlign = 'left'
+      ctx.fillText(t, teamsX, cy)
+
+      // Γήπεδο (δεξιά)
+      if (m.field) {
+        ctx.fillStyle = COL.dim
+        ctx.font = font(600, 16); ctx.textAlign = 'right'
+        ctx.fillText(m.field, W - PAD - 6, cy)
+      }
+      y += rowH
+    }
+    y += dayGap
+  }
+
+  if (!nMatches) {
+    ctx.fillStyle = COL.dim
+    ctx.font = font(500, 34); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText('Δεν υπάρχουν αγώνες αυτή την εβδομάδα', W / 2, 560)
+  }
 }
