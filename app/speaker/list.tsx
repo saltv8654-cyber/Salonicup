@@ -17,22 +17,34 @@ type Tab = 'past' | 'live' | 'next'
 const catOf = (m: any): Tab =>
   m.match_status === 'Live' ? 'live' : PAST.includes(m.match_status) ? 'past' : 'next'
 
-export default function SpeakerList({ matches }: { matches: any[] }) {
+export default function SpeakerList({ matches, leagues = [] }: {
+  matches: any[]; leagues?: { league_id: string; name: string }[]
+}) {
   const [q, setQ] = useState('')
   const [tab, setTab] = useState<Tab>(() =>
     matches.some(m => m.match_status === 'Live') ? 'live' : 'next')
+  const [league, setLeague] = useState<string>('all')
+
+  // Μόνο τα πρωταθλήματα που έχουν αγώνες (με τη σειρά sort_order)
+  const leagueChips = useMemo(() => {
+    const present = new Set(matches.map(m => m.league_id))
+    return leagues.filter(l => present.has(l.league_id))
+  }, [matches, leagues])
 
   const filtered = useMemo(() => {
+    let list = league === 'all' ? matches : matches.filter(m => m.league_id === league)
     const needle = norm(q.trim())
-    if (!needle) return matches
-    return matches.filter(m => {
-      const hay = norm([
-        m.team_a_data?.name, m.team_b_data?.name, m.league?.name,
-        m.venue?.name, m.field, m.round != null ? `αγ ${m.round}` : '',
-      ].filter(Boolean).join(' '))
-      return hay.includes(needle)
-    })
-  }, [matches, q])
+    if (needle) {
+      list = list.filter(m => {
+        const hay = norm([
+          m.team_a_data?.name, m.team_b_data?.name, m.league?.name,
+          m.venue?.name, m.field, m.round != null ? `αγ ${m.round}` : '',
+        ].filter(Boolean).join(' '))
+        return hay.includes(needle)
+      })
+    }
+    return list
+  }, [matches, q, league])
 
   const groups = useMemo(() => ({
     past: filtered.filter(m => catOf(m) === 'past').sort(byDateDesc), // πιο πρόσφατοι πρώτα
@@ -89,6 +101,25 @@ export default function SpeakerList({ matches }: { matches: any[] }) {
           )
         })}
       </div>
+
+      {/* Φίλτρο πρωταθλήματος — οριζόντια κουμπιά */}
+      {leagueChips.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1 mb-4 -mx-3.5 px-3.5
+          [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {[{ league_id: 'all', name: 'Όλα' }, ...leagueChips].map(l => {
+            const on = league === l.league_id
+            return (
+              <button key={l.league_id} onClick={() => setLeague(l.league_id)}
+                className={`shrink-0 px-3.5 py-2 rounded-full text-[12px] font-bold whitespace-nowrap
+                  border transition-colors
+                  ${on ? 'bg-lit/15 border-lit/50 text-lit'
+                       : 'bg-turf border-chalk/[0.07] text-dim'}`}>
+                {l.name}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {shown.length > 0 ? (
         <div className="flex flex-col gap-1.5">

@@ -28,13 +28,14 @@ export default async function SpeakerHome() {
     `
   // Ξεχωριστά ερωτήματα ώστε οι ολοκληρωμένοι να μη «κόβονται» από τους πολλούς
   // προγραμματισμένους (κοινό όριο θα γέμιζε με μελλοντικές ημερομηνίες).
-  const [finished, upcoming] = await Promise.all([
+  const [finished, upcoming, leaguesRes] = await Promise.all([
     supabase.from('matches').select(SELECT)
       .in('match_status', ['Played', 'Forfeit'])
       .order('match_date', { ascending: false }),
     supabase.from('matches').select(SELECT)
       .in('match_status', ['Scheduled', 'Live', 'Postponed'])
       .order('match_date', { ascending: true }),
+    supabase.from('leagues').select('league_id, name').order('sort_order'),
   ])
   const matches = [...(finished.data ?? []), ...(upcoming.data ?? [])]
 
@@ -55,7 +56,7 @@ export default async function SpeakerHome() {
         </h1>
       </header>
 
-      <SpeakerList matches={matches ?? []} />
+      <SpeakerList matches={matches ?? []} leagues={leaguesRes.data ?? []} />
     </div>
   )
 }
