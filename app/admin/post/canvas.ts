@@ -100,6 +100,20 @@ function fit(ctx: any, text: string, maxW: number) {
   return t + '…'
 }
 
+/**
+ * Μικραίνει τη γραμματοσειρά ώσπου να χωρέσει ολόκληρο το κείμενο (αντί να το κόβει).
+ * Θέτει το ctx.font· αν φτάσει το minSize και ακόμα δεν χωράει, κόβει με «…».
+ */
+function fitFont(ctx: any, text: string, maxW: number, weight: number, baseSize: number, minSize = 16) {
+  let size = baseSize
+  ctx.font = font(weight, size)
+  while (size > minSize && ctx.measureText(text).width > maxW) {
+    size -= 1
+    ctx.font = font(weight, size)
+  }
+  return ctx.measureText(text).width > maxW ? fit(ctx, text, maxW) : text
+}
+
 /* Θυρεός: λογότυπο σε κύκλο, αλλιώς αρχικό γράμμα. */
 function crest(ctx: any, img: HTMLImageElement | null, name: string, cx: number, cy: number, size: number) {
   const r = size / 2
@@ -182,8 +196,7 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
   ctx.font = font(600, 29)
   ctx.fillText('SALONICUP', tx, 94)
   ctx.fillStyle = COL.white
-  ctx.font = font(700, 60)
-  ctx.fillText(fit(ctx, d.leagueName.toUpperCase(), W - tx - 260), tx, 152)
+  ctx.fillText(fitFont(ctx, d.leagueName.toUpperCase(), W - tx - 260, 700, 60, 34), tx, 152)
   ctx.fillStyle = COL.blue
   ctx.font = font(500, 30)
   ctx.fillText(d.sub, tx, 192)
@@ -366,8 +379,7 @@ function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEle
 
   const team = (name: string, x: number) => {
     ctx.fillStyle = COL.white
-    ctx.font = font(700, nameSize)
-    ctx.fillText(fit(ctx, name.toUpperCase(), nameMax), x, nameY)
+    ctx.fillText(fitFont(ctx, name.toUpperCase(), nameMax, 700, nameSize, 26), x, nameY)
   }
   team(v.homeName, leftX)
   team(v.awayName, rightX)
@@ -466,10 +478,9 @@ function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEl
       // γηπεδούχος (αριστερά)
       crest(ctx, L(m.homeLogo), m.homeName, PAD + 30 + 30, cy, 62)
       ctx.fillStyle = COL.white
-      ctx.font = font(600, 36)
       ctx.textAlign = 'left'
       ctx.textBaseline = 'middle'
-      ctx.fillText(fit(ctx, m.homeName, 316), PAD + 104, cy)
+      ctx.fillText(fitFont(ctx, m.homeName, 316, 600, 36, 20), PAD + 104, cy)
 
       // κέντρο: ώρα (πορτοκαλί) ή σκορ (άσπρο) + γήπεδο από κάτω
       ctx.textAlign = 'center'
@@ -492,9 +503,8 @@ function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEl
       const rx = S - PAD - 30 - 30
       crest(ctx, L(m.awayLogo), m.awayName, rx, cy, 62)
       ctx.fillStyle = COL.white
-      ctx.font = font(600, 36)
       ctx.textAlign = 'right'
-      ctx.fillText(fit(ctx, m.awayName, 316), S - PAD - 104, cy)
+      ctx.fillText(fitFont(ctx, m.awayName, 316, 600, 36, 20), S - PAD - 104, cy)
 
       y += cardH + gap
     })
@@ -558,9 +568,8 @@ function drawStandings(ctx: any, d: PostData, L: (u: string | null) => HTMLImage
     // λογότυπο + όνομα
     crest(ctx, L(t.logo), t.name, PAD + 84, cy, 46)
     ctx.fillStyle = COL.white
-    ctx.font = font(600, 32)
     ctx.textAlign = 'left'
-    ctx.fillText(fit(ctx, t.name, colA - (PAD + 116) - 20), PAD + 116, cy)
+    ctx.fillText(fitFont(ctx, t.name, colA - (PAD + 116) - 20, 600, 32, 18), PAD + 116, cy)
     // στατιστικά
     ctx.font = font(500, 28)
     ctx.textAlign = 'center'
