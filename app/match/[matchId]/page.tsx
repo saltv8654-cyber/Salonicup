@@ -8,7 +8,7 @@ import { useAuth } from '@/lib/hooks/useAuth'
 import { Watermark, Crest, Avatar, LiveDot, SectionLabel, Loading, Empty, FieldBadge } from '@/app/ui'
 import { fmtTime, fmtDay } from '@/lib/time'
 import { PERIODS, EVENTS, fmtMinute, absMinute, playerTallies } from '@/lib/match'
-import { clockLabel, clockHalf } from '@/lib/clock'
+import { clockLabel } from '@/lib/clock'
 import { useNow } from '@/lib/hooks/useNow'
 import LineupPitch from '@/app/lineup-pitch'
 import { ytEmbed } from '@/lib/youtube'
@@ -56,9 +56,7 @@ export default function PublicMatch() {
   const done = ['Played', 'Forfeit'].includes(match.match_status)
   const notStarted = !live && !done
   const hasPens = match.pens_team_a > 0 || match.pens_team_b > 0
-  const clkMin = clockLabel(match.clock_period, match.clock_started_at, now)
-  const clkHalf = clockHalf(match.clock_period)
-  const clk = clkMin ? (clkHalf ? `${clkHalf} · ${clkMin}` : clkMin) : null
+  const clk = clockLabel(match.clock_period, match.clock_started_at, now)
   const place = [match.venue?.name, match.field].filter(Boolean).join(' · ')
   // Πριν την έναρξη δείχνουμε το γήπεδο κάτω από την ώρα, οπότε στο κάτω μέρος μόνο το όνομα γηπέδου
   const placeLine = notStarted ? (match.venue?.name ?? '') : place

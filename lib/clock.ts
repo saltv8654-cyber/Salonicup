@@ -1,6 +1,3 @@
-import { fmtMinute } from '@/lib/match'
-import type { Period } from '@/lib/types'
-
 /** Καταστάσεις χρονομέτρου αγώνα (αποθηκεύονται στο matches.clock_period). */
 export type ClockPeriod = 'H1' | 'HT' | 'H2' | 'ET' | 'FT'
 
@@ -22,9 +19,12 @@ export function clockRel(startedAt: string, now = Date.now()): number {
   return Math.max(1, Math.floor(sec / 60) + 1)
 }
 
+/** Βάση λεπτών ανά ημίχρονο (Α΄ ξεκινά 0, Β΄ στο 30, παράταση στο 60). */
+const BASE_MIN: Record<string, number> = { H1: 0, H2: 30, ET: 60 }
+
 /**
- * Ζωντανή ετικέτα χρονομέτρου:
- *   τρέχει  → "12'", "30+2'"
+ * Ζωντανή ετικέτα χρονομέτρου σε ΛΕΠΤΑ:ΔΕΥΤΕΡΟΛΕΠΤΑ:
+ *   τρέχει  → "12:34", "31:05" (χωρίς ένδειξη ημιχρόνου)
  *   ημίχρονο → "ΗΜ"
  *   τελικό  → "ΤΕΛ"
  *   πριν/χωρίς → null
@@ -38,5 +38,9 @@ export function clockLabel(
   if (clockPeriod === 'HT') return 'ΗΜ'
   if (clockPeriod === 'FT') return 'ΤΕΛ'
   if (!startedAt) return null
-  return fmtMinute(clockPeriod as Period, clockRel(startedAt, now))
+  const elapsed = Math.max(0, Math.floor((now - new Date(startedAt).getTime()) / 1000))
+  const total = (BASE_MIN[clockPeriod] ?? 0) * 60 + elapsed
+  const mm = Math.floor(total / 60)
+  const ss = total % 60
+  return `${mm}:${String(ss).padStart(2, '0')}`
 }

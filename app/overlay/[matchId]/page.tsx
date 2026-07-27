@@ -4,7 +4,7 @@ import { useParams, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useLiveMatch } from '@/lib/hooks/useLiveMatch'
 import { useNow } from '@/lib/hooks/useNow'
-import { clockLabel, clockHalf } from '@/lib/clock'
+import { clockLabel } from '@/lib/clock'
 import { fmtMinute } from '@/lib/match'
 import LineupPitch from '@/app/lineup-pitch'
 import type { Period } from '@/lib/types'
@@ -115,11 +115,13 @@ function Overlay() {
 
   useEffect(() => {
     if (preview) return
-    const b = document.body.style.background
-    const h = document.documentElement.style.background
+    const b = document.body.style.cssText
+    const h = document.documentElement.style.cssText
     document.body.style.background = 'transparent'
+    document.body.style.margin = '0'
     document.documentElement.style.background = 'transparent'
-    return () => { document.body.style.background = b; document.documentElement.style.background = h }
+    document.documentElement.style.margin = '0'
+    return () => { document.body.style.cssText = b; document.documentElement.style.cssText = h }
   }, [preview])
 
   useEffect(() => {
@@ -230,7 +232,6 @@ function Overlay() {
 
   const t = themeFor(match.league_id, params.get('theme'))
   const clk = clockLabel(match.clock_period, match.clock_started_at, now)
-  const half = clockHalf(match.clock_period)
   const PP: 'fixed' | 'absolute' = 'absolute'
 
   const M = Number.isFinite(parseInt(params.get('margin') || '')) ? parseInt(params.get('margin')!) : 0
@@ -266,9 +267,10 @@ function Overlay() {
   const luName = luTeam === 'a' ? match.team_a_data?.name : match.team_b_data?.name
   const luLogo = luTeam === 'a' ? match.team_a_data?.logo_url : match.team_b_data?.logo_url
   const lineupsEl = lineupsOn && (
-    <div style={{ position: PP, inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
-      <div key={luTeam} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
-        width: 360, marginTop: 56, animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
+    <div style={{ position: PP, top: 150, left: 0, right: 0, bottom: 12,
+      display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
+      <div key={luTeam} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+        width: 430, animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
         {/* Όνομα ομάδας — μέσα στη στοίβα, ώστε τίτλος+γήπεδο να κεντράρονται μαζί */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 11 }}>
           <Crest name={luName} logo={luLogo} size={44} />
@@ -408,15 +410,15 @@ function Overlay() {
               {match.team_b_data?.name}</span>
           </div>
           {clk && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              minWidth: 88, padding: '0 18px', color: '#fff', background: `linear-gradient(180deg, ${t.acc}, ${t.acc2})` }}>
-              {half && <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.08em', lineHeight: 1 }}>{half}</span>}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
+              minWidth: 96, padding: '0 18px', color: '#fff', fontVariantNumeric: 'tabular-nums',
+              background: `linear-gradient(180deg, ${t.acc}, ${t.acc2})` }}>
               <span style={{ fontSize: 24, fontWeight: 800, lineHeight: 1.1 }}>{clk}</span>
             </div>
           )}
         </div>
-        {/* Πρωτάθλημα — καρτελάκι κάτω από τη μπάρα */}
-        <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
+        {/* Πρωτάθλημα — καρτελάκι ακριβώς κάτω από το σκορ (τέρμα αριστερά) */}
+        <div style={{ position: 'absolute', top: '100%', left: 0,
           display: 'inline-flex', alignItems: 'center', gap: 9, whiteSpace: 'nowrap',
           background: 'rgba(0,0,0,.72)', border: '1px solid rgba(255,255,255,.10)', borderTop: 'none',
           borderBottom: `3px solid ${t.acc}`, borderRadius: '0 0 10px 10px', padding: '6px 16px' }}>
