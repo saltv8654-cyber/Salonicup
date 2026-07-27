@@ -5,7 +5,7 @@ import { Loading } from '@/app/ui'
 import { Select, LogoUpload } from '../ui'
 import { athensDateKey, fmtDay, fmtTime } from '@/lib/time'
 import toast from 'react-hot-toast'
-import { drawPost, THEMES, type PostType, type PostData, type DayGroup, type MatchRow, type WeekDay, type ThemeId } from './canvas'
+import { drawPost, THEMES, type PostType, type PostData, type DayGroup, type MatchRow, type ThemeId } from './canvas'
 
 const TYPES: { id: PostType; label: string }[] = [
   { id: 'schedule',  label: 'Πρόγραμμα' },
@@ -154,15 +154,18 @@ export default function AdminPost() {
       const season = leagueObj.season ?? ''
       const dayLabel = day ? fmtDay(new Date(`${day}T12:00:00`).toISOString()) : ''
 
-      // Εβδομαδιαίο πρόγραμμα/αποτελέσματα (πολλά πρωταθλήματα)
+      // Εβδομαδιαίο πρόγραμμα/αποτελέσματα (ίδιο στυλ με το Πρόγραμμα, με λογότυπα)
       if (type === 'week') {
         if (!weekLeagues.size) { toast.error('Διάλεξε πρωταθλήματα'); setBusy(false); return }
+        const selIds = [...weekLeagues]
+        const selLeagues = leagues.filter(l => selIds.includes(l.league_id))
+        const multi = selLeagues.length > 1
         const wdays = weekDays(weekDate)
         const keys = new Set(wdays.map(w => w.key))
         const want = weekMode === 'results' ? ['Played', 'Forfeit'] : ['Scheduled', 'Live']
         const { data: wm } = await supabase.from('matches')
           .select('*, team_a_data:team_a(name,logo_url), team_b_data:team_b(name,logo_url), league:league_id(name,logo_url)')
-          .in('league_id', [...weekLeagues])
+          .in('league_id', selIds)
           .not('match_date', 'is', null)
         const byKey = new Map<string, any[]>()
         for (const m of wm ?? []) {
@@ -171,29 +174,33 @@ export default function AdminPost() {
           if (!byKey.has(k)) byKey.set(k, [])
           byKey.get(k)!.push(m)
         }
-        const week: WeekDay[] = wdays.filter(w => byKey.has(w.key)).map(w => ({
+        const groups: DayGroup[] = wdays.filter(w => byKey.has(w.key)).map(w => ({
           day: w.label,
           matches: (byKey.get(w.key) ?? [])
             .sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? '')
               || (a.field ?? '').localeCompare(b.field ?? ''))
-            .map(m => ({
-              time: fmtTime(m.match_date),
-              score: ['Played', 'Forfeit'].includes(m.match_status)
-                ? `${m.goals_team_a}-${m.goals_team_b}` : undefined,
-              field: m.field ?? undefined,
-              leagueName: m.league?.name, leagueLogo: m.league?.logo_url ?? null,
-              homeName: m.team_a_data?.name ?? '—', awayName: m.team_b_data?.name ?? '—',
-            })),
+            .map(m => {
+              const row: MatchRow = {
+                homeName: m.team_a_data?.name ?? '—', homeLogo: m.team_a_data?.logo_url ?? null,
+                awayName: m.team_b_data?.name ?? '—', awayLogo: m.team_b_data?.logo_url ?? null,
+              }
+              if (weekMode === 'results') row.score = `${m.goals_team_a ?? 0}-${m.goals_team_b ?? 0}`
+              else row.time = fmtTime(m.match_date)
+              if (m.field) row.field = m.field
+              if (multi) { row.leagueName = m.league?.name; row.leagueLogo = m.league?.logo_url ?? null }
+              return row
+            }),
         }))
         const dm = (key: string) => { const [, mo, da] = key.split('-'); return `${+da}/${+mo}` }
+        const range = `Εβδομάδα ${dm(wdays[0].key)} – ${dm(wdays[6].key)}`
+        const one = selLeagues[0]
         const weekPost: PostData = {
           type: 'week',
-          leagueName: weekMode === 'results' ? 'Αποτελέσματα' : 'Πρόγραμμα',
-          sub: `Εβδομάδα ${dm(wdays[0].key)} – ${dm(wdays[6].key)}`,
-          typeLabel: 'ΕΒΔΟΜΑΔΑ',
-          leagueLogo: null,
-          groups: [], standings: [],
-          week,
+          leagueName: multi ? 'Πρόγραμμα Εβδομάδας' : (one?.name ?? 'Εβδομάδα'),
+          sub: multi ? range : `${range}${one?.season ? ' · ' + one.season : ''}`,
+          typeLabel: weekMode === 'results' ? 'Αποτελέσματα' : 'Πρόγραμμα',
+          leagueLogo: multi ? null : (one?.logo_url ?? null),
+          groups, standings: [],
           sponsors: showSponsors ? [sponsorA, sponsorB].filter(Boolean) : [],
           theme,
         }
