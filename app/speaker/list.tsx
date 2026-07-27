@@ -11,7 +11,9 @@ function norm(s?: string | null) {
 }
 
 const byDateAsc  = (a: any, b: any) => (a.match_date ?? '').localeCompare(b.match_date ?? '')
-const byDateDesc = (a: any, b: any) => (b.match_date ?? '').localeCompare(a.match_date ?? '')
+// «Πόσο πρόσφατα παίχτηκε»: προτίμησε το πότε ξεκίνησε ο σπίκερ, αλλιώς την ημερομηνία
+const recency = (m: any) => m.squad_set_at || m.match_date || ''
+const byRecentDesc = (a: any, b: any) => recency(b).localeCompare(recency(a))
 const PAST = ['Played', 'Forfeit']
 type Tab = 'past' | 'live' | 'next'
 const catOf = (m: any): Tab =>
@@ -47,7 +49,7 @@ export default function SpeakerList({ matches, leagues = [] }: {
   }, [matches, q, league])
 
   const groups = useMemo(() => ({
-    past: filtered.filter(m => catOf(m) === 'past').sort(byDateDesc), // πιο πρόσφατοι πρώτα
+    past: filtered.filter(m => catOf(m) === 'past').sort(byRecentDesc), // πιο πρόσφατοι πρώτα
     live: filtered.filter(m => catOf(m) === 'live').sort(byDateAsc),
     next: filtered.filter(m => catOf(m) === 'next').sort(byDateAsc),  // πλησιέστεροι πρώτα
   }), [filtered])
