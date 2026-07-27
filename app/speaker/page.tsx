@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Watermark } from '@/app/ui'
 import SpeakerList from './list'
+import LogoutButton from '@/app/logout-button'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,9 +46,12 @@ export default async function SpeakerHome() {
         <div className="absolute -right-7 -top-5 w-44 h-48">
           <Watermark opacity={0.045} />
         </div>
-        <Link href="/" aria-label="Αρχική"
-          className="absolute right-4 top-6 w-9 h-9 rounded-lg bg-chalk/[0.06] z-10
-            grid place-items-center text-silver text-lg active:bg-chalk/10">🏠</Link>
+        <div className="absolute right-4 top-6 flex items-center gap-2 z-10">
+          <Link href="/" aria-label="Αρχική"
+            className="w-9 h-9 rounded-lg bg-chalk/[0.06]
+              grid place-items-center text-silver text-lg active:bg-chalk/10">🏠</Link>
+          <LogoutButton />
+        </div>
         <p className="text-[9.5px] tracking-[0.22em] uppercase text-lit font-extrabold">
           Salonicup · Speaker
         </p>
