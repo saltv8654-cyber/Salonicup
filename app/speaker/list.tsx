@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Crest, LiveDot, SectionLabel, Empty } from '@/app/ui'
 import LiveClock from '@/app/live-clock'
-import { fmtDateTime as fmt, isTodayAthens as isToday } from '@/lib/time'
+import { fmtDateTime as fmt } from '@/lib/time'
 
 /** Πεζά + χωρίς τόνους, για αναζήτηση ανεξάρτητα από τονισμό/κεφαλαία. */
 function norm(s?: string | null) {
@@ -11,7 +11,6 @@ function norm(s?: string | null) {
 }
 
 const byDateAsc = (a: any, b: any) => (a.match_date ?? '').localeCompare(b.match_date ?? '')
-const FINISHED = ['Played', 'Forfeit', 'Postponed']
 
 export default function SpeakerList({ matches }: { matches: any[] }) {
   const [q, setQ] = useState('')
@@ -28,10 +27,9 @@ export default function SpeakerList({ matches }: { matches: any[] }) {
     })
   }, [matches, q])
 
-  const live  = filtered.filter(m => m.match_status === 'Live')
-  const today = filtered.filter(m => m.match_status === 'Scheduled' && isToday(m.match_date)).sort(byDateAsc)
-  const soon  = filtered.filter(m => m.match_status === 'Scheduled' && !isToday(m.match_date)).sort(byDateAsc)
-  const past  = filtered.filter(m => FINISHED.includes(m.match_status))
+  // Σε εξέλιξη πάνω-πάνω· όλοι οι υπόλοιποι σε χρονολογική σειρά (παλιότερος → νεότερος)
+  const live = filtered.filter(m => m.match_status === 'Live').sort(byDateAsc)
+  const rest = filtered.filter(m => m.match_status !== 'Live').sort(byDateAsc)
 
   return (
     <div className="px-3.5">
@@ -57,14 +55,8 @@ export default function SpeakerList({ matches }: { matches: any[] }) {
       {live.length > 0 && (
         <Group label="Σε εξέλιξη" live>{live.map(m => <Row key={m.match_id} m={m} />)}</Group>
       )}
-      {today.length > 0 && (
-        <Group label="Σήμερα">{today.map(m => <Row key={m.match_id} m={m} />)}</Group>
-      )}
-      {soon.length > 0 && (
-        <Group label="Επόμενοι">{soon.map(m => <Row key={m.match_id} m={m} />)}</Group>
-      )}
-      {past.length > 0 && (
-        <Group label="Ολοκληρωμένοι">{past.map(m => <Row key={m.match_id} m={m} />)}</Group>
+      {rest.length > 0 && (
+        <Group label="Όλοι οι αγώνες">{rest.map(m => <Row key={m.match_id} m={m} />)}</Group>
       )}
 
       {!filtered.length && (
