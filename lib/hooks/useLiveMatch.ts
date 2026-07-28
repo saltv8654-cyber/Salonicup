@@ -7,31 +7,38 @@ export function useLiveMatch(matchId: string) {
   const [match, setMatch]     = useState<any>(null)
   const [events, setEvents]   = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  // Χρόνος τελευταίας ΕΠΙΤΥΧΟΥΣ ενημέρωσης — για τον watchdog του overlay (OBS)
+  const [lastSync, setLastSync] = useState(() => Date.now())
   const supabase = createClient()
 
   const fetchMatch = useCallback(async () => {
-    const { data } = await supabase
-      .from('matches')
-      .select(`
-        *,
-        mvp:mvp_player_id(player_id, full_name, number, photo_url, team_id),
-        setter:squad_set_by(full_name),
-        team_a_data:team_a(team_id, name, logo_url),
-        team_b_data:team_b(team_id, name, logo_url),
-        league:league_id(name, logo_url),
-        venue:venue_id(name)
-      `)
-      .eq('match_id', matchId)
-      .single()
-    setMatch(data)
+    try {
+      const { data, error } = await supabase
+        .from('matches')
+        .select(`
+          *,
+          mvp:mvp_player_id(player_id, full_name, number, photo_url, team_id),
+          setter:squad_set_by(full_name),
+          team_a_data:team_a(team_id, name, logo_url),
+          team_b_data:team_b(team_id, name, logo_url),
+          league:league_id(name, logo_url),
+          venue:venue_id(name)
+        `)
+        .eq('match_id', matchId)
+        .single()
+      // Μόνο σε επιτυχία γράφουμε — προσωρινό σφάλμα δικτύου ΔΕΝ σβήνει το scoreboard
+      if (!error && data) { setMatch(data); setLastSync(Date.now()) }
+    } catch { /* κράτα τα προηγούμενα δεδομένα */ }
   }, [matchId])
 
   const fetchEvents = useCallback(async () => {
-    const { data } = await supabase
-      .from('events')
-      .select('*, player:player_id(player_id, full_name, number, photo_url)')
-      .eq('match_id', matchId)
-    setEvents(data ?? [])
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('*, player:player_id(player_id, full_name, number, photo_url)')
+        .eq('match_id', matchId)
+      if (!error && data) { setEvents(data); setLastSync(Date.now()) }
+    } catch { /* κράτα τα προηγούμενα δεδομένα */ }
   }, [matchId])
 
   useEffect(() => {
@@ -84,5 +91,5 @@ export function useLiveMatch(matchId: string) {
     }
   }, [matchId, fetchMatch, fetchEvents])
 
-  return { match, events, loading, refresh: fetchEvents }
+  return { match, events, loading, lastSync, refresh: fetchEvents }
 }

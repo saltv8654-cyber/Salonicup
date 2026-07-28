@@ -46,7 +46,7 @@ export default function OverlayPage() {
 function Overlay() {
   const { matchId } = useParams()
   const params = useSearchParams()
-  const { match, events } = useLiveMatch(matchId as string)
+  const { match, events, lastSync } = useLiveMatch(matchId as string)
   const now = useNow(1000)
 
   const userScale = parseFloat(params.get('scale') || '1.5') || 1.5
@@ -104,6 +104,21 @@ function Overlay() {
       clearInterval(iv)
     }
   }, [])
+
+  // Watchdog (μόνο στο πραγματικό OBS overlay): αν για πολλή ώρα δεν έρθει
+  // καμία επιτυχής ενημέρωση (κολλημένη σελίδα/νεκρό δίκτυο), κάνε reload μόνο σου.
+  const lastSyncRef = useRef(lastSync)
+  lastSyncRef.current = lastSync
+  const loadedRef = useRef(false)
+  if (match) loadedRef.current = true
+  useEffect(() => {
+    if (preview) return
+    const iv = setInterval(() => {
+      if (document.visibilityState !== 'visible' || !loadedRef.current) return
+      if (Date.now() - lastSyncRef.current > 70000) window.location.reload()
+    }, 15000)
+    return () => clearInterval(iv)
+  }, [preview])
 
   // Κλίμακα πραγματικού overlay (OBS): γεμίζει το πλάτος της οθόνης
   const [realFit, setRealFit] = useState(1)
