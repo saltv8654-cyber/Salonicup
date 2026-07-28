@@ -288,6 +288,15 @@ export default function SpeakerPanel() {
       })
       // Αλυσίδα: γκολ → ασίστ, ίδια ομάδα
       setAssistSide(evSide)
+    } else if (ev === 'OWN' && !isPen) {
+      // Αυτογκόλ → γκολ για την ΑΝΤΙΠΑΛΗ ομάδα (αυτή που πήγε +1)
+      const benefName = evSide === 'a' ? match.team_b_data?.name : match.team_a_data?.name
+      notifyPush({
+        title: `⚽ ΓΚΟΛ! ${benefName ?? ''}`.trim(),
+        body: `Αυτογκόλ ${player.full_name} — ${vs}`,
+        url: `/match/${match.match_id}`,
+        type: 'goal', leagueId: match.league_id,
+      })
     } else if (ev === 'RED') {
       notifyPush({
         title: '🟥 Κόκκινη κάρτα',

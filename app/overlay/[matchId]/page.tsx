@@ -309,11 +309,11 @@ function Overlay() {
 
   // Καρτελάκι πρωταθλήματος — κολλητά πάνω-κέντρο σε Σύνθεση/Σκόρερς (στυλ PL)
   const leagueTab = (
-    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, whiteSpace: 'nowrap',
       background: PL.deep2, border: '1px solid rgba(255,255,255,.10)', borderBottom: 'none',
-      borderTop: `3px solid ${PL.pink}`, borderRadius: '8px 8px 0 0', padding: '5px 16px' }}>
-      <Crest name={match.league?.name} logo={match.league?.logo_url} size={20} />
-      <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase',
+      borderTop: `3px solid ${PL.pink}`, borderRadius: '10px 10px 0 0', padding: '7px 18px' }}>
+      <Crest name={match.league?.name} logo={match.league?.logo_url} size={34} />
+      <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase',
         color: '#fff' }}>{match.league?.name}</span>
     </div>
   )
