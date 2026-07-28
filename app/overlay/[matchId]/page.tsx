@@ -56,6 +56,7 @@ function Overlay() {
   const [pos, setPos] = useState(params.get('pos') || 'tl')
   // Λογότυπο καναλιού πάνω-δεξιά (κείμενο· ρυθμίζεται από την προεπισκόπηση ή ?brand=)
   const [brand, setBrand] = useState(params.get('brand') ?? 'SALTV1')
+  const [live, setLive] = useState(params.get('live') !== '0')  // παλλόμενο LIVE (default on)
   const urlSponsors = (params.get('sponsors') || '').split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean)
   const [dbSponsors, setDbSponsors] = useState<string[]>([])
   const sponsors = urlSponsors.length ? urlSponsors : dbSponsors
@@ -326,6 +327,7 @@ function Overlay() {
       @keyframes ovGoal{from{opacity:0;transform:translate(-50%,-12px) scale(.94)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
       @keyframes ovMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
       @keyframes ovPop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+      @keyframes ovLive{0%{box-shadow:0 0 0 0 rgba(255,45,45,.55);opacity:1}70%{box-shadow:0 0 0 9px rgba(255,45,45,0);opacity:.6}100%{box-shadow:0 0 0 0 rgba(255,45,45,0);opacity:1}}
     `}</style>
   )
 
@@ -615,15 +617,27 @@ function Overlay() {
   )
 
   // Στις συνθέσεις κρύβουμε το scoreboard, ώστε η σύνθεση να πάει πιο ψηλά & πιο μεγάλη
-  // Λογότυπο καναλιού — πάντα πάνω-δεξιά (κανάλι bug)
-  const brandEl = brand ? (
+  // Πάνω-δεξιά HUD: λογότυπο καναλιού + παλλόμενο LIVE
+  const brandEl = (brand || live) ? (
     <div style={{ position: PP, top: 16, right: 26, display: 'flex', flexDirection: 'column',
-      alignItems: 'flex-end', gap: 4, pointerEvents: 'none' }}>
-      <span style={{ fontSize: 32, fontWeight: 900, fontStyle: 'italic', color: '#fff', letterSpacing: '.02em',
-        lineHeight: 1, textShadow: '0 2px 12px rgba(0,0,0,.75)',
-        fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif' }}>{brand}</span>
-      <span style={{ width: 46, height: 3, borderRadius: 2,
-        background: `linear-gradient(90deg, ${PL.pink}, ${PL.pink2})` }} />
+      alignItems: 'flex-end', gap: 8, pointerEvents: 'none' }}>
+      {brand && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+          <span style={{ fontSize: 32, fontWeight: 900, fontStyle: 'italic', color: '#fff', letterSpacing: '.02em',
+            lineHeight: 1, textShadow: '0 2px 12px rgba(0,0,0,.75)',
+            fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif' }}>{brand}</span>
+          <span style={{ width: 46, height: 3, borderRadius: 2,
+            background: `linear-gradient(90deg, ${PL.pink}, ${PL.pink2})` }} />
+        </div>
+      )}
+      {live && (
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 10px',
+          borderRadius: 8, background: 'rgba(6,10,16,.72)', border: '1px solid rgba(255,255,255,.12)' }}>
+          <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#ff2d2d',
+            animation: 'ovLive 1.3s ease-out infinite' }} />
+          <span style={{ fontSize: 15, fontWeight: 900, letterSpacing: '.18em', color: '#fff' }}>LIVE</span>
+        </div>
+      )}
     </div>
   ) : null
 
@@ -720,6 +734,10 @@ function Overlay() {
                   borderRadius: 9, padding: '7px 11px', fontWeight: 800, fontSize: 12, cursor: 'pointer',
                   fontFamily: 'inherit' }}>{v || 'Κανένα'}</button>
             ))}
+            <button onClick={() => setLive(v => !v)}
+              style={{ background: live ? '#c81e1e' : '#1b2130', color: '#fff', border: 0,
+                borderRadius: 9, padding: '7px 11px', fontWeight: 800, fontSize: 12, cursor: 'pointer',
+                fontFamily: 'inherit', marginLeft: 'auto' }}>🔴 LIVE {live ? 'ON' : 'OFF'}</button>
           </div>
           <button
             onClick={() => {
@@ -728,6 +746,7 @@ function Overlay() {
               q.set('scale', userScale.toFixed(2))
               q.set('pos', pos)
               if (brand) q.set('brand', brand); else q.delete('brand')
+              if (live) q.delete('live'); else q.set('live', '0')
               const link = `${window.location.origin}/overlay/${matchId}?${q.toString()}`
               navigator.clipboard?.writeText(link)
               setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000)
