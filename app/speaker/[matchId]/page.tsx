@@ -610,10 +610,14 @@ export default function SpeakerPanel() {
             /* Λίστα: ονόματα ανά ομάδα */
             <div className="px-3.5 pb-2 shrink-0 max-h-[42vh] overflow-y-auto">
               <div className="grid grid-cols-2 gap-2 items-start">
-                <TeamGrid name={match.team_a_data?.name} players={activeA} side="a"
-                  notes={notes} dimmed={assistSide === 'b'} onTap={onPlayerTap} stats={tallies} />
-                <TeamGrid name={match.team_b_data?.name} players={activeB} side="b"
-                  notes={notes} dimmed={assistSide === 'a'} onTap={onPlayerTap} stats={tallies} />
+                <TeamGrid name={match.team_a_data?.name}
+                  players={hasLineupLive ? activeA.filter(p => startersLiveA.includes(p.player_id)) : activeA}
+                  bench={hasLineupLive ? benchLiveA : []}
+                  side="a" notes={notes} dimmed={assistSide === 'b'} onTap={onPlayerTap} stats={tallies} />
+                <TeamGrid name={match.team_b_data?.name}
+                  players={hasLineupLive ? activeB.filter(p => startersLiveB.includes(p.player_id)) : activeB}
+                  bench={hasLineupLive ? benchLiveB : []}
+                  side="b" notes={notes} dimmed={assistSide === 'a'} onTap={onPlayerTap} stats={tallies} />
               </div>
 
               {/* Αλλαγές — και από τη λίστα */}
@@ -1666,47 +1670,65 @@ function AddPlayerSheet({ teamName, busy, onAdd, onClose }: {
 
 /* ── Επιλογή παίκτη ── */
 /* ── Πλέγμα ομάδας: ονόματα μόνιμα ορατά, tap = επιλογή παίκτη ── */
-function TeamGrid({ name, players, side, notes, dimmed, onTap, stats }: {
-  name?: string; players: Player[]; side: Side; notes?: Record<string, string>
+function TeamGrid({ name, players, bench, side, notes, dimmed, onTap, stats }: {
+  name?: string; players: Player[]; bench?: Player[]; side: Side; notes?: Record<string, string>
   dimmed?: boolean; onTap: (p: Player, s: Side) => void
   stats?: Record<string, { g: number; a: number; y: number; r: number }>
 }) {
+  const Row = (p: Player, sub: boolean) => {
+    const st = stats?.[p.player_id]
+    return (
+      <button key={p.player_id} onClick={() => onTap(p, side)}
+        className={`w-full rounded-lg pl-1.5 pr-2 py-2 flex items-center gap-1.5
+          border active:bg-brand/25 text-left
+          ${sub ? 'bg-turf/60 border-chalk/[0.04]' : 'bg-turf border-chalk/[0.05]'}`}>
+        <span className="w-5 text-[11px] font-extrabold text-dim text-center shrink-0 tnum self-start mt-0.5">
+          {p.number ?? '·'}
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className={`block text-[12.5px] font-semibold leading-tight break-words
+            ${sub ? 'text-chalk/70' : 'text-chalk'}`}>
+            {p.full_name}
+          </span>
+          {notes?.[p.player_id] && (
+            <span className="block text-[9px] text-lit leading-tight break-words">📝 {notes[p.player_id]}</span>
+          )}
+        </span>
+        {st && (st.g || st.a || st.y || st.r) ? (
+          <span className="shrink-0 flex items-center gap-0.5 text-[10px] font-extrabold self-start mt-0.5">
+            {st.g > 0 && <span>⚽{st.g > 1 ? st.g : ''}</span>}
+            {st.a > 0 && <span>🅰{st.a > 1 ? st.a : ''}</span>}
+            {st.y > 0 && <span>🟨</span>}
+            {st.r > 0 && <span>🟥</span>}
+          </span>
+        ) : null}
+      </button>
+    )
+  }
+  const hasBench = (bench?.length ?? 0) > 0
   return (
     <div className={dimmed ? 'opacity-35 pointer-events-none' : ''}>
       <p className="text-[9px] font-extrabold text-dim tracking-[0.08em] mb-1.5 px-0.5 truncate">
         {name?.toUpperCase()}
       </p>
       <div className="flex flex-col gap-1">
-        {players.length === 0 ? (
+        {players.length === 0 && !hasBench ? (
           <p className="text-[10px] text-off px-1 py-2">— χωρίς παίκτες —</p>
-        ) : players.map(p => {
-          const st = stats?.[p.player_id]
-          return (
-          <button key={p.player_id} onClick={() => onTap(p, side)}
-            className="w-full bg-turf rounded-lg pl-1.5 pr-2 py-2 flex items-center gap-1.5
-              border border-chalk/[0.05] active:bg-brand/25 text-left">
-            <span className="w-5 text-[11px] font-extrabold text-dim text-center shrink-0 tnum self-start mt-0.5">
-              {p.number ?? '·'}
-            </span>
-            <span className="flex-1 min-w-0">
-              <span className="block text-[12.5px] font-semibold text-chalk leading-tight break-words">
-                {p.full_name}
+        ) : players.map(p => Row(p, false))}
+
+        {hasBench && (
+          <>
+            {/* Διαχωριστική γραμμή: από κάτω οι αναπληρωματικοί (μπερδεύεται ο σπίκερ με τις αλλαγές) */}
+            <div className="flex items-center gap-1.5 mt-1.5 mb-0.5 px-0.5">
+              <span className="h-px flex-1 bg-chalk/[0.12]" />
+              <span className="text-[8px] font-extrabold text-off tracking-[0.14em] shrink-0">
+                ΑΝΑΠΛΗΡΩΜΑΤΙΚΟΙ
               </span>
-              {notes?.[p.player_id] && (
-                <span className="block text-[9px] text-lit leading-tight break-words">📝 {notes[p.player_id]}</span>
-              )}
-            </span>
-            {st && (st.g || st.a || st.y || st.r) ? (
-              <span className="shrink-0 flex items-center gap-0.5 text-[10px] font-extrabold self-start mt-0.5">
-                {st.g > 0 && <span>⚽{st.g > 1 ? st.g : ''}</span>}
-                {st.a > 0 && <span>🅰{st.a > 1 ? st.a : ''}</span>}
-                {st.y > 0 && <span>🟨</span>}
-                {st.r > 0 && <span>🟥</span>}
-              </span>
-            ) : null}
-          </button>
-          )
-        })}
+              <span className="h-px flex-1 bg-chalk/[0.12]" />
+            </div>
+            {bench!.map(p => Row(p, true))}
+          </>
+        )}
       </div>
     </div>
   )
