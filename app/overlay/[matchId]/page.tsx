@@ -24,7 +24,7 @@ function themeFor(leagueId: string | undefined, override: string | null): Theme 
   return THEMES[KEYS[h % 3]]
 }
 
-type Kind = 'GOAL' | 'YELLOW' | 'RED'
+type Kind = 'GOAL' | 'OWN' | 'YELLOW' | 'RED'
 type Pop = { kind: Kind; name: string; sub: string; photo: string | null; assist?: string }
 type BigKind = 'KICKOFF' | 'HT' | 'FT'
 const BIG_META: Record<BigKind, { label: string; sub: string }> = {
@@ -35,6 +35,7 @@ const BIG_META: Record<BigKind, { label: string; sub: string }> = {
 type Sub = { side: 'a' | 'b'; outName: string; inName: string; team: string; min: string }
 const POP_META: Record<Kind, { icon: string; label: string; bg: [string, string] }> = {
   GOAL:   { icon: '⚽', label: 'ΓΚΟΛ',          bg: ['', ''] },
+  OWN:    { icon: '🔻', label: 'ΑΥΤΟΓΚΟΛ',      bg: ['', ''] },
   YELLOW: { icon: '🟨', label: 'ΚΙΤΡΙΝΗ ΚΑΡΤΑ', bg: ['#F2C230', '#D8A21F'] },
   RED:    { icon: '🟥', label: 'ΚΟΚΚΙΝΗ ΚΑΡΤΑ', bg: ['#D8483C', '#B23227'] },
 }
@@ -241,14 +242,17 @@ function Overlay() {
 
   useEffect(() => {
     if (!match) return
-    const kinds: Kind[] = ['GOAL', 'YELLOW', 'RED']
+    const kinds: Kind[] = ['GOAL', 'OWN', 'YELLOW', 'RED']
     const rel = events.filter((e: any) => kinds.includes(e.event_type))
     const fresh = rel.filter((g: any) => !seen.current.has(g.event_id))
     fresh.forEach((g: any) => seen.current.add(g.event_id))
     const recent = fresh.filter((g: any) => Date.now() - new Date(g.created_at).getTime() < 20000)
     if (recent.length) {
       const g = recent[recent.length - 1]
-      const team = g.team_id === match.team_a ? match.team_a_data?.name : match.team_b_data?.name
+      // Αυτογκόλ: μετράει στην ΑΝΤΙΠΑΛΗ ομάδα (αυτή που πήγε +1)
+      const isOwn = g.event_type === 'OWN'
+      const scoredForId = isOwn ? (g.team_id === match.team_a ? match.team_b : match.team_a) : g.team_id
+      const team = scoredForId === match.team_a ? match.team_a_data?.name : match.team_b_data?.name
       // Ασίστ: ζευγάρωμα με γκολ ίδιας ομάδας/ημιχρόνου στο ίδιο λεπτό
       const assist = g.event_type === 'GOAL'
         ? events.find((e: any) => e.event_type === 'ASSIST' && e.team_id === g.team_id
@@ -257,7 +261,7 @@ function Overlay() {
       setPopup({
         kind: g.event_type as Kind,
         name: g.player?.full_name ?? POP_META[g.event_type as Kind].label,
-        sub: `${(team ?? '').toUpperCase()} · ${fmtMinute(g.period as Period, g.minute)}`,
+        sub: `${(team ?? '').toUpperCase()} · ${fmtMinute(g.period as Period, g.minute)}${isOwn ? ' · ΑΥΤΟΓΚΟΛ' : ''}`,
         photo: g.player?.photo_url ?? null,
         assist: assist || undefined,
       })
@@ -293,7 +297,7 @@ function Overlay() {
     </span>
   )
 
-  const popBg = popup ? (popup.kind === 'GOAL' ? [PL.pink, PL.pink2] : POP_META[popup.kind].bg) : ['', '']
+  const popBg = popup ? ((popup.kind === 'GOAL' || popup.kind === 'OWN') ? [PL.pink, PL.pink2] : POP_META[popup.kind].bg) : ['', '']
 
   const styleTag = (
     <style>{`
@@ -301,6 +305,17 @@ function Overlay() {
       @keyframes ovMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
       @keyframes ovPop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
     `}</style>
+  )
+
+  // Καρτελάκι πρωταθλήματος — κολλητά πάνω-κέντρο σε Σύνθεση/Σκόρερς (στυλ PL)
+  const leagueTab = (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
+      background: PL.deep2, border: '1px solid rgba(255,255,255,.10)', borderBottom: 'none',
+      borderTop: `3px solid ${PL.pink}`, borderRadius: '8px 8px 0 0', padding: '5px 16px' }}>
+      <Crest name={match.league?.name} logo={match.league?.logo_url} size={20} />
+      <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase',
+        color: '#fff' }}>{match.league?.name}</span>
+    </div>
   )
 
   const luLine: string[] = ((luTeam === 'a' ? match.lineup_a : match.lineup_b) ?? [])
@@ -312,6 +327,7 @@ function Overlay() {
       display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
       <div key={luTeam} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
         width: 430, animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
+        {leagueTab}
         {/* Όνομα ομάδας — μέσα στη στοίβα, ώστε τίτλος+γήπεδο να κεντράρονται μαζί */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 11 }}>
           <Crest name={luName} logo={luLogo} size={44} />
@@ -328,12 +344,20 @@ function Overlay() {
     </div>
   )
 
-  // Σκόρερς — γκολ ανά παίκτη, ανά ομάδα
+  // Σκόρερς — γκολ ανά παίκτη, ανά ομάδα. Το αυτογκόλ μπαίνει στην ομάδα που
+  // πήγε +1 (η αντίπαλη του παίκτη) με σήμανση «αυτ.».
   const scorersOf = (teamId: string) => {
-    const m = new Map<string, number>()
+    const other = teamId === match.team_a ? match.team_b : match.team_a
+    const goals = new Map<string, number>()
     events.filter((e: any) => e.event_type === 'GOAL' && e.team_id === teamId && e.period !== 'PEN')
-      .forEach((e: any) => { const n = e.player?.full_name ?? '—'; m.set(n, (m.get(n) ?? 0) + 1) })
-    return [...m.entries()]
+      .forEach((e: any) => { const n = e.player?.full_name ?? '—'; goals.set(n, (goals.get(n) ?? 0) + 1) })
+    const owns = new Map<string, number>()
+    events.filter((e: any) => e.event_type === 'OWN' && e.team_id === other && e.period !== 'PEN')
+      .forEach((e: any) => { const n = e.player?.full_name ?? '—'; owns.set(n, (owns.get(n) ?? 0) + 1) })
+    return [
+      ...[...goals.entries()].map(([n, c]) => ({ n, c, own: false })),
+      ...[...owns.entries()].map(([n, c]) => ({ n, c, own: true })),
+    ]
   }
   const scCol = (teamId: string, name?: string, logo?: string | null) => {
     const list = scorersOf(teamId)
@@ -345,12 +369,14 @@ function Overlay() {
           <span style={{ fontSize: 17, fontWeight: 800, textTransform: 'uppercase', color: '#fff',
             lineHeight: 1.1 }}>{name}</span>
         </div>
-        {list.length ? list.map(([n, c], i) => (
+        {list.length ? list.map(({ n, c, own }, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '5px 0',
             fontSize: 16, color: '#fff' }}>
-            <span style={{ color: PL.pink, flex: 'none' }}>⚽</span>
+            <span style={{ color: PL.pink, flex: 'none' }}>{own ? '🔻' : '⚽'}</span>
             <span style={{ fontWeight: 700, lineHeight: 1.15 }}>
-              {n}{c > 1 ? <span style={{ color: PL.pink, fontWeight: 900 }}>{` ×${c}`}</span> : ''}</span>
+              {n}
+              {own && <span style={{ color: PL.pink, fontWeight: 800, fontSize: 13 }}> (αυτ.)</span>}
+              {c > 1 ? <span style={{ color: PL.pink, fontWeight: 900 }}>{` ×${c}`}</span> : ''}</span>
           </div>
         )) : <div style={{ fontSize: 14, color: 'rgba(255,255,255,.5)' }}>—</div>}
       </div>
@@ -358,10 +384,12 @@ function Overlay() {
   }
   const scorersEl = scorersOn && (
     <div style={{ position: PP, inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
-      <div style={{ width: 680, borderRadius: 16, overflow: 'hidden',
-        background: `linear-gradient(180deg, ${PL.deep}, ${PL.dark})`,
-        border: '1px solid rgba(255,255,255,.10)', boxShadow: '0 26px 70px rgba(0,0,0,.6)',
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
         animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
+        {leagueTab}
+        <div style={{ width: 680, borderRadius: '0 0 16px 16px', overflow: 'hidden',
+          background: `linear-gradient(180deg, ${PL.deep}, ${PL.dark})`,
+          border: '1px solid rgba(255,255,255,.10)', boxShadow: '0 26px 70px rgba(0,0,0,.6)' }}>
         {/* Ματζέντα λωρίδα κορυφής (PL) */}
         <div style={{ height: 5, background: `linear-gradient(90deg, ${PL.pink}, ${PL.pink2})` }} />
         <div style={{ padding: '20px 30px 24px' }}>
@@ -372,6 +400,7 @@ function Overlay() {
             <div style={{ alignSelf: 'stretch', width: 1, background: 'rgba(255,255,255,.14)' }} />
             {scCol(match.team_b, match.team_b_data?.name, match.team_b_data?.logo_url)}
           </div>
+        </div>
         </div>
       </div>
     </div>
@@ -525,7 +554,7 @@ function Overlay() {
           <div style={{ position: 'absolute', left: '50%', top: 'calc(100% + 48px)', transform: 'translateX(-50%)',
             display: 'flex', alignItems: 'center', gap: 16, padding: '14px 26px 14px 14px', borderRadius: 16,
             color: '#fff', whiteSpace: 'nowrap', border: `2px solid ${popBg[0]}`,
-            background: popup.kind === 'GOAL'
+            background: (popup.kind === 'GOAL' || popup.kind === 'OWN')
               ? `linear-gradient(180deg, ${PL.deep}, ${PL.dark})` : 'rgba(6,10,16,.92)',
             boxShadow: '0 18px 50px rgba(0,0,0,.5)', animation: 'ovGoal .5s cubic-bezier(.2,.9,.25,1) forwards' }}>
             <span style={{ width: 60, height: 60, borderRadius: '50%', overflow: 'hidden', flex: 'none',
