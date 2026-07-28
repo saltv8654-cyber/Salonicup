@@ -58,6 +58,13 @@ function Overlay() {
   const [dbSponsors, setDbSponsors] = useState<string[]>([])
   const sponsors = urlSponsors.length ? urlSponsors : dbSponsors
   const [linkCopied, setLinkCopied] = useState(false)
+  // Κέντρο του μπλοκ σκορ, για να κάτσει το καρτελάκι πρωταθλήματος ακριβώς από κάτω
+  const scoreRef = useRef<HTMLDivElement>(null)
+  const [scoreCX, setScoreCX] = useState<number | null>(null)
+  useEffect(() => {
+    const el = scoreRef.current
+    if (el) setScoreCX(el.offsetLeft + el.offsetWidth / 2)
+  }, [match?.team_a_data?.name])
 
   const [popup, setPopup] = useState<Pop | null>(null)
   const seen = useRef<Set<string>>(new Set())
@@ -535,7 +542,7 @@ function Overlay() {
             <span style={{ fontSize: 23, fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap',
               letterSpacing: '.01em' }}>{match.team_a_data?.name}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 13, padding: '0 24px',
+          <div ref={scoreRef} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 13, padding: '0 24px',
             background: PL.dark, color: '#fff', fontSize: 42, fontWeight: 900 }}>
             <span>{match.goals_team_a}</span>
             <span style={{ color: PL.pink, fontWeight: 800, fontSize: 26 }}>–</span>
@@ -555,8 +562,9 @@ function Overlay() {
             </div>
           )}
         </div>
-        {/* Πρωτάθλημα — καρτελάκι ακριβώς κάτω από το σκορ (τέρμα αριστερά) */}
-        <div style={{ position: 'absolute', top: '100%', left: 0,
+        {/* Πρωτάθλημα — καρτελάκι ακριβώς κάτω-κέντρο από το σκορ (το «0-0») */}
+        <div style={{ position: 'absolute', top: '100%',
+          left: scoreCX ?? 0, transform: scoreCX != null ? 'translateX(-50%)' : 'none',
           display: 'inline-flex', alignItems: 'center', gap: 9, whiteSpace: 'nowrap',
           background: PL.deep2, border: '1px solid rgba(255,255,255,.08)', borderTop: 'none',
           borderBottom: `3px solid ${PL.pink}`, borderRadius: '0 0 8px 8px', padding: '6px 16px' }}>
