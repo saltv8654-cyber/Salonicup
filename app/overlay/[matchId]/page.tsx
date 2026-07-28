@@ -50,12 +50,14 @@ function Overlay() {
   const { match, events, lastSync } = useLiveMatch(matchId as string)
   const now = useNow(1000)
 
-  const userScale = parseFloat(params.get('scale') || '1.5') || 1.5
-  const pos = params.get('pos') || 'tl'
   const preview = params.get('preview') != null
+  // Μέγεθος & θέση scoreboard — ζωντανά ρυθμιζόμενα στην προεπισκόπηση (αρχική τιμή από URL)
+  const [userScale, setUserScale] = useState(parseFloat(params.get('scale') || '1.5') || 1.5)
+  const [pos, setPos] = useState(params.get('pos') || 'tl')
   const urlSponsors = (params.get('sponsors') || '').split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean)
   const [dbSponsors, setDbSponsors] = useState<string[]>([])
   const sponsors = urlSponsors.length ? urlSponsors : dbSponsors
+  const [linkCopied, setLinkCopied] = useState(false)
 
   const [popup, setPopup] = useState<Pop | null>(null)
   const seen = useRef<Set<string>>(new Set())
@@ -653,6 +655,48 @@ function Overlay() {
             transformOrigin: 'top left', transform: `scale(${pscale})` }}>
             {scene}
           </div>
+        </div>
+
+        {/* Ρύθμιση μεγέθους & θέσης scoreboard — 1:1 με το OBS. Το stage πάνω είναι
+            ακριβώς 16:9 όπως η οθόνη YouTube, άρα ό,τι βλέπεις εδώ βγαίνει και στο live. */}
+        <div style={{ marginTop: 14, padding: 14, borderRadius: 12, background: '#0d1017',
+          border: '1px solid rgba(255,255,255,.10)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#fff', minWidth: 92 }}>
+              Μέγεθος <span style={{ color: PL.pink }}>{Math.round(userScale * 100)}%</span></span>
+            <input type="range" min={0.6} max={2.2} step={0.05} value={userScale}
+              onChange={e => setUserScale(parseFloat(e.target.value))}
+              style={{ flex: 1, minWidth: 180, accentColor: PL.pink }} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#fff', minWidth: 92 }}>Θέση</span>
+            {([['tl', '↖ Πάνω αρ.'], ['tr', '↗ Πάνω δεξ.'], ['bl', '↙ Κάτω αρ.'], ['br', '↘ Κάτω δεξ.']] as const)
+              .map(([v, lbl]) => (
+              <button key={v} onClick={() => setPos(v)}
+                style={{ background: pos === v ? PL.pink : '#1b2130', color: '#fff', border: 0,
+                  borderRadius: 9, padding: '7px 11px', fontWeight: 800, fontSize: 12, cursor: 'pointer',
+                  fontFamily: 'inherit' }}>{lbl}</button>
+            ))}
+          </div>
+          <button
+            onClick={() => {
+              const q = new URLSearchParams(params.toString())
+              q.delete('preview')
+              q.set('scale', userScale.toFixed(2))
+              q.set('pos', pos)
+              const link = `${window.location.origin}/overlay/${matchId}?${q.toString()}`
+              navigator.clipboard?.writeText(link)
+              setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000)
+            }}
+            style={{ background: `linear-gradient(180deg, ${PL.pink}, ${PL.pink2})`, color: '#fff', border: 0,
+              borderRadius: 10, padding: '12px', fontWeight: 800, fontSize: 13.5, cursor: 'pointer',
+              fontFamily: 'inherit' }}>
+            {linkCopied ? '✓ Αντιγράφηκε — βάλ\'το στο OBS' : '📺 Αντιγραφή OBS link (με αυτό το μέγεθος)'}
+          </button>
+          <p style={{ fontSize: 11, color: 'rgba(255,255,255,.5)', margin: 0, lineHeight: 1.5 }}>
+            Ρύθμισε το μέγεθος ώσπου να σου αρέσει πάνω στο 16:9 stage, μετά αντίγραψε το link και βάλ' το
+            ως Browser Source στο OBS (1920×1080). Θα βγει ακριβώς στο ίδιο μέγεθος.
+          </p>
         </div>
       </div>
     </div>
