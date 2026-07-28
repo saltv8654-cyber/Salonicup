@@ -58,7 +58,8 @@ export async function POST(req: Request) {
         *,
         team_a_data:team_a(team_id, name),
         team_b_data:team_b(team_id, name),
-        league:league_id(name)
+        league:league_id(name),
+        venue:venue_id(name)
       `)
       .eq('match_id', matchId)
       .single()
@@ -114,6 +115,29 @@ export async function POST(req: Request) {
     }
 
     const hasPens = match.pens_team_a > 0 || match.pens_team_b > 0
+
+    /* ── Κεφαλίδα αγώνα: Πρωτάθλημα, Ημερομηνία, Γήπεδο, Ομάδες, Ημίχρονο, Τελικό ── */
+    const dateStr = match.match_date
+      ? new Date(match.match_date).toLocaleDateString('el-GR',
+          { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Athens' })
+      : '—'
+    const venueStr = [match.venue?.name, match.field].filter(Boolean).join(' – ') || '—'
+    // Ημίχρονο = γκολ μόνο του Α' ημιχρόνου (αυτογκόλ στην αντίπαλη)
+    const htGoals = (teamId: string, other: string) => list.filter(e =>
+      e.period === 'H1' &&
+      ((e.event_type === 'GOAL' && e.team_id === teamId) ||
+       (e.event_type === 'OWN'  && e.team_id === other))).length
+    const htA = htGoals(match.team_a, match.team_b)
+    const htB = htGoals(match.team_b, match.team_a)
+    const header = [
+      `Πρωτάθλημα: ${match.league?.name ?? '—'}${match.round ? ` · Αγωνιστική ${match.round}` : ''}`,
+      `Ημερομηνία: ${dateStr}`,
+      `Γήπεδο: ${venueStr}`,
+      `Ομάδες: ${nameA} – ${nameB}`,
+      `Ημίχρονο: ${htA}-${htB}`,
+      `Τελικό σκορ: ${nameA} ${match.goals_team_a}-${match.goals_team_b} ${nameB}${
+        hasPens ? ` (πέν. ${match.pens_team_a}-${match.pens_team_b})` : ''}`,
+    ]
 
     const prompt = `ΔΟΜΗ ΑΓΩΝΑ: 30'+30'. Παράταση 5'. Πέναλτι 5-5 αν χρειαστεί.
 
@@ -286,6 +310,8 @@ ${timeline || '(δεν καταγράφηκαν φάσεις)'}`
     }
 
     const report = [
+      ...header,
+      '',
       body,
       '',
       `Σκόρερς ${nameA}`,
