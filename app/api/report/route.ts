@@ -133,7 +133,7 @@ export async function POST(req: Request) {
       `Πρωτάθλημα: ${match.league?.name ?? '—'}${match.round ? ` · Αγωνιστική ${match.round}` : ''}`,
       `Ημερομηνία: ${dateStr}`,
       `Γήπεδο: ${venueStr}`,
-      `Ομάδες: ${nameA} – ${nameB}`,
+      `Ομάδες: ${nameA} vs ${nameB}`,
       `Ημίχρονο: ${htA}-${htB}`,
       `Τελικό σκορ: ${nameA} ${match.goals_team_a}-${match.goals_team_b} ${nameB}${
         hasPens ? ` (πέν. ${match.pens_team_a}-${match.pens_team_b})` : ''}`,
