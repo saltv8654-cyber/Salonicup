@@ -325,7 +325,7 @@ function Overlay() {
   const luName = luTeam === 'a' ? match.team_a_data?.name : match.team_b_data?.name
   const luLogo = luTeam === 'a' ? match.team_a_data?.logo_url : match.team_b_data?.logo_url
   const lineupsEl = lineupsOn && (
-    <div style={{ position: PP, top: 150, left: 0, right: 0, bottom: 10,
+    <div style={{ position: PP, top: 110, left: 0, right: 0, bottom: 10,
       display: 'grid', placeItems: 'start center', pointerEvents: 'none' }}>
       {/* Κλιμάκωση ώστε ολόκληρη η σύνθεση (καρτέλα + γήπεδο) να χωράει κάτω από το σκορ.
           Κάρφωμα στην κορυφή + scale από πάνω, ώστε να μη φεύγει η κάτω σειρά εκτός οθόνης. */}
