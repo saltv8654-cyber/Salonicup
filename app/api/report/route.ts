@@ -200,52 +200,51 @@ ${timeline || '(δεν καταγράφηκαν φάσεις)'}`
             `Η ${winner} το γύρισε από χαμένο, γιατί το ποδόσφαιρο αγαπάει τα σίκουελ.`])
         : null
 
-      // Αφήγηση γκολ με τρέχον σκορ, ομαδοποιημένα σε προτάσεις ανά ημίχρονο
+      // Ρέουσα αφήγηση ανά ημίχρονο: λεπτό + σκόρερ σε κανονική πρόταση (όχι λίστα),
+      // με το τρέχον σκορ στο τέλος κάθε μέρους.
       const forTeamA = (e: any) =>
         (e.event_type === 'GOAL' && e.team_id === match.team_a) ||
         (e.event_type === 'OWN' && e.team_id === match.team_b)
       const HALFLEAD: Record<string, string[]> = {
-        H1: ['Στο πρώτο ημίχρονο', 'Από νωρίς', 'Στο πρώτο μέρος'],
+        H1: ['Στο πρώτο μέρος', 'Από νωρίς', 'Στο πρώτο ημίχρονο'],
         H2: ['Στην επανάληψη', 'Μετά την ανάπαυλα', 'Στο δεύτερο μέρος'],
         ET: ['Στην παράταση', 'Στα έξτρα λεπτά'],
       }
-      let ra = 0, rb = 0
-      const clauses: { pid: string; text: string }[] = []
-      for (let i = 0; i < ordered.length;) {
-        const e = ordered[i]
-        const forA = forTeamA(e)
-        const team = forA ? nameA : nameB
-        const pid = (e.period ?? 'H1') as string
-        const myB = forA ? ra : rb, oppB = forA ? rb : ra
-        // μάζεψε συνεχόμενα γκολ ίδιας ομάδας στο ίδιο ημίχρονο
-        const names: string[] = []
-        let j = i
-        while (j < ordered.length) {
-          const g = ordered[j]
-          if (forTeamA(g) !== forA || (g.period ?? 'H1') !== pid) break
-          names.push(`${g.player?.full_name ?? '—'}${g.event_type === 'OWN' ? ' αυτ.' : ''} ${fmtMinute(pid as Period, g.minute)}`)
-          if (forTeamA(g)) ra++; else rb++
-          j++
-        }
-        const myA = forA ? ra : rb, oppA = forA ? rb : ra
-        const firstOfMatch = (ra + rb - names.length) === 0
-        const verb = firstOfMatch
-          ? pick(['άνοιξε το σκορ', 'μπήκε δυνατά και προηγήθηκε'])
-          : myA === oppA ? pick(['ισοφάρισε', 'ισοφάρισε το ματς'])
-          : myA > oppA && myB <= oppB ? pick(['πήρε το προβάδισμα', 'πέρασε μπροστά'])
-          : myA > oppA ? pick(['αύξησε τη διαφορά', 'ξέφυγε κι άλλο'])
-          : pick(['μείωσε', 'απάντησε'])
-        clauses.push({ pid, text: `η ${team} ${verb} (${names.join(', ')})` })
-        i = j
-      }
+      const surname = (n?: string) => (n ?? '—').trim().split(/\s+/)[0]
+      const joinGr = (arr: string[]) => arr.length <= 1 ? (arr[0] ?? '')
+        : `${arr.slice(0, -1).join(', ')} και ${arr[arr.length - 1]}`
+      let sa2 = 0, sb2 = 0
       const halves = (['H1', 'H2', 'ET'] as Period[]).map(pid => {
-        const cs = clauses.filter(c => c.pid === pid)
-        if (!cs.length) return null
+        const gs = ordered.filter(g => (g.period ?? 'H1') === pid)
+        if (!gs.length) return null
+        // Ένωσε διαδοχικά γκολ ίδιου παίκτη → «στο 47' και 57' ο Σγουράκης»
+        const items: string[] = []
+        for (let k = 0; k < gs.length;) {
+          const g = gs[k]
+          const nmBase = surname(g.player?.full_name)
+          const own = g.event_type === 'OWN'
+          const mins = [fmtMinute(pid, g.minute)]
+          if (forTeamA(g)) sa2++; else sb2++
+          let m = k + 1
+          while (m < gs.length && surname(gs[m].player?.full_name) === nmBase
+                 && (gs[m].event_type === 'OWN') === own) {
+            mins.push(fmtMinute(pid, gs[m].minute))
+            if (forTeamA(gs[m])) sa2++; else sb2++
+            m++
+          }
+          const nm = `${nmBase}${own ? ' (αυτ.)' : ''}`
+          const minStr = mins.length === 1 ? `στο ${mins[0]}`
+            : `στο ${mins.slice(0, -1).join(', ')} και ${mins[mins.length - 1]}`
+          items.push(`${minStr} ο ${nm}`)
+          k = m
+        }
         const lead = pick(HALFLEAD[pid])
-        const sentence = cs.map((c, idx) =>
-          idx === 0 ? `${lead}, ${c.text}` : c.text.charAt(0).toUpperCase() + c.text.slice(1)
-        ).join('. ') + '.'
-        return sentence
+        const verb = items.length === 1
+          ? pick(['σκόραρε', 'βρήκε δίχτυα', 'πανηγύρισε'])
+          : pick(['σκόραραν', 'βρήκαν δίχτυα', 'πανηγύρισαν'])
+        const tail = pick([`με το σκορ στο ${sa2}-${sb2}`,
+                           `κι έτσι το ταμπλό έγραφε ${sa2}-${sb2}`, `για το ${sa2}-${sb2}`])
+        return `${lead} ${verb} ${joinGr(items)}, ${tail}.`
       }).filter(Boolean)
 
       // Έξτρα χρώμα: αυτογκόλ, κόκκινες
