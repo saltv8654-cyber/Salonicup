@@ -323,8 +323,11 @@ function Overlay() {
   const luName = luTeam === 'a' ? match.team_a_data?.name : match.team_b_data?.name
   const luLogo = luTeam === 'a' ? match.team_a_data?.logo_url : match.team_b_data?.logo_url
   const lineupsEl = lineupsOn && (
-    <div style={{ position: PP, top: 150, left: 0, right: 0, bottom: 12,
-      display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
+    <div style={{ position: PP, top: 150, left: 0, right: 0, bottom: 10,
+      display: 'grid', placeItems: 'start center', pointerEvents: 'none' }}>
+      {/* Κλιμάκωση ώστε ολόκληρη η σύνθεση (καρτέλα + γήπεδο) να χωράει κάτω από το σκορ.
+          Κάρφωμα στην κορυφή + scale από πάνω, ώστε να μη φεύγει η κάτω σειρά εκτός οθόνης. */}
+      <div style={{ transform: 'scale(0.8)', transformOrigin: 'top center' }}>
       <div key={luTeam} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
         width: 430, animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
         {leagueTab}
@@ -340,6 +343,7 @@ function Overlay() {
         </div>
         <LineupPitch formation={luForm} line={luLine} players={squadMap} accent={PL.pink}
           bg="rgba(38,0,44,0.55)" borderColor={PL.pink} />
+      </div>
       </div>
     </div>
   )
