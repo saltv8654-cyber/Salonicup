@@ -130,12 +130,12 @@ export async function POST(req: Request) {
     const htA = htGoals(match.team_a, match.team_b)
     const htB = htGoals(match.team_b, match.team_a)
     const header = [
-      `Πρωτάθλημα: ${match.league?.name ?? '—'}${match.round ? ` · Αγωνιστική ${match.round}` : ''}`,
-      `Ημερομηνία: ${dateStr}`,
-      `Γήπεδο: ${venueStr}`,
-      `Ομάδες: ${nameA} vs ${nameB}`,
-      `Ημίχρονο: ${htA}-${htB}`,
-      `Τελικό σκορ: ${nameA} ${match.goals_team_a}-${match.goals_team_b} ${nameB}${
+      `${match.league?.name ?? '—'}${match.round ? ` · Αγωνιστική ${match.round}` : ''}`,
+      dateStr,
+      venueStr,
+      `${nameA} vs ${nameB}`,
+      `Ημίχρονο ${htA}-${htB}`,
+      `Τελικό ${match.goals_team_a}-${match.goals_team_b}${
         hasPens ? ` (πέν. ${match.pens_team_a}-${match.pens_team_b})` : ''}`,
     ]
 

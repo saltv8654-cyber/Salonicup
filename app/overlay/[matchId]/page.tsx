@@ -448,6 +448,14 @@ function Overlay() {
     </div>
   )
 
+  // Σκορ κάρτας: στο ΗΜΙΧΡΟΝΟ δείξε το σκορ ΜΟΝΟ του Α' ημιχρόνου (όχι το τρέχον/τελικό)
+  const htGoals = (teamId: string, other: string) => events.filter((e: any) =>
+    e.period === 'H1' &&
+    ((e.event_type === 'GOAL' && e.team_id === teamId) ||
+     (e.event_type === 'OWN'  && e.team_id === other))).length
+  const bcA = bigCard === 'HT' ? htGoals(match.team_a, match.team_b) : match.goals_team_a
+  const bcB = bigCard === 'HT' ? htGoals(match.team_b, match.team_a) : match.goals_team_b
+
   // Μεγάλη κάρτα από το ρολόι: Έναρξη / Ημίχρονο / Τελικό (+ χορηγοί στο διάλειμμα)
   const bigCardEl = bigCard && (
     <div style={{ position: PP, inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none',
@@ -466,7 +474,7 @@ function Overlay() {
             <span style={{ fontSize: 24, fontWeight: 800, textTransform: 'uppercase' }}>{match.team_a_data?.name}</span>
           </div>
           <div style={{ fontSize: 56, fontWeight: 900, lineHeight: 1 }}>
-            {match.goals_team_a}<span style={{ color: PL.pink, margin: '0 12px' }}>·</span>{match.goals_team_b}</div>
+            {bcA}<span style={{ color: PL.pink, margin: '0 12px' }}>·</span>{bcB}</div>
           <div style={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', gap: 13 }}>
             <Crest name={match.team_b_data?.name} logo={match.team_b_data?.logo_url} size={54} />
             <span style={{ fontSize: 24, fontWeight: 800, textTransform: 'uppercase' }}>{match.team_b_data?.name}</span>
