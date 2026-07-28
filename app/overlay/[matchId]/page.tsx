@@ -257,6 +257,9 @@ function Overlay() {
   const clk = clockLabel(match.clock_period, match.clock_started_at, now)
   const PP: 'fixed' | 'absolute' = 'absolute'
 
+  // Παλέτα scoreboard τύπου Premier League (βαθύ μωβ + ματζέντα)
+  const PL = { deep: '#3d0a45', deep2: '#26002c', dark: '#12001a', pink: '#ff2882', pink2: '#e0176b' }
+
   const M = Number.isFinite(parseInt(params.get('margin') || '')) ? parseInt(params.get('margin')!) : 0
   const posStyle: React.CSSProperties =
     pos === 'tl' ? { top: M, left: M, alignItems: 'flex-start' }
@@ -457,39 +460,41 @@ function Overlay() {
       transform: `scale(${userScale})`, transformOrigin: tOrigin,
       fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif' }}>
       <div style={{ position: 'relative' }}>
-        <div style={{ display: 'flex', alignItems: 'stretch', borderRadius: 14, overflow: 'hidden',
-          boxShadow: '0 12px 38px rgba(0,0,0,.55)', fontVariantNumeric: 'tabular-nums',
-          border: '1px solid rgba(255,255,255,.14)', borderTop: `3px solid ${t.acc}` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '0 22px',
-            background: `linear-gradient(180deg, ${t.bg0}, ${t.bg1})`, color: '#fff', height: 70 }}>
-            <Crest name={match.team_a_data?.name} logo={match.team_a_data?.logo_url} size={46} />
-            <span style={{ fontSize: 24, fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-              {match.team_a_data?.name}</span>
+        <div style={{ display: 'flex', alignItems: 'stretch', borderRadius: 10, overflow: 'hidden',
+          boxShadow: '0 12px 38px rgba(0,0,0,.55)', fontVariantNumeric: 'tabular-nums' }}>
+          {/* Λεπτή ματζέντα ράβδος αριστερά (retro PL frame) */}
+          <div style={{ width: 6, background: `linear-gradient(180deg, ${PL.pink}, ${PL.pink2})` }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '0 20px',
+            background: `linear-gradient(180deg, ${PL.deep}, ${PL.deep2})`, color: '#fff', height: 68 }}>
+            <Crest name={match.team_a_data?.name} logo={match.team_a_data?.logo_url} size={44} />
+            <span style={{ fontSize: 23, fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap',
+              letterSpacing: '.01em' }}>{match.team_a_data?.name}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '0 26px',
-            background: 'rgba(4,6,12,.92)', color: '#fff', fontSize: 44, fontWeight: 900,
-            borderLeft: '1px solid rgba(255,255,255,.10)', borderRight: '1px solid rgba(255,255,255,.10)' }}>
-            <span>{match.goals_team_a}</span><span style={{ color: t.acc, fontWeight: 700, fontSize: 30 }}>–</span><span>{match.goals_team_b}</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 13, padding: '0 24px',
+            background: PL.dark, color: '#fff', fontSize: 42, fontWeight: 900 }}>
+            <span>{match.goals_team_a}</span>
+            <span style={{ color: PL.pink, fontWeight: 800, fontSize: 26 }}>–</span>
+            <span>{match.goals_team_b}</span>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', gap: 13, padding: '0 22px',
-            background: `linear-gradient(180deg, ${t.bg0}, ${t.bg1})`, color: '#fff' }}>
-            <Crest name={match.team_b_data?.name} logo={match.team_b_data?.logo_url} size={46} />
-            <span style={{ fontSize: 24, fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-              {match.team_b_data?.name}</span>
+          <div style={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', gap: 13, padding: '0 20px',
+            background: `linear-gradient(180deg, ${PL.deep}, ${PL.deep2})`, color: '#fff' }}>
+            <Crest name={match.team_b_data?.name} logo={match.team_b_data?.logo_url} size={44} />
+            <span style={{ fontSize: 23, fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap',
+              letterSpacing: '.01em' }}>{match.team_b_data?.name}</span>
           </div>
           {clk && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
-              minWidth: 96, padding: '0 18px', color: '#0b0b0b', fontVariantNumeric: 'tabular-nums',
-              background: `linear-gradient(180deg, ${t.acc}, ${t.acc2})` }}>
-              <span style={{ fontSize: 24, fontWeight: 900, lineHeight: 1.1 }}>{clk}</span>
+              minWidth: 92, padding: '0 18px', color: '#fff', fontVariantNumeric: 'tabular-nums',
+              background: `linear-gradient(180deg, ${PL.pink}, ${PL.pink2})` }}>
+              <span style={{ fontSize: 23, fontWeight: 900, lineHeight: 1.1 }}>{clk}</span>
             </div>
           )}
         </div>
         {/* Πρωτάθλημα — καρτελάκι ακριβώς κάτω από το σκορ (τέρμα αριστερά) */}
         <div style={{ position: 'absolute', top: '100%', left: 0,
           display: 'inline-flex', alignItems: 'center', gap: 9, whiteSpace: 'nowrap',
-          background: 'rgba(0,0,0,.72)', border: '1px solid rgba(255,255,255,.10)', borderTop: 'none',
-          borderBottom: `3px solid ${t.acc}`, borderRadius: '0 0 10px 10px', padding: '6px 16px' }}>
+          background: PL.deep2, border: '1px solid rgba(255,255,255,.08)', borderTop: 'none',
+          borderBottom: `3px solid ${PL.pink}`, borderRadius: '0 0 8px 8px', padding: '6px 16px' }}>
           <Crest name={match.league?.name} logo={match.league?.logo_url} size={24} />
           <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase',
             color: '#fff' }}>{match.league?.name}</span>
