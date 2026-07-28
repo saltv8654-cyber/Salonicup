@@ -293,7 +293,7 @@ function Overlay() {
     </span>
   )
 
-  const popBg = popup ? (popup.kind === 'GOAL' ? [t.acc, t.acc2] : POP_META[popup.kind].bg) : ['', '']
+  const popBg = popup ? (popup.kind === 'GOAL' ? [PL.pink, PL.pink2] : POP_META[popup.kind].bg) : ['', '']
 
   const styleTag = (
     <style>{`
@@ -318,12 +318,12 @@ function Overlay() {
           <div style={{ textAlign: 'left' }}>
             <div style={{ fontSize: 27, fontWeight: 800, textTransform: 'uppercase', color: '#fff',
               lineHeight: 1.05, textShadow: '0 2px 10px rgba(0,0,0,.7)' }}>{luName}</div>
-            <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: '.14em', color: t.acc }}>
+            <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: '.14em', color: PL.pink }}>
               {luForm} · ΣΥΝΘΕΣΗ</div>
           </div>
         </div>
-        <LineupPitch formation={luForm} line={luLine} players={squadMap} accent={t.acc}
-          bg="rgba(6,16,11,0.4)" borderColor={t.acc} />
+        <LineupPitch formation={luForm} line={luLine} players={squadMap} accent={PL.pink}
+          bg="rgba(38,0,44,0.55)" borderColor={PL.pink} />
       </div>
     </div>
   )
@@ -339,17 +339,18 @@ function Overlay() {
     const list = scorersOf(teamId)
     return (
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12,
+          paddingBottom: 8, borderBottom: `2px solid ${PL.pink}` }}>
           <Crest name={name} logo={logo} size={30} />
           <span style={{ fontSize: 17, fontWeight: 800, textTransform: 'uppercase', color: '#fff',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
+            lineHeight: 1.1 }}>{name}</span>
         </div>
         {list.length ? list.map(([n, c], i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0',
+          <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '5px 0',
             fontSize: 16, color: '#fff' }}>
-            <span style={{ color: t.acc }}>⚽</span>
-            <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {n}{c > 1 ? ` ×${c}` : ''}</span>
+            <span style={{ color: PL.pink, flex: 'none' }}>⚽</span>
+            <span style={{ fontWeight: 700, lineHeight: 1.15 }}>
+              {n}{c > 1 ? <span style={{ color: PL.pink, fontWeight: 900 }}>{` ×${c}`}</span> : ''}</span>
           </div>
         )) : <div style={{ fontSize: 14, color: 'rgba(255,255,255,.5)' }}>—</div>}
       </div>
@@ -357,15 +358,20 @@ function Overlay() {
   }
   const scorersEl = scorersOn && (
     <div style={{ position: PP, inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
-      <div style={{ width: 620, padding: '22px 30px', borderRadius: 18,
-        background: 'rgba(6,12,18,.94)', border: `2px solid ${t.acc}`, boxShadow: '0 26px 70px rgba(0,0,0,.6)',
+      <div style={{ width: 680, borderRadius: 16, overflow: 'hidden',
+        background: `linear-gradient(180deg, ${PL.deep}, ${PL.dark})`,
+        border: '1px solid rgba(255,255,255,.10)', boxShadow: '0 26px 70px rgba(0,0,0,.6)',
         animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
-        <div style={{ textAlign: 'center', fontSize: 15, fontWeight: 800, letterSpacing: '.28em',
-          color: t.acc, marginBottom: 16 }}>ΣΚΟΡΕΡΣ</div>
-        <div style={{ display: 'flex', gap: 26 }}>
-          {scCol(match.team_a, match.team_a_data?.name, match.team_a_data?.logo_url)}
-          <div style={{ width: 1, background: 'rgba(255,255,255,.12)' }} />
-          {scCol(match.team_b, match.team_b_data?.name, match.team_b_data?.logo_url)}
+        {/* Ματζέντα λωρίδα κορυφής (PL) */}
+        <div style={{ height: 5, background: `linear-gradient(90deg, ${PL.pink}, ${PL.pink2})` }} />
+        <div style={{ padding: '20px 30px 24px' }}>
+          <div style={{ textAlign: 'center', fontSize: 15, fontWeight: 800, letterSpacing: '.28em',
+            color: PL.pink, marginBottom: 18 }}>ΣΚΟΡΕΡΣ</div>
+          <div style={{ display: 'flex', gap: 26, alignItems: 'flex-start' }}>
+            {scCol(match.team_a, match.team_a_data?.name, match.team_a_data?.logo_url)}
+            <div style={{ alignSelf: 'stretch', width: 1, background: 'rgba(255,255,255,.14)' }} />
+            {scCol(match.team_b, match.team_b_data?.name, match.team_b_data?.logo_url)}
+          </div>
         </div>
       </div>
     </div>
@@ -413,10 +419,11 @@ function Overlay() {
   const bigCardEl = bigCard && (
     <div style={{ position: PP, inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none',
       background: 'rgba(3,6,10,.5)' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
-        padding: '32px 54px', borderRadius: 22, background: 'rgba(6,12,18,.94)', border: `2px solid ${t.acc}`,
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, overflow: 'hidden',
+        padding: '32px 54px', borderRadius: 22, background: `linear-gradient(180deg, ${PL.deep}, ${PL.dark})`,
+        border: '1px solid rgba(255,255,255,.10)', borderTop: `5px solid ${PL.pink}`,
         boxShadow: '0 30px 90px rgba(0,0,0,.65)', animation: 'ovPop .5s cubic-bezier(.2,.9,.25,1) forwards' }}>
-        <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '.3em', color: t.acc, textTransform: 'uppercase' }}>
+        <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '.3em', color: PL.pink, textTransform: 'uppercase' }}>
           {match.league?.name}</div>
         <div style={{ fontSize: 46, fontWeight: 900, letterSpacing: '.14em', color: '#fff', lineHeight: 1 }}>
           {BIG_META[bigCard].label}</div>
@@ -426,7 +433,7 @@ function Overlay() {
             <span style={{ fontSize: 24, fontWeight: 800, textTransform: 'uppercase' }}>{match.team_a_data?.name}</span>
           </div>
           <div style={{ fontSize: 56, fontWeight: 900, lineHeight: 1 }}>
-            {match.goals_team_a}<span style={{ color: t.acc, margin: '0 12px' }}>·</span>{match.goals_team_b}</div>
+            {match.goals_team_a}<span style={{ color: PL.pink, margin: '0 12px' }}>·</span>{match.goals_team_b}</div>
           <div style={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', gap: 13 }}>
             <Crest name={match.team_b_data?.name} logo={match.team_b_data?.logo_url} size={54} />
             <span style={{ fontSize: 24, fontWeight: 800, textTransform: 'uppercase' }}>{match.team_b_data?.name}</span>
@@ -517,7 +524,9 @@ function Overlay() {
         {popup && (
           <div style={{ position: 'absolute', left: '50%', top: 'calc(100% + 48px)', transform: 'translateX(-50%)',
             display: 'flex', alignItems: 'center', gap: 16, padding: '14px 26px 14px 14px', borderRadius: 16,
-            color: '#fff', whiteSpace: 'nowrap', background: 'rgba(6,10,16,.92)', border: `2px solid ${popBg[0]}`,
+            color: '#fff', whiteSpace: 'nowrap', border: `2px solid ${popBg[0]}`,
+            background: popup.kind === 'GOAL'
+              ? `linear-gradient(180deg, ${PL.deep}, ${PL.dark})` : 'rgba(6,10,16,.92)',
             boxShadow: '0 18px 50px rgba(0,0,0,.5)', animation: 'ovGoal .5s cubic-bezier(.2,.9,.25,1) forwards' }}>
             <span style={{ width: 60, height: 60, borderRadius: '50%', overflow: 'hidden', flex: 'none',
               background: 'rgba(255,255,255,.08)', border: `2px solid ${popBg[0]}`, display: 'grid',
