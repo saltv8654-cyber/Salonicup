@@ -54,6 +54,8 @@ function Overlay() {
   // Μέγεθος & θέση scoreboard — ζωντανά ρυθμιζόμενα στην προεπισκόπηση (αρχική τιμή από URL)
   const [userScale, setUserScale] = useState(parseFloat(params.get('scale') || '1') || 1)
   const [pos, setPos] = useState(params.get('pos') || 'tl')
+  // Λογότυπο καναλιού πάνω-δεξιά (κείμενο· ρυθμίζεται από την προεπισκόπηση ή ?brand=)
+  const [brand, setBrand] = useState(params.get('brand') ?? 'SALTV1')
   const urlSponsors = (params.get('sponsors') || '').split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean)
   const [dbSponsors, setDbSponsors] = useState<string[]>([])
   const sponsors = urlSponsors.length ? urlSponsors : dbSponsors
@@ -613,7 +615,19 @@ function Overlay() {
   )
 
   // Στις συνθέσεις κρύβουμε το scoreboard, ώστε η σύνθεση να πάει πιο ψηλά & πιο μεγάλη
-  const scene = <>{styleTag}{sponsorsEl}{!lineupsOn && scoreEl}{subCardEl}{varEl}{lineupsEl}{scorersEl}{bigCardEl}</>
+  // Λογότυπο καναλιού — πάντα πάνω-δεξιά (κανάλι bug)
+  const brandEl = brand ? (
+    <div style={{ position: PP, top: 16, right: 26, display: 'flex', flexDirection: 'column',
+      alignItems: 'flex-end', gap: 4, pointerEvents: 'none' }}>
+      <span style={{ fontSize: 32, fontWeight: 900, fontStyle: 'italic', color: '#fff', letterSpacing: '.02em',
+        lineHeight: 1, textShadow: '0 2px 12px rgba(0,0,0,.75)',
+        fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif' }}>{brand}</span>
+      <span style={{ width: 46, height: 3, borderRadius: 2,
+        background: `linear-gradient(90deg, ${PL.pink}, ${PL.pink2})` }} />
+    </div>
+  ) : null
+
+  const scene = <>{styleTag}{sponsorsEl}{!lineupsOn && scoreEl}{brandEl}{subCardEl}{varEl}{lineupsEl}{scorersEl}{bigCardEl}</>
 
   // Πραγματικό OBS: καμβάς 1280×720 κλιμακωμένος να γεμίσει την οθόνη
   if (!preview) return (
@@ -698,12 +712,22 @@ function Overlay() {
                   fontFamily: 'inherit' }}>{lbl}</button>
             ))}
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#fff', minWidth: 92 }}>Κανάλι</span>
+            {['SALTV1', 'SALTV2', 'SALTV3', ''].map(v => (
+              <button key={v || 'none'} onClick={() => setBrand(v)}
+                style={{ background: brand === v ? PL.pink : '#1b2130', color: '#fff', border: 0,
+                  borderRadius: 9, padding: '7px 11px', fontWeight: 800, fontSize: 12, cursor: 'pointer',
+                  fontFamily: 'inherit' }}>{v || 'Κανένα'}</button>
+            ))}
+          </div>
           <button
             onClick={() => {
               const q = new URLSearchParams(params.toString())
               q.delete('preview')
               q.set('scale', userScale.toFixed(2))
               q.set('pos', pos)
+              if (brand) q.set('brand', brand); else q.delete('brand')
               const link = `${window.location.origin}/overlay/${matchId}?${q.toString()}`
               navigator.clipboard?.writeText(link)
               setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000)
