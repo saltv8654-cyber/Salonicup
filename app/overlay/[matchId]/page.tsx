@@ -130,11 +130,13 @@ function Overlay() {
     return () => clearInterval(iv)
   }, [preview])
 
-  // Κλίμακα πραγματικού overlay (OBS): γεμίζει το πλάτος της οθόνης
+  // Κλίμακα πραγματικού overlay (OBS): ΚΑΛΥΠΤΕΙ όλη την οθόνη (cover), ώστε οι γωνίες
+  // (σκορ πάνω-αριστερά, χορηγοί κάτω-αριστερά) να κολλάνε πάντα, ακόμη κι αν το
+  // browser source δεν είναι ακριβώς 16:9.
   const [realFit, setRealFit] = useState(1)
   useEffect(() => {
     if (preview) return
-    const calc = () => setRealFit(window.innerWidth / REF_W)
+    const calc = () => setRealFit(Math.max(window.innerWidth / REF_W, window.innerHeight / REF_H))
     calc()
     window.addEventListener('resize', calc)
     return () => window.removeEventListener('resize', calc)
@@ -146,8 +148,10 @@ function Overlay() {
     const h = document.documentElement.style.cssText
     document.body.style.background = 'transparent'
     document.body.style.margin = '0'
+    document.body.style.overflow = 'hidden'
     document.documentElement.style.background = 'transparent'
     document.documentElement.style.margin = '0'
+    document.documentElement.style.overflow = 'hidden'
     return () => { document.body.style.cssText = b; document.documentElement.style.cssText = h }
   }, [preview])
 
