@@ -52,7 +52,7 @@ function Overlay() {
 
   const preview = params.get('preview') != null
   // Μέγεθος & θέση scoreboard — ζωντανά ρυθμιζόμενα στην προεπισκόπηση (αρχική τιμή από URL)
-  const [userScale, setUserScale] = useState(parseFloat(params.get('scale') || '1.5') || 1.5)
+  const [userScale, setUserScale] = useState(parseFloat(params.get('scale') || '1') || 1)
   const [pos, setPos] = useState(params.get('pos') || 'tl')
   const urlSponsors = (params.get('sponsors') || '').split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean)
   const [dbSponsors, setDbSponsors] = useState<string[]>([])
@@ -183,12 +183,19 @@ function Overlay() {
     return () => { dead = true; document.removeEventListener('visibilitychange', onVis); supa.current.removeChannel(ch) }
   }, [matchId])
 
-  // Χορηγοί από τη βάση (καθολικοί) — αν δεν δόθηκαν στο URL
+  // Χορηγοί από τη βάση (καθολικοί) — αν δεν δόθηκαν στο URL.
+  // Ξαναδιαβάζουμε περιοδικά ώστε αν αποθηκευτούν αφού άνοιξε το OBS, να εμφανιστούν χωρίς reload.
   useEffect(() => {
     if (urlSponsors.length) return
-    supa.current.from('app_settings').select('sponsors').eq('id', 1).maybeSingle()
-      .then(({ data }: any) => { if (data?.sponsors?.length) setDbSponsors(data.sponsors) })
-  }, [])
+    let alive = true
+    const load = () => supa.current.from('app_settings').select('sponsors').eq('id', 1).maybeSingle()
+      .then(({ data }: any) => { if (alive) setDbSponsors(data?.sponsors ?? []) })
+    load()
+    const iv = setInterval(load, 30000)
+    const onVis = () => { if (document.visibilityState === 'visible') load() }
+    document.addEventListener('visibilitychange', onVis)
+    return () => { alive = false; clearInterval(iv); document.removeEventListener('visibilitychange', onVis) }
+  }, [urlSponsors.length])
 
   // Συνθέσεις: 5 δευτ. ομάδα Α, 5 δευτ. ομάδα Β, μετά εξαφανίζεται μόνο του
   useEffect(() => {
@@ -332,11 +339,11 @@ function Overlay() {
   const luName = luTeam === 'a' ? match.team_a_data?.name : match.team_b_data?.name
   const luLogo = luTeam === 'a' ? match.team_a_data?.logo_url : match.team_b_data?.logo_url
   const lineupsEl = lineupsOn && (
-    <div style={{ position: PP, top: 110, left: 0, right: 0, bottom: 10,
+    <div style={{ position: PP, top: 24, left: 0, right: 0, bottom: 90,
       display: 'grid', placeItems: 'start center', pointerEvents: 'none' }}>
-      {/* Κλιμάκωση ώστε ολόκληρη η σύνθεση (καρτέλα + γήπεδο) να χωράει κάτω από το σκορ.
-          Κάρφωμα στην κορυφή + scale από πάνω, ώστε να μη φεύγει η κάτω σειρά εκτός οθόνης. */}
-      <div style={{ transform: 'scale(0.8)', transformOrigin: 'top center' }}>
+      {/* Το scoreboard κρύβεται στις συνθέσεις, οπότε η σύνθεση πάει ψηλά & μεγαλώνει.
+          Κάρφωμα στην κορυφή + scale από πάνω· το bottom:90 αφήνει χώρο πάνω από τους χορηγούς. */}
+      <div style={{ transform: 'scale(0.86)', transformOrigin: 'top center' }}>
       <div key={luTeam} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
         width: 430, animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
         {leagueTab}
@@ -601,7 +608,8 @@ function Overlay() {
     </div>
   )
 
-  const scene = <>{styleTag}{sponsorsEl}{scoreEl}{subCardEl}{varEl}{lineupsEl}{scorersEl}{bigCardEl}</>
+  // Στις συνθέσεις κρύβουμε το scoreboard, ώστε η σύνθεση να πάει πιο ψηλά & πιο μεγάλη
+  const scene = <>{styleTag}{sponsorsEl}{!lineupsOn && scoreEl}{subCardEl}{varEl}{lineupsEl}{scorersEl}{bigCardEl}</>
 
   // Πραγματικό OBS: καμβάς 1280×720 κλιμακωμένος να γεμίσει την οθόνη
   if (!preview) return (
