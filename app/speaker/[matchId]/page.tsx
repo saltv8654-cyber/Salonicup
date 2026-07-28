@@ -70,6 +70,8 @@ export default function SpeakerPanel() {
   const [subMode, setSubMode]       = useState<{ side: Side; out: string | null } | null>(null)
   const [report, setReport]   = useState(false)
   const [editEv, setEditEv]   = useState<any>(null)
+  const [obsBrand, setObsBrand] = useState('SALTV1')   // κανάλι στο overlay (ζωντανά)
+  const [obsLive, setObsLive]   = useState(true)       // παλλόμενο LIVE στο overlay
   const [saving, setSaving]   = useState(false)
   const [clockBusy, setClockBusy] = useState(false)
   const [streamUrl, setStreamUrl] = useState('')
@@ -826,6 +828,25 @@ export default function SpeakerPanel() {
                 className="flex-1 py-2.5 rounded-xl font-bold text-[12.5px] border
                   bg-[#1f5e3a]/25 border-[#35c66b]/40 text-[#8fe6b0]">
                 ⚽ Σκόρερς
+              </button>
+            </div>
+
+            {/* Κανάλι + LIVE — αλλάζουν ΖΩΝΤΑΝΑ στο OBS overlay */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-extrabold text-dim tracking-[0.1em] shrink-0">ΚΑΝΑΛΙ</span>
+              {(['SALTV1', 'SALTV2', 'SALTV3', ''] as const).map(v => (
+                <button key={v || 'none'}
+                  onClick={() => { setObsBrand(v); sendFlash('BRAND', { value: v }); toast.success(v ? `Κανάλι: ${v}` : 'Χωρίς logo') }}
+                  className={`flex-1 py-2 rounded-xl font-bold text-[11px] border truncate
+                    ${obsBrand === v ? 'bg-brand text-chalk border-brand' : 'bg-chalk/[0.05] border-chalk/[0.07] text-silver'}`}>
+                  {v ? v.replace('SAL', '') : '—'}
+                </button>
+              ))}
+              <button
+                onClick={() => { const n = !obsLive; setObsLive(n); sendFlash('LIVE', { on: n }); toast.success(n ? 'LIVE ON' : 'LIVE OFF') }}
+                className={`shrink-0 py-2 px-3 rounded-xl font-bold text-[11px] border
+                  ${obsLive ? 'bg-[#c81e1e] text-white border-[#c81e1e]' : 'bg-chalk/[0.05] border-chalk/[0.07] text-silver'}`}>
+                🔴 LIVE
               </button>
             </div>
             <button onClick={() => setPhase('squad')}

@@ -162,6 +162,9 @@ function Overlay() {
     let ch: any
     let dead = false
     const onFlash = ({ payload }: any) => {
+      // Ζωντανή αλλαγή καναλιού / LIVE από τον σπίκερ → ενημερώνεται ακαριαία το OBS
+      if (payload?.kind === 'BRAND') { setBrand(payload.value ?? ''); return }
+      if (payload?.kind === 'LIVE')  { setLive(!!payload.on); return }
       if (payload?.kind === 'LINEUPS') { setLineupsOn(false); setTimeout(() => setLineupsOn(true), 30); return }
       if (payload?.kind === 'SCORERS') {
         setScorersOn(false); setTimeout(() => setScorersOn(true), 30)
