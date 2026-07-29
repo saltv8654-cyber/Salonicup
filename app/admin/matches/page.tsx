@@ -273,6 +273,9 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved, onDelete }: 
         : (row.goals_team_b ?? 0) > (row.goals_team_a ?? 0) ? 'b' : 'none')
       : 'a')
   const FORFEIT_GOALS = 3
+  // Χειροκίνητο σκορ για ολοκληρωμένο αγώνα (χωρίς καταχώρηση event-event)
+  const [scoreA, setScoreA] = useState(String(row?.goals_team_a ?? 0))
+  const [scoreB, setScoreB] = useState(String(row?.goals_team_b ?? 0))
 
   const leagueTeams = teams.filter(t => t.league_id === league)
   const venueFields = venues.find(v => v.venue_id === venue)?.fields ?? []
@@ -301,6 +304,12 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved, onDelete }: 
       payload.goals_team_b = ffWinner === 'b' ? FORFEIT_GOALS : 0
       payload.pens_team_a = 0
       payload.pens_team_b = 0
+    }
+    // Ολοκληρωμένος με χειροκίνητο σκορ (μετράει στη βαθμολογία). Προσοχή: αν ο αγώνας
+    // έχει καταχωρημένα events, το trigger θα ξαναϋπολογίσει το σκορ σε επόμενη αλλαγή event.
+    if (status === 'Played') {
+      payload.goals_team_a = parseInt(scoreA) || 0
+      payload.goals_team_b = parseInt(scoreB) || 0
     }
     const { error } = row
       ? await supabase.from('matches').update(payload).eq('match_id', row.match_id)
@@ -352,6 +361,36 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved, onDelete }: 
             { value: 'b', label: `${leagueTeams.find(t => t.team_id === teamB)?.name ?? 'Φιλοξενούμενος'} (0-3)` },
             { value: 'none', label: 'Διπλή απουσία (0-0)' },
           ]} />
+      )}
+
+      {status === 'Played' && (
+        <div>
+          <label className="block text-[8.5px] font-extrabold text-dim
+            tracking-[0.12em] mb-1.5 pl-0.5">ΤΕΛΙΚΟ ΣΚΟΡ</label>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <input value={scoreA} onChange={e => setScoreA(e.target.value.replace(/\D/g, ''))}
+                inputMode="numeric" placeholder="0"
+                className="w-full bg-chalk/[0.04] rounded-xl px-3 py-3 text-chalk text-center text-lg
+                  font-extrabold tnum outline-none border border-chalk/[0.07] focus:border-lit/50" />
+              <p className="text-[9px] text-dim text-center mt-1 truncate">
+                {leagueTeams.find(t => t.team_id === teamA)?.name ?? 'Γηπεδούχος'}</p>
+            </div>
+            <span className="text-dim font-bold shrink-0">–</span>
+            <div className="flex-1 min-w-0">
+              <input value={scoreB} onChange={e => setScoreB(e.target.value.replace(/\D/g, ''))}
+                inputMode="numeric" placeholder="0"
+                className="w-full bg-chalk/[0.04] rounded-xl px-3 py-3 text-chalk text-center text-lg
+                  font-extrabold tnum outline-none border border-chalk/[0.07] focus:border-lit/50" />
+              <p className="text-[9px] text-dim text-center mt-1 truncate">
+                {leagueTeams.find(t => t.team_id === teamB)?.name ?? 'Φιλοξενούμενος'}</p>
+            </div>
+          </div>
+          <p className="text-[9px] text-off mt-1.5 pl-0.5">
+            Γράφεται απευθείας & μετράει στη βαθμολογία. (Αν ο αγώνας έχει καταχωρημένες φάσεις,
+            το σκορ βγαίνει από αυτές.)
+          </p>
+        </div>
       )}
 
       <Field label="ΣΥΝΔΕΣΜΟΣ YOUTUBE (live)" value={stream} onChange={setStream}
