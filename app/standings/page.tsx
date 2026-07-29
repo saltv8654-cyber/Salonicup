@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Watermark, Crest, Postponements, BottomNav, Empty, LiveDot, FieldBadge, Avatar, SectionLabel } from '../ui'
 import GraphicLink from '../graphic-link'
+import PlayoffBracket, { type BSide, type BTie } from '../playoff-bracket'
 import { fmtDay, fmtTime } from '@/lib/time'
 import type { League, Standing, PlayerStat } from '@/lib/types'
 
@@ -14,7 +15,8 @@ export default async function StandingsPage({
 }: { searchParams: { league?: string; view?: string } }) {
   const supabase = createClient()
   const view = searchParams.view === 'fixtures' ? 'fixtures'
-    : searchParams.view === 'scorers' ? 'scorers' : 'table'
+    : searchParams.view === 'scorers' ? 'scorers'
+    : searchParams.view === 'playoff' ? 'playoff' : 'table'
 
   const { data: leagues } = await supabase
     .from('leagues').select('*').eq('active', true).order('sort_order')
@@ -32,6 +34,7 @@ export default async function StandingsPage({
     ? await supabase.from('matches')
         .select(`*, team_a_data:team_a(name, logo_url), team_b_data:team_b(name, logo_url)`)
         .eq('league_id', active.league_id)
+        .is('stage', null)
         .order('round', { ascending: true })
         .order('match_date', { ascending: true })
     : { data: [] as any[] }
@@ -53,6 +56,46 @@ export default async function StandingsPage({
   const scorers = top(p => p.goals)
   const assists = top(p => p.assists)
   const cards = top(p => p.yellow_cards + p.red_cards * 2)
+
+  // ── Playoff bracket: seeding auto από top-8 της Regular Season ──
+  const { data: pmatches } = active && view === 'playoff'
+    ? await supabase.from('matches')
+        .select('team_a, team_b, goals_team_a, goals_team_b, match_status, stage')
+        .eq('league_id', active.league_id).in('stage', ['QF', 'SF', 'Final'])
+    : { data: [] as any[] }
+
+  type BT = { id: string; name: string; logo: string | null; seed: number }
+  const seeds: (BT | undefined)[] = (rows ?? []).slice(0, 8).map((r: any, i: number) =>
+    ({ id: r.team_id, name: r.team_name, logo: r.logo_url, seed: i + 1 }))
+  const side = (t: BT): BSide => ({ seed: t.seed, name: t.name, logo: t.logo })
+  const doneM = (m: any) => ['Played', 'Forfeit'].includes(m.match_status)
+  const aggregate = (t1: BT, t2: BT, stg: string) => {
+    let g1 = 0, g2 = 0, legs = 0
+    for (const m of (pmatches ?? [])) {
+      if (m.stage !== stg || !doneM(m)) continue
+      if (m.team_a === t1.id && m.team_b === t2.id) { g1 += m.goals_team_a; g2 += m.goals_team_b; legs++ }
+      else if (m.team_a === t2.id && m.team_b === t1.id) { g1 += m.goals_team_b; g2 += m.goals_team_a; legs++ }
+    }
+    const decided = legs > 0 && g1 !== g2
+    return { g1, g2, legs, winner: !decided ? undefined : (g1 > g2 ? t1 : t2) }
+  }
+  const mkTie = (t1: BT | undefined, t2: BT | undefined, stg: string, ph1: string, ph2: string)
+    : { tie: BTie; winner?: BT } => {
+    if (!t1 || !t2) return { tie: { a: t1 ? side(t1) : { ph: ph1 }, b: t2 ? side(t2) : { ph: ph2 } } }
+    const r = aggregate(t1, t2, stg)
+    return { winner: r.winner, tie: {
+      a: { seed: t1.seed, name: t1.name, logo: t1.logo, agg: r.legs ? r.g1 : null, win: r.winner?.id === t1.id },
+      b: { seed: t2.seed, name: t2.name, logo: t2.logo, agg: r.legs ? r.g2 : null, win: r.winner?.id === t2.id },
+    } }
+  }
+  const t18 = mkTie(seeds[0], seeds[7], 'QF', '1ος', '8ος')
+  const t45 = mkTie(seeds[3], seeds[4], 'QF', '4ος', '5ος')
+  const t27 = mkTie(seeds[1], seeds[6], 'QF', '2ος', '7ος')
+  const t36 = mkTie(seeds[2], seeds[5], 'QF', '3ος', '6ος')
+  const sTop = mkTie(t18.winner, t45.winner, 'SF', 'Νικητής 1v8', 'Νικητής 4v5')
+  const sBot = mkTie(t27.winner, t36.winner, 'SF', 'Νικητής 2v7', 'Νικητής 3v6')
+  const fin  = mkTie(sTop.winner, sBot.winner, 'Final', 'Ημιτελικός', 'Ημιτελικός')
+  const champion: BSide | undefined = fin.winner ? side(fin.winner) : undefined
 
   return (
     <div className="min-h-screen bg-pitch pb-20">
@@ -109,20 +152,39 @@ export default async function StandingsPage({
               </div>
             </div>
 
-            {/* Καρτέλες: Βαθμολογία | Αγωνιστικές | Σκόρερ */}
-            <div className="flex gap-1.5 mb-4">
-              {([
-                ['table', 'Βαθμολογία'], ['fixtures', 'Αγωνιστικές'], ['scorers', 'Σκόρερ'],
-              ] as const).map(([v, label]) => (
-                <Link key={v} href={`/standings?league=${active.league_id}&view=${v}`}
-                  className={`flex-1 text-center py-2.5 rounded-xl text-[12px] font-bold border
-                    ${view === v ? 'bg-brand text-chalk border-lit' : 'bg-turf text-dim border-chalk/[0.06]'}`}>
-                  {label}
-                </Link>
-              ))}
+            {/* Επάνω: Regular Season | Playoff */}
+            <div className="flex gap-1.5 mb-3">
+              <Link href={`/standings?league=${active.league_id}&view=table`}
+                className={`flex-1 text-center py-2.5 rounded-xl text-[12.5px] font-extrabold border
+                  ${view !== 'playoff' ? 'bg-brand text-chalk border-lit' : 'bg-turf text-dim border-chalk/[0.06]'}`}>
+                Regular Season
+              </Link>
+              <Link href={`/standings?league=${active.league_id}&view=playoff`}
+                className={`flex-1 text-center py-2.5 rounded-xl text-[12.5px] font-extrabold border
+                  ${view === 'playoff' ? 'bg-[#e8b923] text-[#1a1508] border-[#e8b923]' : 'bg-turf text-dim border-chalk/[0.06]'}`}>
+                🏆 Playoff
+              </Link>
             </div>
 
-            {view === 'scorers' ? (
+            {/* Υπο-καρτέλες μόνο στη Regular Season */}
+            {view !== 'playoff' && (
+              <div className="flex gap-1.5 mb-4">
+                {([
+                  ['table', 'Βαθμολογία'], ['fixtures', 'Αγωνιστικές'], ['scorers', 'Σκόρερ'],
+                ] as const).map(([v, label]) => (
+                  <Link key={v} href={`/standings?league=${active.league_id}&view=${v}`}
+                    className={`flex-1 text-center py-2 rounded-xl text-[12px] font-bold border
+                      ${view === v ? 'bg-turf text-lit border-lit/40' : 'bg-turf/40 text-dim border-chalk/[0.05]'}`}>
+                    {label}
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            {view === 'playoff' ? (
+              <PlayoffBracket qf18={t18.tie} qf45={t45.tie} qf27={t27.tie} qf36={t36.tie}
+                sfTop={sTop.tie} sfBot={sBot.tie} fin={fin.tie} champion={champion} />
+            ) : view === 'scorers' ? (
               !srows.length ? <Empty>Δεν υπάρχουν στατιστικά.</Empty> : (
                 <div className="flex flex-col gap-6">
                   <StatList title="⚽ Σκόρερ" rows={scorers} value={p => p.goals} />

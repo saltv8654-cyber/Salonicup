@@ -276,6 +276,8 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved, onDelete }: 
   // Χειροκίνητο σκορ για ολοκληρωμένο αγώνα (χωρίς καταχώρηση event-event)
   const [scoreA, setScoreA] = useState(String(row?.goals_team_a ?? 0))
   const [scoreB, setScoreB] = useState(String(row?.goals_team_b ?? 0))
+  // Φάση: regular = κανονική περίοδος (βαθμολογία) · QF/SF/Final = playoff (bracket)
+  const [stage, setStage] = useState<string>(row?.stage ?? 'regular')
 
   const leagueTeams = teams.filter(t => t.league_id === league)
   const venueFields = venues.find(v => v.venue_id === venue)?.fields ?? []
@@ -296,6 +298,7 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved, onDelete }: 
       match_date: date ? new Date(date).toISOString() : null,
       match_status: status,
       stream_url: stream.trim() || null,
+      stage: stage === 'regular' ? null : stage,
     }
     // Νίκη στα χαρτιά → γράφουμε απευθείας το σκορ 3-0 (το trigger recalc_score
     // τρέχει μόνο σε αλλαγές events, οπότε το άμεσο update διατηρείται).
@@ -326,6 +329,14 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved, onDelete }: 
         onChange={v => { setLeague(v); setTeamA(''); setTeamB('') }}
         options={leagues.map(l => ({ value: l.league_id, label: l.name }))} />
       <Field label="ΑΓΩΝΙΣΤΙΚΗ" value={round} onChange={setRound} numeric />
+
+      <Select label="ΦΑΣΗ" value={stage} onChange={setStage}
+        options={[
+          { value: 'regular', label: 'Κανονική περίοδος (βαθμολογία)' },
+          { value: 'QF',      label: 'Playoff · Προημιτελικά (1-8, 2-7, 3-6, 4-5)' },
+          { value: 'SF',      label: 'Playoff · Ημιτελικά' },
+          { value: 'Final',   label: 'Playoff · Τελικός' },
+        ]} />
 
       <Select label="ΓΗΠΕΔΟΥΧΟΣ" value={teamA} onChange={setTeamA}
         options={leagueTeams.map(t => ({ value: t.team_id, label: t.name }))} />
