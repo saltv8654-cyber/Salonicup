@@ -79,22 +79,19 @@ export default function PlayoffBracket({
 }) {
   return (
     <div className="overflow-x-auto pb-2 -mx-1 px-1">
-      <div className="min-w-[560px] mx-auto grid grid-cols-3 gap-x-3 gap-y-4 items-center"
-        style={{ maxWidth: 560 }}>
-        {/* Πάνω σειρά: 1-8 · ΗΜΙΤΕΛΙΚΟΣ · 4-5 */}
-        <TieCard tie={qf18} title="ΠΡΟΗΜΙΤΕΛΙΚΟΣ · 1v8" />
-        <TieCard tie={sfTop} title="ΗΜΙΤΕΛΙΚΟΣ" />
-        <TieCard tie={qf45} title="ΠΡΟΗΜΙΤΕΛΙΚΟΣ · 4v5" />
+      {/* Μακρόστενο «χωνί»: προημιτελικοί στις 4 γωνίες, ημιτελικοί μαζεύουν προς το κέντρο,
+          κύπελλο στη μέση (ΗΜΙΤΕΛΙΚΟΣ 1 κάτω από τους πάνω, ΗΜΙΤΕΛΙΚΟΣ 2 πάνω από τους κάτω). */}
+      <div className="mx-auto grid gap-x-2 gap-y-3"
+        style={{ maxWidth: 500, gridTemplateColumns: '1fr 1fr 1fr' }}>
+        <div style={{ gridColumn: 1, gridRow: 1 }}><TieCard tie={qf18} title="ΠΡΟΗΜΙΤΕΛΙΚΟΣ · 1v8" /></div>
+        <div style={{ gridColumn: 3, gridRow: 1, justifySelf: 'end' }}><TieCard tie={qf45} title="ΠΡΟΗΜΙΤΕΛΙΚΟΣ · 4v5" /></div>
 
-        {/* Μεσαία σειρά: κύπελλο στο κέντρο */}
-        <span />
-        <CupCenter tie={fin} champion={champion} />
-        <span />
+        <div style={{ gridColumn: 2, gridRow: 2, justifySelf: 'center' }}><TieCard tie={sfTop} title="ΗΜΙΤΕΛΙΚΟΣ 1" /></div>
+        <div style={{ gridColumn: 2, gridRow: 3, justifySelf: 'center' }}><CupCenter tie={fin} champion={champion} /></div>
+        <div style={{ gridColumn: 2, gridRow: 4, justifySelf: 'center' }}><TieCard tie={sfBot} title="ΗΜΙΤΕΛΙΚΟΣ 2" /></div>
 
-        {/* Κάτω σειρά: 2-7 · ΗΜΙΤΕΛΙΚΟΣ · 3-6 */}
-        <TieCard tie={qf27} title="ΠΡΟΗΜΙΤΕΛΙΚΟΣ · 2v7" />
-        <TieCard tie={sfBot} title="ΗΜΙΤΕΛΙΚΟΣ" />
-        <TieCard tie={qf36} title="ΠΡΟΗΜΙΤΕΛΙΚΟΣ · 3v6" />
+        <div style={{ gridColumn: 1, gridRow: 5 }}><TieCard tie={qf27} title="ΠΡΟΗΜΙΤΕΛΙΚΟΣ · 2v7" /></div>
+        <div style={{ gridColumn: 3, gridRow: 5, justifySelf: 'end' }}><TieCard tie={qf36} title="ΠΡΟΗΜΙΤΕΛΙΚΟΣ · 3v6" /></div>
       </div>
       <p className="text-[9px] text-off text-center mt-2">
         Διπλά παιχνίδια · περνά η ομάδα με την καλύτερη συνολική διαφορά τερμάτων
