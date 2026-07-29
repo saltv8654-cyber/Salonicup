@@ -12,7 +12,7 @@ const STATUSES: { value: MatchState; label: string }[] = [
   { value: 'Live',      label: 'Σε εξέλιξη' },
   { value: 'Played',    label: 'Ολοκληρωμένος' },
   { value: 'Postponed', label: 'Αναβλήθηκε' },
-  { value: 'Forfeit',   label: 'Απουσία (0-0)' },
+  { value: 'Forfeit',   label: 'Στα χαρτιά (άνευ αγώνα)' },
 ]
 
 const STATUS_DOT: Record<string, string> = {
@@ -266,6 +266,13 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved, onDelete }: 
   const [status, setStatus]   = useState<MatchState>(row?.match_status ?? 'Scheduled')
   const [stream, setStream]   = useState(row?.stream_url ?? '')
   const [busy, setBusy]       = useState(false)
+  // Νίκη στα χαρτιά: ποια ομάδα κερδίζει 3-0 (ή καμία = 0-0, διπλή απουσία)
+  const [ffWinner, setFfWinner] = useState<'a' | 'b' | 'none'>(
+    row?.match_status === 'Forfeit'
+      ? ((row.goals_team_a ?? 0) > (row.goals_team_b ?? 0) ? 'a'
+        : (row.goals_team_b ?? 0) > (row.goals_team_a ?? 0) ? 'b' : 'none')
+      : 'a')
+  const FORFEIT_GOALS = 3
 
   const leagueTeams = teams.filter(t => t.league_id === league)
   const venueFields = venues.find(v => v.venue_id === venue)?.fields ?? []
@@ -276,7 +283,7 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved, onDelete }: 
     if (teamA === teamB)  return toast.error('Ίδια ομάδα δύο φορές')
     setBusy(true)
 
-    const payload = {
+    const payload: any = {
       league_id: league,
       round: parseInt(round) || 1,
       team_a: teamA,
@@ -286,6 +293,14 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved, onDelete }: 
       match_date: date ? new Date(date).toISOString() : null,
       match_status: status,
       stream_url: stream.trim() || null,
+    }
+    // Νίκη στα χαρτιά → γράφουμε απευθείας το σκορ 3-0 (το trigger recalc_score
+    // τρέχει μόνο σε αλλαγές events, οπότε το άμεσο update διατηρείται).
+    if (status === 'Forfeit') {
+      payload.goals_team_a = ffWinner === 'a' ? FORFEIT_GOALS : 0
+      payload.goals_team_b = ffWinner === 'b' ? FORFEIT_GOALS : 0
+      payload.pens_team_a = 0
+      payload.pens_team_b = 0
     }
     const { error } = row
       ? await supabase.from('matches').update(payload).eq('match_id', row.match_id)
@@ -328,6 +343,16 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved, onDelete }: 
       <Select label="ΚΑΤΑΣΤΑΣΗ" value={status}
         onChange={v => setStatus(v as MatchState)}
         options={STATUSES} />
+
+      {status === 'Forfeit' && (
+        <Select label="ΝΙΚΗΤΡΙΑ ΣΤΑ ΧΑΡΤΙΑ (3-0)" value={ffWinner}
+          onChange={v => setFfWinner(v as 'a' | 'b' | 'none')}
+          options={[
+            { value: 'a', label: `${leagueTeams.find(t => t.team_id === teamA)?.name ?? 'Γηπεδούχος'} (3-0)` },
+            { value: 'b', label: `${leagueTeams.find(t => t.team_id === teamB)?.name ?? 'Φιλοξενούμενος'} (0-3)` },
+            { value: 'none', label: 'Διπλή απουσία (0-0)' },
+          ]} />
+      )}
 
       <Field label="ΣΥΝΔΕΣΜΟΣ YOUTUBE (live)" value={stream} onChange={setStream}
         placeholder="https://youtu.be/… ή https://youtube.com/watch?v=…" />
