@@ -60,7 +60,7 @@ export default async function StandingsPage({
   // ── Playoff bracket: seeding auto από top-8 της Regular Season ──
   const { data: pmatches } = active && view === 'playoff'
     ? await supabase.from('matches')
-        .select('team_a, team_b, goals_team_a, goals_team_b, match_status, stage')
+        .select('team_a, team_b, goals_team_a, goals_team_b, match_status, stage, match_date')
         .eq('league_id', active.league_id).in('stage', ['QF', 'SF', 'Final'])
     : { data: [] as any[] }
 
@@ -69,23 +69,35 @@ export default async function StandingsPage({
     ({ id: r.team_id, name: r.team_name, logo: r.logo_url, seed: i + 1 }))
   const side = (t: BT): BSide => ({ seed: t.seed, name: t.name, logo: t.logo })
   const doneM = (m: any) => ['Played', 'Forfeit'].includes(m.match_status)
-  const aggregate = (t1: BT, t2: BT, stg: string) => {
-    let g1 = 0, g2 = 0, legs = 0
-    for (const m of (pmatches ?? [])) {
-      if (m.stage !== stg || !doneM(m)) continue
-      if (m.team_a === t1.id && m.team_b === t2.id) { g1 += m.goals_team_a; g2 += m.goals_team_b; legs++ }
-      else if (m.team_a === t2.id && m.team_b === t1.id) { g1 += m.goals_team_b; g2 += m.goals_team_a; legs++ }
+  const legsOf = (stg: string) => (stg === 'Final' ? 1 : 2)  // QF/SF = 2 αγώνες · Τελικός = 1
+  // Επιστρέφει τα σκορ κάθε παιχνιδιού ξεχωριστά + νικητή στη ΣΥΝΟΛΙΚΗ διαφορά
+  const tieData = (t1: BT, t2: BT, stg: string) => {
+    const legN = legsOf(stg)
+    const ms = (pmatches ?? [])
+      .filter((m: any) => m.stage === stg &&
+        ((m.team_a === t1.id && m.team_b === t2.id) || (m.team_a === t2.id && m.team_b === t1.id)))
+      .sort((a: any, b: any) => String(a.match_date ?? '').localeCompare(String(b.match_date ?? '')))
+    const s1: (number | null)[] = [], s2: (number | null)[] = []
+    for (let i = 0; i < legN; i++) {
+      const m = ms[i]
+      if (m && doneM(m)) {
+        s1.push(m.team_a === t1.id ? m.goals_team_a : m.goals_team_b)
+        s2.push(m.team_a === t1.id ? m.goals_team_b : m.goals_team_a)
+      } else { s1.push(null); s2.push(null) }
     }
-    const decided = legs > 0 && g1 !== g2
-    return { g1, g2, legs, winner: !decided ? undefined : (g1 > g2 ? t1 : t2) }
+    const played = s1.filter(x => x != null).length
+    const g1 = s1.reduce((a: number, x) => a + (x ?? 0), 0)
+    const g2 = s2.reduce((a: number, x) => a + (x ?? 0), 0)
+    const decided = played === legN && g1 !== g2
+    return { s1, s2, winner: decided ? (g1 > g2 ? t1 : t2) : undefined }
   }
   const mkTie = (t1: BT | undefined, t2: BT | undefined, stg: string, ph1: string, ph2: string)
     : { tie: BTie; winner?: BT } => {
     if (!t1 || !t2) return { tie: { a: t1 ? side(t1) : { ph: ph1 }, b: t2 ? side(t2) : { ph: ph2 } } }
-    const r = aggregate(t1, t2, stg)
+    const r = tieData(t1, t2, stg)
     return { winner: r.winner, tie: {
-      a: { seed: t1.seed, name: t1.name, logo: t1.logo, agg: r.legs ? r.g1 : null, win: r.winner?.id === t1.id },
-      b: { seed: t2.seed, name: t2.name, logo: t2.logo, agg: r.legs ? r.g2 : null, win: r.winner?.id === t2.id },
+      a: { seed: t1.seed, name: t1.name, logo: t1.logo, scores: r.s1, win: r.winner?.id === t1.id },
+      b: { seed: t2.seed, name: t2.name, logo: t2.logo, scores: r.s2, win: r.winner?.id === t2.id },
     } }
   }
   const t18 = mkTie(seeds[0], seeds[7], 'QF', '1ος', '8ος')

@@ -4,9 +4,9 @@ export type BSide = {
   name?: string
   logo?: string | null
   seed?: number
-  agg?: number | null
+  scores?: (number | null)[]   // σκορ ανά παιχνίδι (2 για QF/SF, 1 για τελικό)
   win?: boolean
-  ph?: string          // placeholder όταν ο νικητής δεν έχει κριθεί ακόμη
+  ph?: string                  // placeholder όταν ο νικητής δεν έχει κριθεί ακόμη
 }
 export type BTie = { a: BSide; b: BSide }
 
@@ -19,6 +19,7 @@ function Row({ s }: { s: BSide }) {
       </div>
     )
   }
+  const scores = s.scores?.length ? s.scores : [null]
   return (
     <div className={`flex items-center gap-1.5 px-2 py-2 min-h-[34px]
       ${s.win ? 'bg-gradient-to-r from-lit/25 to-transparent' : ''}`}>
@@ -30,8 +31,14 @@ function Row({ s }: { s: BSide }) {
         ${s.win ? 'text-lit' : 'text-chalk'}`}>
         {s.name ?? '—'}
       </span>
-      <span className={`text-[12px] font-extrabold tnum shrink-0 ${s.win ? 'text-lit' : 'text-silver'}`}>
-        {s.agg ?? '–'}
+      <span className="flex items-center gap-0.5 shrink-0">
+        {scores.map((v, i) => (
+          <span key={i} className={`w-[15px] text-center text-[12px] font-extrabold tnum
+            ${i > 0 ? 'border-l border-chalk/[0.1]' : ''}
+            ${s.win ? 'text-lit' : 'text-silver'}`}>
+            {v ?? '–'}
+          </span>
+        ))}
       </span>
     </div>
   )
@@ -94,7 +101,7 @@ export default function PlayoffBracket({
         <div style={{ gridColumn: 3, gridRow: 5, justifySelf: 'end' }}><TieCard tie={qf36} title="ΠΡΟΗΜΙΤΕΛΙΚΟΣ · 3v6" /></div>
       </div>
       <p className="text-[9px] text-off text-center mt-2">
-        Διπλά παιχνίδια · περνά η ομάδα με την καλύτερη συνολική διαφορά τερμάτων
+        Προημ./Ημιτ.: δύο στήλες = τα 2 παιχνίδια · περνά η καλύτερη συνολική διαφορά τερμάτων · Τελικός: 1 παιχνίδι
       </p>
     </div>
   )
