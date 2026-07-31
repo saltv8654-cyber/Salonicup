@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Loading, Empty, FieldBadge } from '@/app/ui'
 import { athensDateKey, fmtDay, fmtTime } from '@/lib/time'
@@ -14,6 +15,33 @@ export default function AdminSchedule() {
   // Πρωταθλήματα & αγωνιστικές (για διαγραφή)
   const [leagues, setLeagues] = useState<any[]>([])
   const [roundInfo, setRoundInfo] = useState<Record<string, number[]>>({})
+
+  // Προσωπικό (φωτογράφος & social ανά μέρα)
+  const [staff, setStaff] = useState<{ id: string; name: string; kind: string }[]>([])
+  const [dayStaff, setDayStaff] = useState<Record<string, string>>({}) // `${day}|${role}` → staff_id
+  async function loadStaff() {
+    const [s, d] = await Promise.all([
+      supabase.from('staff').select('id, name, kind').order('name'),
+      supabase.from('day_staff').select('day, role, staff_id'),
+    ])
+    setStaff(s.data ?? [])
+    const map: Record<string, string> = {}
+    for (const r of d.data ?? []) map[`${r.day}|${r.role}`] = r.staff_id
+    setDayStaff(map)
+  }
+  async function setDayAssign(day: string, role: 'photographer' | 'social', staffId: string) {
+    const k = `${day}|${role}`
+    if (!staffId) {
+      const { error } = await supabase.from('day_staff').delete().eq('day', day).eq('role', role)
+      if (error) return toast.error('Δεν αποθηκεύτηκε')
+      setDayStaff(prev => { const n = { ...prev }; delete n[k]; return n })
+    } else {
+      const { error } = await supabase.from('day_staff')
+        .upsert({ day, role, staff_id: staffId }, { onConflict: 'day,role' })
+      if (error) return toast.error('Δεν αποθηκεύτηκε')
+      setDayStaff(prev => ({ ...prev, [k]: staffId }))
+    }
+  }
 
   async function loadRows() {
     const { data } = await supabase.from('matches')
@@ -40,6 +68,7 @@ export default function AdminSchedule() {
     Promise.all([
       loadRows(),
       loadRounds(),
+      loadStaff(),
       supabase.from('leagues').select('league_id, name').order('sort_order')
         .then(({ data }) => {
           setLeagues(data ?? [])
@@ -229,7 +258,22 @@ export default function AdminSchedule() {
 
       {!days.length ? <Empty>Δεν υπάρχουν προγραμματισμένοι αγώνες.</Empty> : (
         <div className="flex flex-col gap-4">
-          {days.map(d => (
+          {days.map(d => {
+            const photogs = staff.filter(s => s.kind === 'photographer')
+            const socials = staff.filter(s => s.kind === 'social')
+            const daySelect = (role: 'photographer' | 'social', icon: string, list: typeof staff) => (
+              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                <span className="text-[13px] shrink-0">{icon}</span>
+                <select value={dayStaff[`${d.key}|${role}`] ?? ''}
+                  onChange={e => setDayAssign(d.key, role, e.target.value)}
+                  className="flex-1 min-w-0 bg-chalk/[0.04] rounded-lg px-2 py-1.5 text-chalk text-[11.5px]
+                    font-semibold outline-none border border-chalk/[0.07]">
+                  <option value="">— κανείς —</option>
+                  {list.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+            )
+            return (
             <div key={d.key}>
               <div className="flex items-center justify-between mb-2 px-1">
                 <p className="text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-lit">
@@ -241,10 +285,15 @@ export default function AdminSchedule() {
                   📋 Αντιγραφή
                 </button>
               </div>
+              {/* Φωτογράφος & Social — για όλα τα ματς της μέρας */}
+              <div className="flex items-center gap-2 mb-2 px-0.5">
+                {daySelect('photographer', '📷', photogs)}
+                {daySelect('social', '📱', socials)}
+              </div>
               <div className="bg-turf rounded-xl border border-chalk/[0.05] overflow-hidden">
                 {d.matches.map((m, i) => (
-                  <div key={m.match_id}
-                    className={`flex items-center gap-2.5 px-3 py-2.5
+                  <Link key={m.match_id} href={`/match/${m.match_id}`}
+                    className={`flex items-center gap-2.5 px-3 py-2.5 active:bg-[#1C1C22]
                       ${i ? 'border-t border-chalk/[0.05]' : ''}`}>
                     <span className="text-[13px] font-extrabold text-chalk tnum w-[46px] shrink-0">
                       {fmtTime(m.match_date)}
@@ -260,18 +309,19 @@ export default function AdminSchedule() {
                         <p className="text-[9.5px] text-dim truncate">{m.league.name}</p>
                       )}
                     </div>
-                    {m.match_status !== 'Scheduled' && (
+                    {m.match_status !== 'Scheduled' ? (
                       <span className="text-[8.5px] font-extrabold text-off shrink-0">
                         {m.match_status === 'Live' ? 'LIVE'
                           : ['Played', 'Forfeit'].includes(m.match_status) ? 'ΤΕΛ'
                           : m.match_status === 'Postponed' ? 'ΑΝΑΒ' : ''}
                       </span>
-                    )}
-                  </div>
+                    ) : <span className="text-dim text-xs shrink-0">›</span>}
+                  </Link>
                 ))}
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
