@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     if (!email || !password) {
       return NextResponse.json({ error: 'Λείπει email ή κωδικός' }, { status: 400 })
     }
-    if (!['admin', 'speaker', 'captain', 'viewer'].includes(role)) {
+    if (!['admin', 'speaker', 'referee', 'photographer', 'social', 'captain', 'viewer'].includes(role)) {
       return NextResponse.json({ error: 'Άκυρος ρόλος' }, { status: 400 })
     }
 

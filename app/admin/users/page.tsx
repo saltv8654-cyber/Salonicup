@@ -11,6 +11,7 @@ const ROLES = [
   { value: 'speaker',      label: 'Speaker' },
   { value: 'referee',      label: 'Διαιτητής' },
   { value: 'photographer', label: 'Φωτογράφος' },
+  { value: 'social',       label: 'Social Media' },
   { value: 'captain',      label: 'Αρχηγός' },
   { value: 'viewer',       label: 'Θεατής' },
 ]
