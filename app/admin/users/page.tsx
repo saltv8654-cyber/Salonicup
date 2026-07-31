@@ -7,10 +7,12 @@ import toast from 'react-hot-toast'
 import type { Profile } from '@/lib/types'
 
 const ROLES = [
-  { value: 'admin',   label: 'Διαχειριστής' },
-  { value: 'speaker', label: 'Speaker' },
-  { value: 'captain', label: 'Αρχηγός' },
-  { value: 'viewer',  label: 'Θεατής' },
+  { value: 'admin',        label: 'Διαχειριστής' },
+  { value: 'speaker',      label: 'Speaker' },
+  { value: 'referee',      label: 'Διαιτητής' },
+  { value: 'photographer', label: 'Φωτογράφος' },
+  { value: 'captain',      label: 'Αρχηγός' },
+  { value: 'viewer',       label: 'Θεατής' },
 ]
 
 export default function AdminUsers() {
@@ -18,6 +20,9 @@ export default function AdminUsers() {
   const [rows, setRows] = useState<Profile[]>([])
   const [load, setLoad] = useState(true)
   const [open, setOpen] = useState(false)
+  // Επεξεργασία εμφανιζόμενου ονόματος (inline)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
 
   async function fetchRows() {
     const { data } = await supabase.from('profiles')
@@ -33,6 +38,15 @@ export default function AdminUsers() {
       .update({ role }).eq('id', id)
     if (error) return toast.error('Δεν άλλαξε')
     toast.success('Ενημερώθηκε'); fetchRows()
+  }
+
+  async function saveName(id: string) {
+    const name = editName.trim()
+    const { error } = await supabase.from('profiles')
+      .update({ full_name: name || null }).eq('id', id)
+    setEditId(null)
+    if (error) return toast.error('Δεν αποθηκεύτηκε')
+    toast.success('Το όνομα ενημερώθηκε'); fetchRows()
   }
 
   if (load) return <Loading />
@@ -57,9 +71,23 @@ export default function AdminUsers() {
                 {(u.full_name || u.email || '?').charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-bold text-chalk truncate">
-                  {u.full_name || u.email}
-                </p>
+                {editId === u.id ? (
+                  <input autoFocus value={editName}
+                    onChange={e => setEditName(e.target.value)}
+                    onBlur={() => saveName(u.id)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveName(u.id); if (e.key === 'Escape') setEditId(null) }}
+                    placeholder="Εμφανιζόμενο όνομα"
+                    className="w-full bg-chalk/[0.06] rounded-lg px-2.5 py-1.5 text-chalk text-[13px]
+                      font-bold outline-none border border-lit/50" />
+                ) : (
+                  <button onClick={() => { setEditId(u.id); setEditName(u.full_name ?? '') }}
+                    className="flex items-center gap-1.5 max-w-full active:opacity-70">
+                    <span className="text-[13px] font-bold text-chalk truncate">
+                      {u.full_name || u.email}
+                    </span>
+                    <span className="text-dim text-[10px] shrink-0">✎</span>
+                  </button>
+                )}
                 <p className="text-[10.5px] text-dim truncate">{u.email}</p>
               </div>
               <select value={u.role}

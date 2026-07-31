@@ -1,4 +1,4 @@
-export type Role       = 'admin' | 'speaker' | 'captain' | 'viewer'
+export type Role       = 'admin' | 'speaker' | 'referee' | 'photographer' | 'captain' | 'viewer'
 export type MatchState = 'Scheduled' | 'Live' | 'Played' | 'Postponed' | 'Forfeit'
 export type Period     = 'H1' | 'H2' | 'ET' | 'PEN'
 export type EventType  =

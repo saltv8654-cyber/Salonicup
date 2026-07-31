@@ -5,7 +5,7 @@ import { Crest, Loading, Empty, FieldBadge } from '@/app/ui'
 import { Modal, Field, Select, SaveBtn } from '../ui'
 import { toDatetimeLocal, fmtDay, fmtTime } from '@/lib/time'
 import toast from 'react-hot-toast'
-import type { Team, League, Venue, MatchState } from '@/lib/types'
+import type { Team, League, Venue, MatchState, Profile } from '@/lib/types'
 
 const STATUSES: { value: MatchState; label: string }[] = [
   { value: 'Scheduled', label: 'Προγραμματισμένος' },
@@ -90,6 +90,7 @@ export default function AdminMatches() {
   const [leagues, setLeagues] = useState<League[]>([])
   const [teams, setTeams]     = useState<Team[]>([])
   const [venues, setVenues]   = useState<Venue[]>([])
+  const [people, setPeople]   = useState<Profile[]>([])
   const [filter, setFilter]   = useState('')
   const [load, setLoad]       = useState(true)
   const [open, setOpen]       = useState(false)
@@ -103,7 +104,7 @@ export default function AdminMatches() {
   })
 
   async function fetchAll() {
-    const [m, l, t, v] = await Promise.all([
+    const [m, l, t, v, p] = await Promise.all([
       supabase.from('matches').select(`
         *, team_a_data:team_a(name, logo_url), team_b_data:team_b(name, logo_url),
         league:league_id(name), venue:venue_id(name)
@@ -111,11 +112,13 @@ export default function AdminMatches() {
       supabase.from('leagues').select('*').order('sort_order'),
       supabase.from('teams').select('*').order('name'),
       supabase.from('venues').select('*').order('name'),
+      supabase.from('profiles').select('id, full_name, email, role, team_id').order('full_name'),
     ])
     setRows(m.data ?? [])
     setLeagues(l.data ?? [])
     setTeams(t.data ?? [])
     setVenues(v.data ?? [])
+    setPeople(p.data ?? [])
     setLoad(false)
   }
 
@@ -242,7 +245,7 @@ export default function AdminMatches() {
       )}
 
       {open && (
-        <MatchForm row={edit} leagues={leagues} teams={teams} venues={venues}
+        <MatchForm row={edit} leagues={leagues} teams={teams} venues={venues} people={people}
           onClose={() => setOpen(false)}
           onSaved={() => { setOpen(false); fetchAll() }}
           onDelete={edit ? () => { setOpen(false); remove(edit.match_id) } : undefined} />
@@ -251,8 +254,8 @@ export default function AdminMatches() {
   )
 }
 
-function MatchForm({ row, leagues, teams, venues, onClose, onSaved, onDelete }: {
-  row: any; leagues: League[]; teams: Team[]; venues: Venue[]
+function MatchForm({ row, leagues, teams, venues, people, onClose, onSaved, onDelete }: {
+  row: any; leagues: League[]; teams: Team[]; venues: Venue[]; people: Profile[]
   onClose: () => void; onSaved: () => void; onDelete?: () => void
 }) {
   const supabase = createClient()
@@ -278,13 +281,21 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved, onDelete }: 
   const [scoreB, setScoreB] = useState(String(row?.goals_team_b ?? 0))
   // Φάση: regular = κανονική περίοδος (βαθμολογία) · QF/SF/Final = playoff (bracket)
   const [stage, setStage] = useState<string>(row?.stage ?? 'regular')
-  // Συντελεστές αγώνα
-  const [speaker, setSpeaker]   = useState(row?.speaker ?? '')
-  const [referee, setReferee]   = useState(row?.referee ?? '')
-  const [photographer, setPhotographer] = useState(row?.photographer ?? '')
+  // Συντελεστές αγώνα — επιλογή χρήστη (profiles) ανά ρόλο
+  const [speakerId, setSpeakerId]           = useState(row?.speaker_id ?? '')
+  const [refereeId, setRefereeId]           = useState(row?.referee_id ?? '')
+  const [photographerId, setPhotographerId] = useState(row?.photographer_id ?? '')
 
   const leagueTeams = teams.filter(t => t.league_id === league)
   const venueFields = venues.find(v => v.venue_id === venue)?.fields ?? []
+
+  // Λίστες συντελεστών από τους χρήστες (εμφανιζόμενο όνομα ή email)
+  const pName = (p: Profile) => p.full_name || p.email || '—'
+  const optsFor = (roles: string[]) =>
+    people.filter(p => roles.includes(p.role)).map(p => ({ value: p.id, label: pName(p) }))
+  const speakerOpts      = optsFor(['admin', 'speaker'])
+  const refereeOpts      = optsFor(['referee'])
+  const photographerOpts = optsFor(['photographer'])
 
   async function save() {
     if (!league)          return toast.error('Διάλεξε πρωτάθλημα')
@@ -303,9 +314,9 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved, onDelete }: 
       match_status: status,
       stream_url: stream.trim() || null,
       stage: stage === 'regular' ? null : stage,
-      speaker: speaker.trim() || null,
-      referee: referee.trim() || null,
-      photographer: photographer.trim() || null,
+      speaker_id: speakerId || null,
+      referee_id: refereeId || null,
+      photographer_id: photographerId || null,
     }
     // Νίκη στα χαρτιά → γράφουμε απευθείας το σκορ 3-0 (το trigger recalc_score
     // τρέχει μόνο σε αλλαγές events, οπότε το άμεσο update διατηρείται).
@@ -414,9 +425,9 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved, onDelete }: 
       <Field label="ΣΥΝΔΕΣΜΟΣ YOUTUBE (live)" value={stream} onChange={setStream}
         placeholder="https://youtu.be/… ή https://youtube.com/watch?v=…" />
 
-      <Field label="🎙 ΣΠΙΚΕΡ" value={speaker} onChange={setSpeaker} placeholder="Όνομα σπίκερ" />
-      <Field label="🟨 ΔΙΑΙΤΗΤΗΣ" value={referee} onChange={setReferee} placeholder="Όνομα διαιτητή" />
-      <Field label="📷 ΦΩΤΟΓΡΑΦΟΣ" value={photographer} onChange={setPhotographer} placeholder="Όνομα φωτογράφου" />
+      <Select label="🎙 ΣΠΙΚΕΡ" value={speakerId} onChange={setSpeakerId} options={speakerOpts} />
+      <Select label="🟨 ΔΙΑΙΤΗΤΗΣ" value={refereeId} onChange={setRefereeId} options={refereeOpts} />
+      <Select label="📷 ΦΩΤΟΓΡΑΦΟΣ" value={photographerId} onChange={setPhotographerId} options={photographerOpts} />
 
       <SaveBtn busy={busy} onClick={save} />
 

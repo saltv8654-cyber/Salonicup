@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Watermark } from '@/app/ui'
-import SpeakerList from './list'
+import SpeakerDays from './days'
 import LogoutButton from '@/app/logout-button'
 
 export const dynamic = 'force-dynamic'
@@ -20,6 +20,8 @@ export default async function SpeakerHome() {
     redirect('/')
   }
 
+  const isAdmin = profile.role === 'admin'
+
   const SELECT = `
       *,
       team_a_data:team_a(name, logo_url),
@@ -27,18 +29,13 @@ export default async function SpeakerHome() {
       league:league_id(name),
       venue:venue_id(name)
     `
-  // Ξεχωριστά ερωτήματα ώστε οι ολοκληρωμένοι να μη «κόβονται» από τους πολλούς
-  // προγραμματισμένους (κοινό όριο θα γέμιζε με μελλοντικές ημερομηνίες).
-  const [finished, upcoming, leaguesRes] = await Promise.all([
-    supabase.from('matches').select(SELECT)
-      .in('match_status', ['Played', 'Forfeit'])
-      .order('match_date', { ascending: false }),
-    supabase.from('matches').select(SELECT)
-      .in('match_status', ['Scheduled', 'Live', 'Postponed'])
-      .order('match_date', { ascending: true }),
-    supabase.from('leagues').select('league_id, name').order('sort_order'),
-  ])
-  const matches = [...(finished.data ?? []), ...(upcoming.data ?? [])]
+  // Ο σπίκερ βλέπει ΜΟΝΟ τους δικούς του αγώνες (speaker_id = ο ίδιος)·
+  // ο διαχειριστής τους βλέπει όλους.
+  const base = () => {
+    const q = supabase.from('matches').select(SELECT)
+    return isAdmin ? q : q.eq('speaker_id', user.id)
+  }
+  const { data: matches } = await base().order('match_date', { ascending: true })
 
   return (
     <div className="min-h-screen bg-pitch pb-10">
@@ -60,7 +57,7 @@ export default async function SpeakerHome() {
         </h1>
       </header>
 
-      <SpeakerList matches={matches ?? []} leagues={leaguesRes.data ?? []} />
+      <SpeakerDays matches={matches ?? []} isAdmin={isAdmin} />
     </div>
   )
 }
