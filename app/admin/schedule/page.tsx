@@ -16,15 +16,19 @@ export default function AdminSchedule() {
   const [leagues, setLeagues] = useState<any[]>([])
   const [roundInfo, setRoundInfo] = useState<Record<string, number[]>>({})
 
-  // Προσωπικό (φωτογράφος & social ανά μέρα)
+  // Προσωπικό: σπίκερ (χρήστες) ανά ματς · φωτογράφος & social (staff) ανά μέρα
   const [staff, setStaff] = useState<{ id: string; name: string; kind: string }[]>([])
+  const [speakers, setSpeakers] = useState<{ id: string; full_name: string | null; email: string | null }[]>([])
   const [dayStaff, setDayStaff] = useState<Record<string, string>>({}) // `${day}|${role}` → staff_id
   async function loadStaff() {
-    const [s, d] = await Promise.all([
+    const [s, d, sp] = await Promise.all([
       supabase.from('staff').select('id, name, kind').order('name'),
       supabase.from('day_staff').select('day, role, staff_id'),
+      supabase.from('profiles').select('id, full_name, email')
+        .in('role', ['admin', 'speaker']).order('full_name'),
     ])
     setStaff(s.data ?? [])
+    setSpeakers(sp.data ?? [])
     const map: Record<string, string> = {}
     for (const r of d.data ?? []) map[`${r.day}|${r.role}`] = r.staff_id
     setDayStaff(map)
@@ -45,11 +49,19 @@ export default function AdminSchedule() {
 
   async function loadRows() {
     const { data } = await supabase.from('matches')
-      .select(`match_id, match_date, field, match_status,
+      .select(`match_id, match_date, field, match_status, speaker_id, referee_id,
         team_a_data:team_a(name), team_b_data:team_b(name), league:league_id(name)`)
       .not('match_date', 'is', null)
       .order('match_date', { ascending: true })
     setRows(data ?? [])
+  }
+
+  // Ανάθεση σπίκερ/διαιτητή σε ΕΝΑΝ αγώνα (αλλάζουν ανά ματς)
+  async function setMatchAssign(matchId: string, key: 'speaker_id' | 'referee_id', value: string) {
+    const { error } = await supabase.from('matches')
+      .update({ [key]: value || null }).eq('match_id', matchId)
+    if (error) return toast.error('Δεν αποθηκεύτηκε')
+    setRows(prev => prev.map(m => m.match_id === matchId ? { ...m, [key]: value || null } : m))
   }
 
   async function loadRounds() {
@@ -292,31 +304,63 @@ export default function AdminSchedule() {
               </div>
               <div className="bg-turf rounded-xl border border-chalk/[0.05] overflow-hidden">
                 {d.matches.map((m, i) => (
-                  <Link key={m.match_id} href={`/match/${m.match_id}`}
-                    className={`flex items-center gap-2.5 px-3 py-2.5 active:bg-[#1C1C22]
-                      ${i ? 'border-t border-chalk/[0.05]' : ''}`}>
-                    <span className="text-[13px] font-extrabold text-chalk tnum w-[46px] shrink-0">
-                      {fmtTime(m.match_date)}
-                    </span>
-                    {m.field
-                      ? <div className="shrink-0"><FieldBadge field={m.field} size="xs" /></div>
-                      : <span className="w-[70px] shrink-0" />}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[12.5px] font-semibold text-chalk truncate">
-                        {m.team_a_data?.name} <span className="text-dim">–</span> {m.team_b_data?.name}
-                      </p>
-                      {m.league?.name && (
-                        <p className="text-[9.5px] text-dim truncate">{m.league.name}</p>
-                      )}
-                    </div>
-                    {m.match_status !== 'Scheduled' ? (
-                      <span className="text-[8.5px] font-extrabold text-off shrink-0">
-                        {m.match_status === 'Live' ? 'LIVE'
-                          : ['Played', 'Forfeit'].includes(m.match_status) ? 'ΤΕΛ'
-                          : m.match_status === 'Postponed' ? 'ΑΝΑΒ' : ''}
+                  <div key={m.match_id} className={i ? 'border-t border-chalk/[0.05]' : ''}>
+                    <Link href={`/match/${m.match_id}`}
+                      className="flex items-center gap-2.5 px-3 pt-2.5 pb-1.5 active:bg-[#1C1C22]">
+                      <span className="text-[13px] font-extrabold text-chalk tnum w-[46px] shrink-0">
+                        {fmtTime(m.match_date)}
                       </span>
-                    ) : <span className="text-dim text-xs shrink-0">›</span>}
-                  </Link>
+                      {m.field
+                        ? <div className="shrink-0"><FieldBadge field={m.field} size="xs" /></div>
+                        : <span className="w-[70px] shrink-0" />}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12.5px] font-semibold text-chalk truncate">
+                          {m.team_a_data?.name} <span className="text-dim">–</span> {m.team_b_data?.name}
+                        </p>
+                        {m.league?.name && (
+                          <p className="text-[9.5px] text-dim truncate">{m.league.name}</p>
+                        )}
+                      </div>
+                      {m.match_status !== 'Scheduled' ? (
+                        <span className="text-[8.5px] font-extrabold text-off shrink-0">
+                          {m.match_status === 'Live' ? 'LIVE'
+                            : ['Played', 'Forfeit'].includes(m.match_status) ? 'ΤΕΛ'
+                            : m.match_status === 'Postponed' ? 'ΑΝΑΒ' : ''}
+                        </span>
+                      ) : <span className="text-dim text-xs shrink-0">›</span>}
+                    </Link>
+                    {/* Σπίκερ & Διαιτητής — ανά αγώνα */}
+                    <div className="flex items-center gap-2 px-3 pb-2.5">
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <span className="text-[12px] shrink-0">🎙</span>
+                        <select value={m.speaker_id ?? ''}
+                          onChange={e => setMatchAssign(m.match_id, 'speaker_id', e.target.value)}
+                          className={`flex-1 min-w-0 rounded-lg px-2 py-1.5 text-[11.5px] font-semibold
+                            outline-none border ${m.speaker_id
+                              ? 'bg-lit/[0.12] border-lit/40 text-lit'
+                              : 'bg-chalk/[0.04] border-chalk/[0.07] text-silver'}`}>
+                          <option value="">— σπίκερ —</option>
+                          {speakers.map(p => (
+                            <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <span className="text-[12px] shrink-0">🟨</span>
+                        <select value={m.referee_id ?? ''}
+                          onChange={e => setMatchAssign(m.match_id, 'referee_id', e.target.value)}
+                          className={`flex-1 min-w-0 rounded-lg px-2 py-1.5 text-[11.5px] font-semibold
+                            outline-none border ${m.referee_id
+                              ? 'bg-[#F2C230]/[0.14] border-[#F2C230]/40 text-[#F2C230]'
+                              : 'bg-chalk/[0.04] border-chalk/[0.07] text-silver'}`}>
+                          <option value="">— διαιτητής —</option>
+                          {staff.filter(s => s.kind === 'referee').map(s => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
