@@ -17,7 +17,7 @@ export async function GET(req: Request, { params }: { params: { leagueId: string
   const supabase = db()
 
   const [{ data: league }, { data: rows }, { data: pmatches }] = await Promise.all([
-    supabase.from('leagues').select('name, season').eq('league_id', params.leagueId).single(),
+    supabase.from('leagues').select('name, season, logo_url').eq('league_id', params.leagueId).single(),
     supabase.from('standings').select('team_id, team_name, logo_url, position')
       .eq('league_id', params.leagueId).order('position'),
     supabase.from('matches')
@@ -132,6 +132,12 @@ export async function GET(req: Request, { params }: { params: { leagueId: string
   )
 
   const Spacer = () => <div style={{ display: 'flex', flex: 1 }} />
+  // Κάθετη γραμμή σύνδεσης (ραχοκοκαλιά ημιτελικοί ↔ τελικός)
+  const Link = () => (
+    <div style={{ display: 'flex', flex: 1, justifyContent: 'center' }}>
+      <div style={{ display: 'flex', width: 3, alignSelf: 'stretch', background: 'rgba(232,185,35,0.35)' }} />
+    </div>
+  )
 
   return new ImageResponse(
     (
@@ -142,9 +148,15 @@ export async function GET(req: Request, { params }: { params: { leagueId: string
           <div style={{ display: 'flex', fontSize: 26, fontWeight: 700, letterSpacing: 8, color: GOLD }}>
             SALONICUP · PLAYOFF
           </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 12 }}>
-            <div style={{ display: 'flex', fontSize: 52, fontWeight: 700 }}>{league?.name ?? ''}</div>
-            <div style={{ display: 'flex', fontSize: 26, color: C.dim }}>{league?.season ?? ''}</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', fontSize: 52, fontWeight: 700 }}>{league?.name ?? ''}</div>
+              <div style={{ display: 'flex', fontSize: 26, color: C.dim, marginTop: 4 }}>{league?.season ?? ''}</div>
+            </div>
+            {league?.logo_url
+              ? <img src={league.logo_url} width={92} height={92}
+                  style={{ width: 92, height: 92, objectFit: 'contain' }} />
+              : <div style={{ display: 'flex' }} />}
           </div>
         </div>
 
@@ -158,9 +170,9 @@ export async function GET(req: Request, { params }: { params: { leagueId: string
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <Card tie={sTop.tie} title="ΗΜΙΤΕΛΙΚΟΣ 1" />
           </div>
-          <Spacer />
+          <Link />
           <div style={{ display: 'flex', justifyContent: 'center' }}><Cup /></div>
-          <Spacer />
+          <Link />
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <Card tie={sBot.tie} title="ΗΜΙΤΕΛΙΚΟΣ 2" />
           </div>
