@@ -330,7 +330,7 @@ function Overlay() {
       @keyframes ovGoal{from{opacity:0;transform:translate(-50%,-12px) scale(.94)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
       @keyframes ovMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
       @keyframes ovPop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
-      @keyframes ovLive{0%{box-shadow:0 0 0 0 rgba(255,45,45,.55);opacity:1}70%{box-shadow:0 0 0 9px rgba(255,45,45,0);opacity:.6}100%{box-shadow:0 0 0 0 rgba(255,45,45,0);opacity:1}}
+      @keyframes ovLiveRing{0%{transform:scale(1);opacity:.55}80%{transform:scale(2.8);opacity:0}100%{transform:scale(2.8);opacity:0}}
     `}</style>
   )
 
@@ -533,7 +533,7 @@ function Overlay() {
       <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.14em', color: 'rgba(255,255,255,.7)',
         whiteSpace: 'nowrap' }}>POWERED BY</span>
       <div style={{ width: 200, overflow: 'hidden' }}>
-        <div style={{ display: 'flex', gap: 22, width: 'max-content',
+        <div style={{ display: 'flex', gap: 22, width: 'max-content', willChange: 'transform',
           animation: `ovMarquee ${Math.max(8, sponsors.length * 6)}s linear infinite` }}>
           {[...sponsors, ...sponsors].map((u, i) => (
             <span key={i} style={{ background: '#fff', borderRadius: 6, padding: '4px 9px', display: 'inline-flex' }}>
@@ -636,8 +636,14 @@ function Overlay() {
       {live && (
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 10px',
           borderRadius: 8, background: 'rgba(6,10,16,.72)', border: '1px solid rgba(255,255,255,.12)' }}>
-          <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#ff2d2d',
-            animation: 'ovLive 1.3s ease-out infinite' }} />
+          {/* Παλλόμενο LIVE — δαχτυλίδι με transform/opacity (GPU-composited, χωρίς repaint) */}
+          <span style={{ position: 'relative', width: 11, height: 11, display: 'inline-flex', flex: 'none' }}>
+            <span style={{ position: 'absolute', top: 0, left: 0, width: 11, height: 11, borderRadius: '50%',
+              background: '#ff2d2d', opacity: 0.55, transformOrigin: 'center',
+              animation: 'ovLiveRing 1.5s ease-out infinite', willChange: 'transform, opacity' }} />
+            <span style={{ position: 'relative', width: 11, height: 11, borderRadius: '50%', background: '#ff2d2d',
+              boxShadow: '0 0 6px rgba(255,45,45,.7)' }} />
+          </span>
           <span style={{ fontSize: 15, fontWeight: 900, letterSpacing: '.18em', color: '#fff' }}>LIVE</span>
         </div>
       )}
