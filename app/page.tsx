@@ -4,6 +4,7 @@ import { Crest, LiveDot, BottomNav, Empty, Watermark, FieldBadge } from './ui'
 import NotificationsBell from './notifications-bell'
 import LiveTicker from './live-ticker'
 import LiveClock from './live-clock'
+import ScrollActive from './scroll-active'
 import { athensDateKey, fmtDay, fmtTime } from '@/lib/time'
 import { ytWatch } from '@/lib/youtube'
 
@@ -38,6 +39,8 @@ export default async function Home({
 
   const now = new Date()
   const todayKey = athensDateKey(now.toISOString())
+  // Το «Σήμερα» εμφανίζεται πάντα στη ροδέλα, ακόμη κι αν δεν έχει αγώνες
+  if (!byDay.has(todayKey)) byDay.set(todayKey, [])
   const yestKey  = athensDateKey(new Date(now.getTime() - 86400000).toISOString())
   const tomKey   = athensDateKey(new Date(now.getTime() + 86400000).toISOString())
 
@@ -54,18 +57,18 @@ export default async function Home({
     : fmtDay(sampleIso)
 
   const tabs: { key: string; label: string }[] = days.map(k => ({
-    key: k, label: dayLabel(k, byDay.get(k)![0].match_date),
+    key: k, label: dayLabel(k, byDay.get(k)![0]?.match_date ?? now.toISOString()),
   }))
   if (undated.length) tabs.push({ key: 'none', label: 'Χωρίς ημ/νία' })
 
   const dayMatches = selected === 'none' ? undated : (byDay.get(selected) ?? [])
 
   // Ομαδοποίηση ανά διοργάνωση
-  const leagues = new Map<string, { name: string; logo: string | null; order: number; list: any[] }>()
+  const leagues = new Map<string, { id: string; name: string; logo: string | null; order: number; list: any[] }>()
   for (const m of dayMatches) {
     const key = m.league_id
     if (!leagues.has(key)) leagues.set(key, {
-      name: m.league?.name ?? '—', logo: m.league?.logo_url ?? null,
+      id: key, name: m.league?.name ?? '—', logo: m.league?.logo_url ?? null,
       order: m.league?.sort_order ?? 0, list: [],
     })
     leagues.get(key)!.list.push(m)
@@ -133,13 +136,13 @@ export default async function Home({
 
       <LiveTicker />
 
-      {/* Καρτέλες ημερών */}
+      {/* Ροδέλα ημερών — κεντράρει στο «Σήμερα» */}
       {tabs.length > 0 && (
-        <div className="flex gap-1 px-3.5 pb-3 overflow-x-auto border-b border-chalk/[0.06]">
+        <ScrollActive className="flex gap-1 px-3.5 pb-3 overflow-x-auto border-b border-chalk/[0.06]">
           {tabs.map(t => {
             const on = t.key === selected
             return (
-              <Link key={t.key} href={`/?date=${t.key}`}
+              <Link key={t.key} href={`/?date=${t.key}`} data-on={on ? '1' : undefined}
                 className={`shrink-0 px-3.5 py-2 text-[12.5px] font-bold whitespace-nowrap
                   border-b-2 -mb-[1px] transition-colors
                   ${on ? 'text-lit border-lit' : 'text-dim border-transparent'}`}>
@@ -147,7 +150,7 @@ export default async function Home({
               </Link>
             )
           })}
-        </div>
+        </ScrollActive>
       )}
 
       <div className="px-3.5 pt-4">
@@ -157,13 +160,15 @@ export default async function Home({
           <div className="flex flex-col gap-4">
             {leagueGroups.map((g, gi) => (
               <div key={gi}>
-                {/* Κεφαλίδα διοργάνωσης */}
-                <div className="flex items-center gap-2.5 px-1 mb-2">
+                {/* Κεφαλίδα διοργάνωσης — clickable (→ βαθμολογία) */}
+                <Link href={`/standings?league=${g.id}`}
+                  className="flex items-center gap-2.5 px-1 mb-2 active:opacity-70">
                   {g.logo
                     ? <img src={g.logo} alt="" className="w-5 h-5 object-contain" />
                     : <span className="text-base">🏆</span>}
                   <span className="text-[13px] font-extrabold text-chalk">{g.name}</span>
-                </div>
+                  <span className="text-dim text-[11px]">›</span>
+                </Link>
                 <div className="bg-turf rounded-xl border border-chalk/[0.05] overflow-hidden">
                   {g.list.map((m, i) => (
                     <MatchRow key={m.match_id} m={m} first={i === 0} />
