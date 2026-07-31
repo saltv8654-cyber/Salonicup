@@ -4,7 +4,7 @@ import { useParams, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useLiveMatch } from '@/lib/hooks/useLiveMatch'
 import { useNow } from '@/lib/hooks/useNow'
-import { clockLabel } from '@/lib/clock'
+import { clockLabel, clockStoppage } from '@/lib/clock'
 import { fmtMinute } from '@/lib/match'
 import LineupPitch from '@/app/lineup-pitch'
 import type { Period } from '@/lib/types'
@@ -300,6 +300,7 @@ function Overlay() {
 
   const t = themeFor(match.league_id, params.get('theme'))
   const clk = clockLabel(match.clock_period, match.clock_started_at, now)
+  const clkStop = clockStoppage(match.clock_period, match.clock_started_at, now)
   const PP: 'fixed' | 'absolute' = 'absolute'
 
   // Παλέτα scoreboard τύπου Premier League (βαθύ μωβ + ματζέντα)
@@ -572,11 +573,16 @@ function Overlay() {
             <span style={{ fontSize: 23, fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap',
               letterSpacing: '.01em' }}>{match.team_b_data?.name}</span>
           </div>
-          {clk && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
-              minWidth: 92, padding: '0 18px', color: '#fff', fontVariantNumeric: 'tabular-nums',
+          {clkStop && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              gap: 2, minWidth: 92, padding: '0 16px', color: '#fff', fontVariantNumeric: 'tabular-nums',
               background: `linear-gradient(180deg, ${PL.pink}, ${PL.pink2})` }}>
-              <span style={{ fontSize: 23, fontWeight: 900, lineHeight: 1.1 }}>{clk}</span>
+              <span style={{ fontSize: 23, fontWeight: 900, lineHeight: 1 }}>{clkStop.main}</span>
+              {clkStop.added && (
+                <span style={{ fontSize: 13, fontWeight: 900, lineHeight: 1, letterSpacing: '.01em',
+                  padding: '1px 7px', borderRadius: 5, background: 'rgba(0,0,0,.32)', color: '#fff' }}>
+                  {clkStop.added}</span>
+              )}
             </div>
           )}
         </div>

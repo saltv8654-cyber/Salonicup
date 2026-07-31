@@ -95,7 +95,7 @@ export default async function Home({
                   WebkitTextFillColor: 'transparent', color: 'transparent',
                   filter: 'drop-shadow(0 1px 0 rgba(120,60,0,0.35)) drop-shadow(0 3px 14px rgba(255,180,60,0.5))',
                 }}>
-                Salonicup
+                SalonicApp
               </span>
               <span className="text-lit/50 text-[15px]">✦</span>
             </div>
