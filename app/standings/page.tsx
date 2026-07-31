@@ -194,8 +194,19 @@ export default async function StandingsPage({
             )}
 
             {view === 'playoff' ? (
-              <PlayoffBracket qf18={t18.tie} qf45={t45.tie} qf27={t27.tie} qf36={t36.tie}
-                sfTop={sTop.tie} sfBot={sBot.tie} fin={fin.tie} champion={champion} />
+              <>
+                {/* Γραφικά Instagram — μόνο admin */}
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <GraphicLink href={`/api/og/playoff/${active.league_id}?format=post`}>📸 Post</GraphicLink>
+                  </div>
+                  <div className="flex-1">
+                    <GraphicLink href={`/api/og/playoff/${active.league_id}?format=story`}>📱 Story</GraphicLink>
+                  </div>
+                </div>
+                <PlayoffBracket qf18={t18.tie} qf45={t45.tie} qf27={t27.tie} qf36={t36.tie}
+                  sfTop={sTop.tie} sfBot={sBot.tie} fin={fin.tie} champion={champion} />
+              </>
             ) : view === 'scorers' ? (
               !srows.length ? <Empty>Δεν υπάρχουν στατιστικά.</Empty> : (
                 <div className="flex flex-col gap-6">
