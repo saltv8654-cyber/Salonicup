@@ -278,6 +278,10 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved, onDelete }: 
   const [scoreB, setScoreB] = useState(String(row?.goals_team_b ?? 0))
   // Φάση: regular = κανονική περίοδος (βαθμολογία) · QF/SF/Final = playoff (bracket)
   const [stage, setStage] = useState<string>(row?.stage ?? 'regular')
+  // Συντελεστές αγώνα
+  const [speaker, setSpeaker]   = useState(row?.speaker ?? '')
+  const [referee, setReferee]   = useState(row?.referee ?? '')
+  const [photographer, setPhotographer] = useState(row?.photographer ?? '')
 
   const leagueTeams = teams.filter(t => t.league_id === league)
   const venueFields = venues.find(v => v.venue_id === venue)?.fields ?? []
@@ -299,6 +303,9 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved, onDelete }: 
       match_status: status,
       stream_url: stream.trim() || null,
       stage: stage === 'regular' ? null : stage,
+      speaker: speaker.trim() || null,
+      referee: referee.trim() || null,
+      photographer: photographer.trim() || null,
     }
     // Νίκη στα χαρτιά → γράφουμε απευθείας το σκορ 3-0 (το trigger recalc_score
     // τρέχει μόνο σε αλλαγές events, οπότε το άμεσο update διατηρείται).
@@ -406,6 +413,10 @@ function MatchForm({ row, leagues, teams, venues, onClose, onSaved, onDelete }: 
 
       <Field label="ΣΥΝΔΕΣΜΟΣ YOUTUBE (live)" value={stream} onChange={setStream}
         placeholder="https://youtu.be/… ή https://youtube.com/watch?v=…" />
+
+      <Field label="🎙 ΣΠΙΚΕΡ" value={speaker} onChange={setSpeaker} placeholder="Όνομα σπίκερ" />
+      <Field label="🟨 ΔΙΑΙΤΗΤΗΣ" value={referee} onChange={setReferee} placeholder="Όνομα διαιτητή" />
+      <Field label="📷 ΦΩΤΟΓΡΑΦΟΣ" value={photographer} onChange={setPhotographer} placeholder="Όνομα φωτογράφου" />
 
       <SaveBtn busy={busy} onClick={save} />
 
