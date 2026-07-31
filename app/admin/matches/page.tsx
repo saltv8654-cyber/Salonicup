@@ -91,6 +91,7 @@ export default function AdminMatches() {
   const [teams, setTeams]     = useState<Team[]>([])
   const [venues, setVenues]   = useState<Venue[]>([])
   const [people, setPeople]   = useState<Profile[]>([])
+  const [staff, setStaff]     = useState<{ id: string; name: string; kind: string }[]>([])
   const [filter, setFilter]   = useState('')
   const [load, setLoad]       = useState(true)
   const [open, setOpen]       = useState(false)
@@ -104,7 +105,7 @@ export default function AdminMatches() {
   })
 
   async function fetchAll() {
-    const [m, l, t, v, p] = await Promise.all([
+    const [m, l, t, v, p, st] = await Promise.all([
       supabase.from('matches').select(`
         *, team_a_data:team_a(name, logo_url), team_b_data:team_b(name, logo_url),
         league:league_id(name), venue:venue_id(name)
@@ -113,12 +114,14 @@ export default function AdminMatches() {
       supabase.from('teams').select('*').order('name'),
       supabase.from('venues').select('*').order('name'),
       supabase.from('profiles').select('id, full_name, email, role, team_id').order('full_name'),
+      supabase.from('staff').select('id, name, kind').order('name'),
     ])
     setRows(m.data ?? [])
     setLeagues(l.data ?? [])
     setTeams(t.data ?? [])
     setVenues(v.data ?? [])
     setPeople(p.data ?? [])
+    setStaff(st.data ?? [])
     setLoad(false)
   }
 
@@ -245,7 +248,7 @@ export default function AdminMatches() {
       )}
 
       {open && (
-        <MatchForm row={edit} leagues={leagues} teams={teams} venues={venues} people={people}
+        <MatchForm row={edit} leagues={leagues} teams={teams} venues={venues} people={people} staff={staff}
           onClose={() => setOpen(false)}
           onSaved={() => { setOpen(false); fetchAll() }}
           onDelete={edit ? () => { setOpen(false); remove(edit.match_id) } : undefined} />
@@ -254,8 +257,9 @@ export default function AdminMatches() {
   )
 }
 
-function MatchForm({ row, leagues, teams, venues, people, onClose, onSaved, onDelete }: {
+function MatchForm({ row, leagues, teams, venues, people, staff, onClose, onSaved, onDelete }: {
   row: any; leagues: League[]; teams: Team[]; venues: Venue[]; people: Profile[]
+  staff: { id: string; name: string; kind: string }[]
   onClose: () => void; onSaved: () => void; onDelete?: () => void
 }) {
   const supabase = createClient()
@@ -289,13 +293,14 @@ function MatchForm({ row, leagues, teams, venues, people, onClose, onSaved, onDe
   const leagueTeams = teams.filter(t => t.league_id === league)
   const venueFields = venues.find(v => v.venue_id === venue)?.fields ?? []
 
-  // Λίστες συντελεστών από τους χρήστες (εμφανιζόμενο όνομα ή email)
+  // Σπίκερ → χρήστες (συνδέονται)· Διαιτητής/Φωτογράφος → προσωπικό (staff, μόνο όνομα)
   const pName = (p: Profile) => p.full_name || p.email || '—'
-  const optsFor = (roles: string[]) =>
-    people.filter(p => roles.includes(p.role)).map(p => ({ value: p.id, label: pName(p) }))
-  const speakerOpts      = optsFor(['admin', 'speaker'])
-  const refereeOpts      = optsFor(['referee'])
-  const photographerOpts = optsFor(['photographer'])
+  const speakerOpts      = people.filter(p => ['admin', 'speaker'].includes(p.role))
+    .map(p => ({ value: p.id, label: pName(p) }))
+  const refereeOpts      = staff.filter(s => s.kind === 'referee')
+    .map(s => ({ value: s.id, label: s.name }))
+  const photographerOpts = staff.filter(s => s.kind === 'photographer')
+    .map(s => ({ value: s.id, label: s.name }))
 
   async function save() {
     if (!league)          return toast.error('Διάλεξε πρωτάθλημα')
