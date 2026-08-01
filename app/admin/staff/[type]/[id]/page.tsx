@@ -35,6 +35,9 @@ export default function StaffCard() {
   const [from, setFrom] = useState(monthStart())
   const [to, setTo] = useState(todayKey())
   const [busyName, setBusyName] = useState(false)
+  // Χειροκίνητη πληρωμή (οποιαδήποτε ημερομηνία, ακόμη & προηγούμενη)
+  const [mDay, setMDay] = useState(todayKey())
+  const [mAmount, setMAmount] = useState('')
 
   async function fetchAll() {
     // 1) το άτομο
@@ -229,9 +232,37 @@ export default function StaffCard() {
               <span className="text-[12px] font-bold text-silver">Σύνολο περιόδου</span>
               <span className="text-[22px] font-extrabold text-lit tnum">{eur(total)}</span>
             </div>
-            <p className="text-[10.5px] text-off">
-              Καταχώρησε τα ποσά ανά μέρα από την καρτέλα «Πρόγραμμα».
-            </p>
+
+            {/* Προσθήκη πληρωμής σε οποιαδήποτε ημερομηνία */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <input type="date" value={mDay} onChange={e => setMDay(e.target.value)}
+                className="bg-chalk/[0.04] rounded-lg px-2.5 py-2 text-chalk text-[12px]
+                  outline-none border border-chalk/[0.07]" />
+              <div className="flex items-center bg-chalk/[0.04] rounded-lg border border-chalk/[0.07] px-2 w-[90px]">
+                <input inputMode="decimal" value={mAmount} onChange={e => setMAmount(e.target.value)} placeholder="ποσό"
+                  className="w-full bg-transparent py-2 text-chalk text-[13px] font-bold tnum outline-none placeholder:text-off" />
+                <span className="text-dim text-[11px]">€</span>
+              </div>
+              <button onClick={async () => {
+                if (!mAmount.trim()) return toast.error('Γράψε ποσό')
+                await commitPay(mDay, mAmount); setMAmount(''); toast.success('Καταχωρήθηκε')
+              }}
+                className="px-3.5 py-2 rounded-lg bg-brand text-white text-[12.5px] font-extrabold">+ Πληρωμή</button>
+            </div>
+
+            {/* Όλες οι πληρωμές */}
+            {Object.keys(pay).length > 0 && (
+              <div className="flex flex-col gap-1 mt-1">
+                {Object.entries(pay).sort((a, b) => b[0].localeCompare(a[0])).map(([day, amt]) => (
+                  <div key={day} className="flex items-center gap-2 py-1.5 border-t border-chalk/[0.05]">
+                    <span className="text-[11px] text-dim tnum shrink-0 w-[86px]">{day}</span>
+                    <span className="flex-1" />
+                    <span className="text-[13px] font-extrabold text-lit tnum">{eur(Number(amt))}</span>
+                    <button onClick={() => commitPay(day, '')} className="text-danger text-[12px] px-1 shrink-0">✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ) : (
