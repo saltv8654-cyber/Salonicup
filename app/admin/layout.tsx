@@ -16,6 +16,7 @@ const NAV = [
   { href: '/admin/venues',   label: 'Γήπεδα',        icon: '📍' },
   { href: '/admin/post',     label: 'Post',          icon: '📸' },
   { href: '/admin/staff',    label: 'Προσωπικό',     icon: '🎬' },
+  { href: '/admin/finance',  label: 'Οικονομικά',    icon: '💰' },
   { href: '/admin/users',    label: 'Χρήστες',       icon: '🔑' },
 ]
 
