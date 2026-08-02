@@ -226,7 +226,9 @@ function Overlay() {
         ;(data ?? []).forEach((p: any) => { m[p.player_id] = p })
         setSquadMap(m)
       })
-  }, [match?.match_id])
+    // Εξαρτάται από τις ΣΥΜΜΕΤΟΧΕΣ (όχι μόνο το match_id): αν ο σπίκερ προσθέσει
+    // παίκτες αργότερα (αλλαγή συμμετοχών), ξαναφορτώνουμε ώστε να εμφανιστούν ζωντανά.
+  }, [(match?.squad_a ?? []).join(','), (match?.squad_b ?? []).join(',')])
 
   // Αυτόματα γραφικά από το ρολόι: Έναρξη / Ημίχρονο / Τελικό
   useEffect(() => {
@@ -350,6 +352,9 @@ function Overlay() {
   const luForm = (luTeam === 'a' ? match.formation_a : match.formation_b) ?? '3-3-1'
   const luName = luTeam === 'a' ? match.team_a_data?.name : match.team_b_data?.name
   const luLogo = luTeam === 'a' ? match.team_a_data?.logo_url : match.team_b_data?.logo_url
+  // Πάγκος: όσοι συμμετέχουν (squad) αλλά δεν είναι στην ενδεκάδα (lineup)
+  const luSquad: string[] = ((luTeam === 'a' ? match.squad_a : match.squad_b) ?? [])
+  const luBench = luSquad.filter(id => id && !luLine.includes(id))
   const lineupsEl = lineupsOn && (
     <div style={{ position: PP, top: 24, left: 0, right: 0, bottom: 90,
       display: 'grid', placeItems: 'start center', pointerEvents: 'none' }}>
@@ -371,6 +376,27 @@ function Overlay() {
         </div>
         <LineupPitch formation={luForm} line={luLine} players={squadMap} accent={PL.pink}
           bg="rgba(38,0,44,0.55)" borderColor={PL.pink} />
+        {luBench.length > 0 && (
+          <div style={{ width: '100%', display: 'flex', flexWrap: 'wrap', gap: 7, justifyContent: 'center',
+            alignItems: 'center' }}>
+            <span style={{ fontSize: 12, fontWeight: 900, letterSpacing: '.14em', color: PL.pink }}>ΠΑΓΚΟΣ</span>
+            {luBench.map(id => {
+              const p = squadMap[id]
+              return (
+                <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
+                  background: 'rgba(38,0,44,0.6)', border: `1px solid ${PL.pink}`, borderRadius: 20,
+                  padding: '4px 11px 4px 5px' }}>
+                  <span style={{ width: 22, height: 22, borderRadius: '50%', background: PL.pink, color: '#fff',
+                    fontSize: 11, fontWeight: 900, display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
+                    {p?.photo_url ? <img src={p.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : (p?.number ?? (p?.full_name?.[0] ?? '?'))}
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{p?.full_name ?? '—'}</span>
+                </span>
+              )
+            })}
+          </div>
+        )}
       </div>
       </div>
     </div>
