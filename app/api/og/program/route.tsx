@@ -38,6 +38,7 @@ function txtOn(hex: string) {
 }
 
 export async function GET(req: Request) {
+ try {
   const url = new URL(req.url)
   const origin = url.origin
   const start = url.searchParams.get('start') || thisMonday()
@@ -94,7 +95,7 @@ export async function GET(req: Request) {
     </div>
   )
 
-  return new ImageResponse(
+  const res = new ImageResponse(
     (
       <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
         background: C.bg, fontFamily: 'Deja', color: C.chalk, padding: P }}>
@@ -163,10 +164,14 @@ export async function GET(req: Request) {
         )}
       </div>
     ),
-    {
-      width: W, height: H, fonts,
-      // Χωρίς cache, ώστε αλλαγές να φαίνονται αμέσως (το next/og βάζει από default μεγάλο cache)
-      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' },
-    },
+    { width: W, height: H, fonts },
   )
+  // Χωρίς cache, ώστε αλλαγές να φαίνονται αμέσως
+  res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+  return res
+ } catch (e: any) {
+  return new Response('OG program error:\n' + (e?.stack || e?.message || String(e)), {
+    status: 500, headers: { 'content-type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+  })
+ }
 }
