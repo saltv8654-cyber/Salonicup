@@ -253,11 +253,11 @@ export default function AdminSchedule() {
           <button onClick={() => setWeekStart(mondayStr(new Date()))}
             className="px-3 py-2 rounded-lg bg-chalk/[0.05] border border-chalk/[0.08] text-dim text-[11px] font-bold">Τώρα</button>
         </div>
-        <a href={`/api/og/program?start=${weekStart}`} target="_blank" rel="noopener noreferrer"
-          className="block text-center px-3 py-2.5 rounded-lg bg-gradient-to-b from-lit to-brand
+        <button onClick={() => window.open(`/api/og/program?start=${weekStart}&_=${Date.now()}`, '_blank')}
+          className="block w-full text-center px-3 py-2.5 rounded-lg bg-gradient-to-b from-lit to-brand
             text-white text-[13px] font-extrabold">
           📷 Άνοιγμα εικόνας
-        </a>
+        </button>
         <p className="text-[10px] text-off">
           Ανοίγει σε νέα καρτέλα — στο κινητό κράτα πατημένη την εικόνα → «Αποθήκευση», στον υπολογιστή δεξί κλικ → «Αποθήκευση εικόνας».
         </p>

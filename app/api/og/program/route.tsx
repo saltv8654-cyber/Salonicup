@@ -163,6 +163,10 @@ export async function GET(req: Request) {
         )}
       </div>
     ),
-    { width: W, height: H, fonts },
+    {
+      width: W, height: H, fonts,
+      // Χωρίς cache, ώστε αλλαγές να φαίνονται αμέσως (το next/og βάζει από default μεγάλο cache)
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' },
+    },
   )
 }
