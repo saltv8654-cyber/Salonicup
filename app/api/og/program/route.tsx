@@ -66,18 +66,18 @@ export async function GET(req: Request) {
 
   // Δυναμικό ύψος καμβά
   const W = 1080, P = 56
-  const HEADER = 150, DAY_H = 62, DAY_GAP = 30, CARD = 108
-  let H = P * 2 + HEADER + 20
+  const HEADER = 210, DAY_H = 58, DAY_GAP = 36, CARD = 168
+  let H = P * 2 + HEADER
   for (const [, ms] of days) H += DAY_GAP + DAY_H + ms.length * CARD
   if (!days.length) H = 700
 
   const rangeLabel = `${dayLabel(start).replace(/^\S+\s/, '')}  –  ${dayLabel(endKey <= start ? start : new Date(endD.getTime() - 86400000).toISOString().slice(0, 10)).replace(/^\S+\s/, '')}`
 
-  const Tag = ({ dot, label, value }: { dot: string; label: string; value: string | null }) => (
+  const Col = ({ dot, label, value }: { dot: string; label: string; value: string | null }) => (
     <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
-      <div style={{ display: 'flex', width: 12, height: 12, borderRadius: 6, background: dot, marginRight: 10 }} />
-      <div style={{ display: 'flex', fontSize: 22, color: C.dim, marginRight: 8 }}>{label}</div>
-      <div style={{ display: 'flex', fontSize: 24, color: value ? C.chalk : C.dim, fontWeight: 700,
+      <div style={{ display: 'flex', width: 16, height: 16, borderRadius: 8, background: dot, marginRight: 12 }} />
+      <div style={{ display: 'flex', fontSize: 26, color: C.dim, marginRight: 12 }}>{label}</div>
+      <div style={{ display: 'flex', fontSize: 32, color: value ? C.chalk : C.dim, fontWeight: 700,
         overflow: 'hidden', whiteSpace: 'nowrap' }}>{value || '—'}</div>
     </div>
   )
@@ -88,17 +88,17 @@ export async function GET(req: Request) {
         background: C.bg, fontFamily: 'Deja', color: C.chalk, padding: P }}>
         {/* Header */}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', fontSize: 26, fontWeight: 700, letterSpacing: 8, color: C.lit }}>
+          <div style={{ display: 'flex', fontSize: 30, fontWeight: 700, letterSpacing: 8, color: C.lit }}>
             SALONICUP · ΠΡΟΓΡΑΜΜΑ
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 12 }}>
-            <div style={{ display: 'flex', fontSize: 52, fontWeight: 700 }}>Εβδομάδα</div>
-            <div style={{ display: 'flex', fontSize: 30, color: C.silver }}>{rangeLabel}</div>
+            <div style={{ display: 'flex', fontSize: 66, fontWeight: 700 }}>Εβδομάδα</div>
+            <div style={{ display: 'flex', fontSize: 38, color: C.silver }}>{rangeLabel}</div>
           </div>
-          <div style={{ display: 'flex', marginTop: 16, fontSize: 22, color: C.dim }}>
-            <div style={{ display: 'flex', width: 12, height: 12, borderRadius: 6, background: C.lit, marginRight: 8 }} />
-            <div style={{ display: 'flex', marginRight: 22 }}>Σπίκερ</div>
-            <div style={{ display: 'flex', width: 12, height: 12, borderRadius: 6, background: REF, marginRight: 8 }} />
+          <div style={{ display: 'flex', alignItems: 'center', marginTop: 18, fontSize: 26, color: C.dim }}>
+            <div style={{ display: 'flex', width: 16, height: 16, borderRadius: 8, background: C.lit, marginRight: 10 }} />
+            <div style={{ display: 'flex', marginRight: 28 }}>Σπίκερ</div>
+            <div style={{ display: 'flex', width: 16, height: 16, borderRadius: 8, background: REF, marginRight: 10 }} />
             <div style={{ display: 'flex' }}>Διαιτητής</div>
           </div>
         </div>
@@ -111,36 +111,37 @@ export async function GET(req: Request) {
             {days.map(([key, ms]) => (
               <div key={key} style={{ display: 'flex', flexDirection: 'column', marginTop: DAY_GAP }}>
                 {/* Ημέρα */}
-                <div style={{ display: 'flex', alignItems: 'center', height: DAY_H - 14,
-                  fontSize: 30, fontWeight: 700, color: C.lit, letterSpacing: 2 }}>
-                  <div style={{ display: 'flex', width: 8, height: 30, borderRadius: 4, background: C.brand, marginRight: 16 }} />
+                <div style={{ display: 'flex', alignItems: 'center', height: DAY_H - 12,
+                  fontSize: 38, fontWeight: 700, color: C.lit, letterSpacing: 2 }}>
+                  <div style={{ display: 'flex', width: 10, height: 38, borderRadius: 5, background: C.brand, marginRight: 18 }} />
                   {dayLabel(key)}
                 </div>
                 {/* Αγώνες */}
                 {ms.map((m: any) => (
                   <div key={m.match_id} style={{ display: 'flex', flexDirection: 'column',
-                    background: C.turf, borderRadius: 14, padding: '14px 20px', marginTop: 10 }}>
+                    background: C.turf, borderRadius: 16, padding: '18px 26px', marginTop: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', width: 92, fontSize: 30, fontWeight: 700, color: C.chalk }}>
+                      <div style={{ display: 'flex', width: 138, flexShrink: 0, fontSize: 40, fontWeight: 700, color: C.chalk }}>
                         {hhmm(m.match_date)}
                       </div>
                       {m.field ? (
-                        <div style={{ display: 'flex', fontSize: 20, color: '#c4b5fd', background: 'rgba(109,40,217,0.25)',
-                          border: '1px solid rgba(109,40,217,0.6)', borderRadius: 8, padding: '2px 10px', marginRight: 14 }}>
+                        <div style={{ display: 'flex', flexShrink: 0, fontSize: 24, color: '#c4b5fd', background: 'rgba(109,40,217,0.25)',
+                          border: '1px solid rgba(109,40,217,0.6)', borderRadius: 9, padding: '3px 12px', marginRight: 16 }}>
                           {m.field}
                         </div>
                       ) : null}
-                      <div style={{ display: 'flex', flex: 1, fontSize: 30, fontWeight: 700, color: C.chalk,
+                      <div style={{ display: 'flex', flex: 1, minWidth: 0, fontSize: 38, fontWeight: 700, color: C.chalk,
                         overflow: 'hidden', whiteSpace: 'nowrap' }}>
                         {m.team_a_data?.name} – {m.team_b_data?.name}
                       </div>
-                      <div style={{ display: 'flex', fontSize: 20, color: C.dim, marginLeft: 12 }}>
+                      <div style={{ display: 'flex', flexShrink: 0, fontSize: 23, color: C.dim, marginLeft: 14 }}>
                         {m.league?.name ?? ''}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', marginTop: 10 }}>
-                      <Tag dot={C.lit} label="ΣΠ" value={spk(m.speaker_id)} />
-                      <Tag dot={REF} label="ΔΙΑΙΤ" value={ref(m.referee_id)} />
+                    <div style={{ display: 'flex', alignItems: 'center', marginTop: 16 }}>
+                      <Col dot={C.lit} label="ΣΠΙΚΕΡ" value={spk(m.speaker_id)} />
+                      <div style={{ display: 'flex', width: 2, height: 38, background: C.line, margin: '0 22px' }} />
+                      <Col dot={REF} label="ΔΙΑΙΤ." value={ref(m.referee_id)} />
                     </div>
                   </div>
                 ))}
