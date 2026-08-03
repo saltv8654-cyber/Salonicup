@@ -37,6 +37,28 @@ function txtOn(hex: string) {
   return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#0B0B0E' : '#ffffff'
 }
 
+/** Σταθερά χρώματα ανά διοργάνωση (ταίριασμα με λέξη-κλειδί, χωρίς πεζά/τόνους). */
+const LG_MAP: { k: string; bg?: string; grad?: string; fg?: string }[] = [
+  { k: 'ELITE',  bg: '#F7A81B' },                                    // πορτοκαλοκίτρινο
+  { k: 'LIGA',   bg: '#FFE000' },                                    // κίτρινο καναρινί
+  { k: 'MASTER', bg: '#22C55E' },                                    // πράσινο
+  { k: 'TROPHY', bg: '#E23B2E' },                                    // κόκκινο
+  { k: 'EAST',   bg: '#2E6BFF' },                                    // μπλε (East Block)
+  { k: 'SUMMER', grad: 'linear-gradient(90deg,#25E0FF,#B14BFF)', fg: '#07121f' }, // miami neon
+]
+/** Επιστρέφει στυλ background (χωρίς undefined!) + χρώμα κειμένου για μια διοργάνωση. */
+function lgVisual(name: string): { bgStyle: any; fg: string } {
+  const u = (name || '').toUpperCase()
+  for (const m of LG_MAP) {
+    if (u.includes(m.k)) {
+      if (m.grad) return { bgStyle: { backgroundImage: m.grad }, fg: m.fg ?? '#07121f' }
+      return { bgStyle: { background: m.bg! }, fg: m.fg ?? txtOn(m.bg!) }
+    }
+  }
+  const c = lgColor(name)
+  return { bgStyle: { background: c }, fg: txtOn(c) }
+}
+
 export async function GET(req: Request) {
  try {
   const url = new URL(req.url)
@@ -146,16 +168,16 @@ export async function GET(req: Request) {
                 {/* Γραμμές αγώνων */}
                 {ms.map((m: any, i: number) => {
                   const lg = m.league?.name ?? ''
-                  const lc = lgColor(lg)
+                  const v = lgVisual(lg)
                   return (
                   <div key={m.match_id} style={{ display: 'flex', alignItems: 'center', height: ROW_H,
                     paddingLeft: 16, paddingRight: 16, background: i % 2 ? 'transparent' : C.turf, borderRadius: 7 }}>
-                    <div style={{ display: 'flex', width: 8, height: 40, borderRadius: 4, background: lc, marginRight: 14, flexShrink: 0 }} />
+                    <div style={{ display: 'flex', width: 8, height: 40, borderRadius: 4, marginRight: 14, flexShrink: 0, ...v.bgStyle }} />
                     <Cell w={wTime} size={31} bold>{hhmm(m.match_date)}</Cell>
                     <Cell size={31} bold>{`${m.team_a_data?.name ?? ''} – ${m.team_b_data?.name ?? ''}`}</Cell>
                     <div style={{ display: 'flex', width: wLeague, flexShrink: 0, alignItems: 'center', overflow: 'hidden', paddingRight: 12 }}>
-                      <div style={{ display: 'flex', background: lc, color: txtOn(lc), fontSize: 22, fontWeight: 700,
-                        padding: '4px 14px', borderRadius: 8, whiteSpace: 'nowrap', overflow: 'hidden' }}>{lg}</div>
+                      <div style={{ display: 'flex', color: v.fg, fontSize: 22, fontWeight: 700,
+                        padding: '4px 14px', borderRadius: 8, whiteSpace: 'nowrap', overflow: 'hidden', ...v.bgStyle }}>{lg}</div>
                     </div>
                     <Cell w={wField} size={27} center color={C.silver}>{(m.field ?? '').toString().replace(/[^0-9]/g, '') || '—'}</Cell>
                     <Cell w={wSpk} size={27} bold color={spk(m.speaker_id) ? C.chalk : C.dim}>{spk(m.speaker_id) || '—'}</Cell>
