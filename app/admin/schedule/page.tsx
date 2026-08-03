@@ -6,11 +6,24 @@ import { Loading, Empty, FieldBadge } from '@/app/ui'
 import { athensDateKey, fmtDay, fmtTime } from '@/lib/time'
 import toast from 'react-hot-toast'
 
+/** Δευτέρα της εβδομάδας μιας ημερομηνίας → 'YYYY-MM-DD'. */
+function mondayStr(d: Date) {
+  const x = new Date(d); const wd = (x.getDay() + 6) % 7
+  x.setDate(x.getDate() - wd)
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+}
+function addDaysStr(s: string, n: number) {
+  const d = new Date(`${s}T00:00:00`); d.setDate(d.getDate() + n)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const dm = (s: string) => { const [, m, d] = s.split('-'); return `${parseInt(d)}/${parseInt(m)}` }
+
 export default function AdminSchedule() {
   const supabase = createClient()
   const [rows, setRows] = useState<any[]>([])
   const [load, setLoad] = useState(true)
   const [showPast, setShowPast] = useState(false)
+  const [weekStart, setWeekStart] = useState(() => mondayStr(new Date()))
 
   // Πρωταθλήματα & αγωνιστικές (για διαγραφή)
   const [leagues, setLeagues] = useState<any[]>([])
@@ -224,6 +237,30 @@ export default function AdminSchedule() {
             {showPast ? 'Μόνο επόμενα' : 'Όλα'}
           </button>
         </div>
+      </div>
+
+      {/* Εικόνα προγράμματος (Δευτ–Κυρ) με σπίκερ & διαιτητή */}
+      <div className="bg-turf rounded-xl p-3 border border-chalk/[0.05] flex flex-col gap-2">
+        <span className="text-[11px] text-dim font-semibold">📷 Αποθήκευση προγράμματος ως εικόνα (με σπίκερ & διαιτητή):</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => setWeekStart(w => addDaysStr(w, -7))}
+            className="px-3 py-2 rounded-lg bg-chalk/[0.05] border border-chalk/[0.08] text-silver text-[13px] font-bold">◀</button>
+          <span className="flex-1 min-w-[120px] text-center text-[12.5px] font-extrabold text-chalk tnum">
+            {dm(weekStart)} – {dm(addDaysStr(weekStart, 6))}
+          </span>
+          <button onClick={() => setWeekStart(w => addDaysStr(w, 7))}
+            className="px-3 py-2 rounded-lg bg-chalk/[0.05] border border-chalk/[0.08] text-silver text-[13px] font-bold">▶</button>
+          <button onClick={() => setWeekStart(mondayStr(new Date()))}
+            className="px-3 py-2 rounded-lg bg-chalk/[0.05] border border-chalk/[0.08] text-dim text-[11px] font-bold">Τώρα</button>
+        </div>
+        <a href={`/api/og/program?start=${weekStart}`} target="_blank" rel="noopener noreferrer"
+          className="block text-center px-3 py-2.5 rounded-lg bg-gradient-to-b from-lit to-brand
+            text-white text-[13px] font-extrabold">
+          📷 Άνοιγμα εικόνας
+        </a>
+        <p className="text-[10px] text-off">
+          Ανοίγει σε νέα καρτέλα — στο κινητό κράτα πατημένη την εικόνα → «Αποθήκευση», στον υπολογιστή δεξί κλικ → «Αποθήκευση εικόνας».
+        </p>
       </div>
 
       {/* Σβήσιμο παλιών ελεύθερων γηπέδων */}

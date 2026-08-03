@@ -22,6 +22,16 @@ export function db() {
   )
 }
 
+/** Service-role client (server-only) — για δεδομένα που δεν διαβάζει ο anon
+ *  (π.χ. ονόματα σπίκερ από profiles). Χρήση ΜΟΝΟ σε server routes. */
+export function dbAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false } }
+  )
+}
+
 /** Γραμματοσειρά με ελληνικά (DejaVu Sans) από τα public assets (όχι στο bundle). */
 export async function loadFonts(origin: string) {
   const [regular, bold] = await Promise.all([
