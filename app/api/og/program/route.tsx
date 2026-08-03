@@ -31,6 +31,11 @@ function lgColor(n: string) {
   for (let i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0
   return LGC[h % LGC.length]
 }
+/** Μαύρο ή λευκό κείμενο ανάλογα με τη φωτεινότητα του χρώματος. */
+function txtOn(hex: string) {
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16)
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#0B0B0E' : '#ffffff'
+}
 
 export async function GET(req: Request) {
   const url = new URL(req.url)
@@ -114,6 +119,7 @@ export async function GET(req: Request) {
             {/* Επικεφαλίδες στηλών */}
             <div style={{ display: 'flex', alignItems: 'center', height: COLHEAD, paddingLeft: 16, paddingRight: 16,
               borderBottom: `2px solid ${C.line}`, color: C.dim, fontSize: 24, fontWeight: 700 }}>
+              <div style={{ display: 'flex', width: 8, marginRight: 14, flexShrink: 0 }} />
               <Cell w={wTime} color={C.dim} size={24} bold>ΩΡΑ</Cell>
               <Cell color={C.dim} size={24} bold>ΑΓΩΝΑΣ</Cell>
               <Cell w={wLeague} color={C.dim} size={24} bold>ΔΙΟΡΓ.</Cell>
@@ -132,17 +138,25 @@ export async function GET(req: Request) {
                   <div style={{ display: 'flex', fontSize: 24, color: C.dim, marginLeft: 16 }}>· {ms.length}</div>
                 </div>
                 {/* Γραμμές αγώνων */}
-                {ms.map((m: any, i: number) => (
+                {ms.map((m: any, i: number) => {
+                  const lg = m.league?.name ?? ''
+                  const lc = lgColor(lg)
+                  return (
                   <div key={m.match_id} style={{ display: 'flex', alignItems: 'center', height: ROW_H,
                     paddingLeft: 16, paddingRight: 16, background: i % 2 ? 'transparent' : C.turf, borderRadius: 7 }}>
+                    <div style={{ display: 'flex', width: 8, height: 40, borderRadius: 4, background: lc, marginRight: 14, flexShrink: 0 }} />
                     <Cell w={wTime} size={31} bold>{hhmm(m.match_date)}</Cell>
                     <Cell size={31} bold>{m.team_a_data?.name} – {m.team_b_data?.name}</Cell>
-                    <Cell w={wLeague} size={25} color={C.silver} dot={lgColor(m.league?.name ?? '')}>{m.league?.name ?? ''}</Cell>
+                    <div style={{ display: 'flex', width: wLeague, flexShrink: 0, alignItems: 'center', overflow: 'hidden', paddingRight: 12 }}>
+                      <div style={{ display: 'flex', background: lc, color: txtOn(lc), fontSize: 22, fontWeight: 700,
+                        padding: '4px 14px', borderRadius: 8, whiteSpace: 'nowrap', overflow: 'hidden' }}>{lg}</div>
+                    </div>
                     <Cell w={wField} size={27} center color={C.silver}>{(m.field ?? '').toString().replace(/[^0-9]/g, '') || '—'}</Cell>
                     <Cell w={wSpk} size={27} bold color={spk(m.speaker_id) ? C.chalk : C.dim}>{spk(m.speaker_id) || '—'}</Cell>
                     <Cell w={wRef} size={27} bold color={ref(m.referee_id) ? C.chalk : C.dim}>{ref(m.referee_id) || '—'}</Cell>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             ))}
           </div>
