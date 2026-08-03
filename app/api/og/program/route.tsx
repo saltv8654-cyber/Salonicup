@@ -108,7 +108,7 @@ export async function GET(req: Request) {
             <div style={{ display: 'flex', fontSize: 62, fontWeight: 700 }}>Πρόγραμμα εβδομάδας</div>
             <div style={{ display: 'flex', fontSize: 36, color: C.silver }}>{rangeLabel}</div>
           </div>
-          <div style={{ display: 'flex', marginTop: 10, fontSize: 24, color: C.dim }}>{total} αγώνες</div>
+          <div style={{ display: 'flex', marginTop: 10, fontSize: 24, color: C.dim }}>{`${total} αγώνες`}</div>
         </div>
 
         {!days.length ? (
@@ -135,8 +135,8 @@ export async function GET(req: Request) {
                 <div style={{ display: 'flex', alignItems: 'center', height: DAY_H, paddingLeft: 16,
                   background: 'rgba(224,91,31,0.16)', marginTop: 12, borderRadius: 9,
                   fontSize: 32, fontWeight: 700, color: C.lit, letterSpacing: 1 }}>
-                  {dayLabel(key)}
-                  <div style={{ display: 'flex', fontSize: 24, color: C.dim, marginLeft: 16 }}>· {ms.length}</div>
+                  <div style={{ display: 'flex' }}>{dayLabel(key)}</div>
+                  <div style={{ display: 'flex', fontSize: 24, color: C.dim, marginLeft: 16 }}>{`· ${ms.length}`}</div>
                 </div>
                 {/* Γραμμές αγώνων */}
                 {ms.map((m: any, i: number) => {
@@ -147,7 +147,7 @@ export async function GET(req: Request) {
                     paddingLeft: 16, paddingRight: 16, background: i % 2 ? 'transparent' : C.turf, borderRadius: 7 }}>
                     <div style={{ display: 'flex', width: 8, height: 40, borderRadius: 4, background: lc, marginRight: 14, flexShrink: 0 }} />
                     <Cell w={wTime} size={31} bold>{hhmm(m.match_date)}</Cell>
-                    <Cell size={31} bold>{m.team_a_data?.name} – {m.team_b_data?.name}</Cell>
+                    <Cell size={31} bold>{`${m.team_a_data?.name ?? ''} – ${m.team_b_data?.name ?? ''}`}</Cell>
                     <div style={{ display: 'flex', width: wLeague, flexShrink: 0, alignItems: 'center', overflow: 'hidden', paddingRight: 12 }}>
                       <div style={{ display: 'flex', background: lc, color: txtOn(lc), fontSize: 22, fontWeight: 700,
                         padding: '4px 14px', borderRadius: 8, whiteSpace: 'nowrap', overflow: 'hidden' }}>{lg}</div>
