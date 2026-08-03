@@ -85,15 +85,20 @@ export async function GET(req: Request) {
 
   const rangeLabel = `${dayLabel(start).replace(/^\S+\s/, '')} – ${dayLabel(new Date(endD.getTime() - 86400000).toISOString().slice(0, 10)).replace(/^\S+\s/, '')}`
 
-  const Cell = ({ w, children, color = C.chalk, size = 25, bold = false, center = false, dot }: any) => (
-    <div style={{ display: 'flex', alignItems: 'center', width: w, flex: w ? undefined : 1, minWidth: 0,
-      justifyContent: center ? 'center' : 'flex-start', overflow: 'hidden' }}>
-      {dot ? <div style={{ display: 'flex', width: 12, height: 12, borderRadius: 6, background: dot, marginRight: 8, flexShrink: 0 }} /> : null}
-      <div style={{ display: 'flex', fontSize: size, color, fontWeight: bold ? 700 : 400, whiteSpace: 'nowrap', overflow: 'hidden', paddingRight: 12 }}>
-        {children}
+  const Cell = ({ w, children, color = C.chalk, size = 25, bold = false, center = false, dot }: any) => {
+    // Σημ.: ΠΟΤΕ flex: undefined — ο Satori σκάει. Σταθερό πλάτος → flexShrink:0· ευέλικτο → flexGrow.
+    const st: any = w
+      ? { display: 'flex', alignItems: 'center', width: w, flexShrink: 0, minWidth: 0, justifyContent: center ? 'center' : 'flex-start', overflow: 'hidden' }
+      : { display: 'flex', alignItems: 'center', flexGrow: 1, flexBasis: 0, minWidth: 0, justifyContent: center ? 'center' : 'flex-start', overflow: 'hidden' }
+    return (
+      <div style={st}>
+        {dot ? <div style={{ display: 'flex', width: 12, height: 12, borderRadius: 6, background: dot, marginRight: 8, flexShrink: 0 }} /> : null}
+        <div style={{ display: 'flex', fontSize: size, color, fontWeight: bold ? 700 : 400, whiteSpace: 'nowrap', overflow: 'hidden', paddingRight: 12 }}>
+          {children}
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   const res = new ImageResponse(
     (
