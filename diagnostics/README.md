@@ -1,4 +1,30 @@
-# SaloniCup Diagnostic Kit 🩺
+# SaloniCup Diagnostic Kit 🩺 & OBS Optimizer ⚡
+
+> **Δύο εργαλεία** εδώ: το **Diagnostic Kit** (μετράει) και ο **OBS Optimizer**
+> (εφαρμόζει ασφαλείς βελτιστοποιήσεις). Ροή: τρέξε Optimizer → κάνε test
+> stream → τρέξε Diagnostic → στείλε το report.
+
+## ⚡ SaloniCup OBS Optimizer (Dell Latitude 7410 / Intel QuickSync)
+
+Διπλό κλικ στο **`SaloniCup-OBS-Optimizer.bat`** (ζητά δικαιώματα admin,
+**κλείσε πρώτα το OBS**). Εφαρμόζει **ΑΣΦΑΛΕΙΣ, αναστρέψιμες** αλλαγές:
+
+- **Power:** High/Ultimate performance, USB selective suspend OFF, PCIe link OFF.
+- **Windows:** Game DVR / background game capture OFF (τρώει CPU/GPU).
+- **GPU preference:** OBS + browser → high-performance GPU.
+- **OBS profiles:** φτιάχνει έτοιμα profile **«SaloniCup 1080p30»** και
+  **«SaloniCup 720p60»** με **Intel QuickSync** encoder — τα διαλέγεις από το
+  μενού Profile στο OBS (δεν πειράζει τα δικά σου).
+
+Φτιάχνει φάκελο **Backup** στην Επιφάνεια Εργασίας με **`SaloniCup-RESTORE.bat`**
+που τα επαναφέρει όλα. Δεν διαγράφει τίποτα.
+
+Μετά: OBS → Profile → «SaloniCup 1080p30» → κλείσε Studio Mode → βάλε κάμερα +
+Browser Source (overlay). Αν δυσκολεύεται στα 30fps, δοκίμασε το «720p60».
+
+---
+
+## SaloniCup Diagnostic Kit
 
 Ένα εργαλείο για Windows που ελέγχει το laptop του livestream και βγάζει
 πλήρη αναφορά (CPU, RAM, SSD/SMART, internet/WiFi, USB & κάμερες, GPU/drivers,
