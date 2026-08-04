@@ -118,6 +118,16 @@ export default function StaffCard() {
     return s
   }, [pay, from, to])
 
+  // Πόσα ματς ανά μέρα + σύνολο στην περίοδο
+  const countByDay = useMemo(() => {
+    const m: Record<string, number> = {}
+    for (const d of days) m[d.key] = d.matches.length
+    return m
+  }, [days])
+  const matchesInPeriod = useMemo(
+    () => days.reduce((s, d) => (d.key >= from && d.key <= to ? s + d.matches.length : s), 0),
+    [days, from, to])
+
   async function saveName() {
     if (!name.trim()) return toast.error('Γράψε όνομα')
     setBusyName(true)
@@ -229,7 +239,10 @@ export default function StaffCard() {
               </div>
             </div>
             <div className="flex items-center justify-between bg-chalk/[0.04] rounded-xl px-4 py-3">
-              <span className="text-[12px] font-bold text-silver">Σύνολο περιόδου</span>
+              <div className="flex flex-col">
+                <span className="text-[12px] font-bold text-silver">Σύνολο περιόδου</span>
+                <span className="text-[11px] font-bold text-dim tnum">{matchesInPeriod} ματς</span>
+              </div>
               <span className="text-[22px] font-extrabold text-lit tnum">{eur(total)}</span>
             </div>
 
@@ -256,7 +269,9 @@ export default function StaffCard() {
                 {Object.entries(pay).sort((a, b) => b[0].localeCompare(a[0])).map(([day, amt]) => (
                   <div key={day} className="flex items-center gap-2 py-1.5 border-t border-chalk/[0.05]">
                     <span className="text-[11px] text-dim tnum shrink-0 w-[86px]">{day}</span>
-                    <span className="flex-1" />
+                    <span className="flex-1 text-[10.5px] text-dim font-bold tnum">
+                      {countByDay[day] ? `${countByDay[day]} ματς` : ''}
+                    </span>
                     <span className="text-[13px] font-extrabold text-lit tnum">{eur(Number(amt))}</span>
                     <button onClick={() => commitPay(day, '')} className="text-danger text-[12px] px-1 shrink-0">✕</button>
                   </div>
