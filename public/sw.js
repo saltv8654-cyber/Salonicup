@@ -1,6 +1,6 @@
 /* Salonicup service worker — installability + offline shell.
    Προσοχή: τα live δεδομένα (Supabase, API) ΔΕΝ γίνονται cache. */
-const CACHE = 'salonicup-v103'
+const CACHE = 'salonicup-v104'
 const ASSETS = [
   '/', '/manifest.json',
   '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png',

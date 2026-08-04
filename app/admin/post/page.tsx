@@ -109,10 +109,19 @@ export default function AdminPost() {
         .eq('league_id', league).order('match_date'),
       supabase.from('standings').select('*').eq('league_id', league).order('position'),
     ]).then(([m, s]) => {
-      setMatches(m.data ?? [])
+      const list = m.data ?? []
+      setMatches(list)
       setStandings(s.data ?? [])
-      const rs = [...new Set((m.data ?? []).map((x: any) => x.round))].sort((a, b) => a - b)
+      const rs = [...new Set(list.map((x: any) => x.round))].sort((a, b) => a - b)
       setRound(rs.length ? String(rs[rs.length - 1]) : '')
+      // Προτείνει (προεπιλογή) έναν σημερινό αγώνα· αλλιώς τον πλησιέστερο επόμενο
+      const tk = athensDateKey(new Date().toISOString())
+      const dated = list.filter((x: any) => x.match_date)
+      const today = dated.filter((x: any) => athensDateKey(x.match_date) === tk)
+        .sort((a: any, b: any) => a.match_date.localeCompare(b.match_date))
+      const next = dated.filter((x: any) => athensDateKey(x.match_date) > tk)
+        .sort((a: any, b: any) => a.match_date.localeCompare(b.match_date))
+      setMatchId(today[0]?.match_id ?? next[0]?.match_id ?? '')
     })
   }, [league])
 
@@ -310,10 +319,28 @@ export default function AdminPost() {
   } as const
   const size = SIZES[format]
   const needsRound = type === 'schedule' || type === 'results'
-  const matchOptions = matches.map((m: any) => ({
-    value: m.match_id,
-    label: `${m.team_a_data?.name ?? '—'} – ${m.team_b_data?.name ?? '—'}${m.match_date ? ' · ' + fmtDay(m.match_date) : ''}`,
-  }))
+  // Σειρά αγώνων: Σήμερα πρώτα, μετά προηγούμενα (πιο πρόσφατα ψηλά), μετά επόμενα.
+  const matchOptions = (() => {
+    const tk = athensDateKey(new Date().toISOString())
+    const dated = matches.filter((m: any) => m.match_date)
+    const undated = matches.filter((m: any) => !m.match_date)
+    const today = dated.filter((m: any) => athensDateKey(m.match_date) === tk)
+      .sort((a: any, b: any) => a.match_date.localeCompare(b.match_date))
+    const past = dated.filter((m: any) => athensDateKey(m.match_date) < tk)
+      .sort((a: any, b: any) => b.match_date.localeCompare(a.match_date))  // πιο πρόσφατα πρώτα
+    const future = dated.filter((m: any) => athensDateKey(m.match_date) > tk)
+      .sort((a: any, b: any) => a.match_date.localeCompare(b.match_date))
+    const mk = (m: any, tag: string) => ({
+      value: m.match_id,
+      label: `${m.team_a_data?.name ?? '—'} – ${m.team_b_data?.name ?? '—'} · ${tag}`,
+    })
+    return [
+      ...today.map((m: any) => mk(m, 'Σήμερα')),
+      ...past.map((m: any) => mk(m, fmtDay(m.match_date))),
+      ...future.map((m: any) => mk(m, fmtDay(m.match_date))),
+      ...undated.map((m: any) => ({ value: m.match_id, label: `${m.team_a_data?.name ?? '—'} – ${m.team_b_data?.name ?? '—'}` })),
+    ]
+  })()
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
