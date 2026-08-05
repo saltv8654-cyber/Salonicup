@@ -25,24 +25,43 @@ export default function AdminFinance() {
   const [pays, setPays] = useState<{ day: string; amount: number }[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [showSettings, setShowSettings] = useState(false)
+  // Συμμετοχές ομάδων
+  const [teams, setTeams] = useState<{ team_id: string; name: string; league_id: string; fee_paid: boolean }[]>([])
+  const [partFee, setPartFee] = useState('40')
+  const [showFees, setShowFees] = useState(true)
 
   async function fetchAll() {
-    const [r, l, m, p, e] = await Promise.all([
+    const [r, l, m, p, e, t, s] = await Promise.all([
       supabase.from('finance_rates').select('*').order('effective_from', { ascending: true }),
       supabase.from('leagues').select('league_id, name, format').order('sort_order'),
       supabase.from('matches').select('match_date, league_id')
         .in('match_status', ['Played', 'Live']).not('match_date', 'is', null),
       supabase.from('staff_payments').select('day, amount'),
       supabase.from('expenses').select('*').order('day', { ascending: false }),
+      supabase.from('teams').select('team_id, name, league_id, fee_paid').eq('active', true).order('name'),
+      supabase.from('app_settings').select('participation_fee').eq('id', 1).maybeSingle(),
     ])
     setRates(r.data ?? [])
     setLeagues(l.data ?? [])
     setMatches(m.data ?? [])
     setPays(p.data ?? [])
     setExpenses(e.data ?? [])
+    setTeams(t.data ?? [])
+    if (s.data?.participation_fee != null) setPartFee(String(s.data.participation_fee))
     setLoad(false)
   }
   useEffect(() => { fetchAll() }, [])
+
+  async function toggleTeamPaid(id: string, paid: boolean) {
+    const { error } = await supabase.from('teams').update({ fee_paid: paid }).eq('team_id', id)
+    if (error) return toast.error('Δεν αποθηκεύτηκε')
+    setTeams(prev => prev.map(t => t.team_id === id ? { ...t, fee_paid: paid } : t))
+  }
+  async function savePartFee(v: string) {
+    const n = parseFloat(v.replace(',', '.'))
+    if (isNaN(n)) return
+    await supabase.from('app_settings').upsert({ id: 1, participation_fee: n }, { onConflict: 'id' })
+  }
 
   // Χρέωση που ίσχυε σε δεδομένη ημέρα
   function rateAt(day: string): Rate | null {
@@ -181,6 +200,69 @@ export default function AdminFinance() {
       {/* Λοιπά έξοδα — καταχώρηση */}
       <OtherExpenses list={expenses.filter(x => x.day >= from && x.day <= to)}
         onAdd={addExpense} onDel={delExpense} />
+
+      {/* Συμμετοχές ομάδων (ανά πρωτάθλημα) */}
+      {(() => {
+        const fee = parseFloat(partFee.replace(',', '.')) || 0
+        const paidCount = teams.filter(t => t.fee_paid).length
+        return (
+          <div className="bg-turf rounded-xl border border-chalk/[0.05] p-3.5">
+            <button onClick={() => setShowFees(v => !v)} className="w-full flex items-center justify-between">
+              <span className="text-[12.5px] font-extrabold text-chalk">🎟 Συμμετοχές ομάδων</span>
+              <span className="text-dim text-[12px]">{showFees ? '▾' : '▸'}</span>
+            </button>
+
+            <div className="flex items-center justify-between gap-2 mt-3 bg-chalk/[0.04] rounded-xl px-3.5 py-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-silver">Συμμετοχή / ομάδα</span>
+                <div className="flex items-center bg-chalk/[0.05] rounded-lg border border-chalk/[0.07] px-2 w-[80px]">
+                  <input inputMode="decimal" value={partFee}
+                    onChange={e => setPartFee(e.target.value)} onBlur={e => savePartFee(e.target.value)}
+                    className="w-full bg-transparent py-1.5 text-chalk text-[13px] font-bold tnum outline-none" />
+                  <span className="text-dim text-[11px]">€</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-[15px] font-extrabold text-[#2FA84F] tnum leading-none">{eur(paidCount * fee)}</p>
+                <p className="text-[10px] text-dim mt-0.5">{paidCount}/{teams.length} πλήρωσαν · υπόλοιπο {eur((teams.length - paidCount) * fee)}</p>
+              </div>
+            </div>
+
+            {showFees && (
+              <div className="flex flex-col gap-4 mt-3">
+                {leagues.filter(l => teams.some(t => t.league_id === l.league_id)).map(l => {
+                  const lteams = teams.filter(t => t.league_id === l.league_id)
+                  const paid = lteams.filter(t => t.fee_paid).length
+                  return (
+                    <div key={l.league_id}>
+                      <div className="flex items-center gap-2 mb-2 px-0.5">
+                        <span className="text-[12.5px] font-extrabold text-lit">{l.name}</span>
+                        <span className="text-[10px] text-dim font-bold tnum">{paid}/{lteams.length} · {eur(paid * fee)}</span>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        {lteams.map(t => (
+                          <button key={t.team_id} onClick={() => toggleTeamPaid(t.team_id, !t.fee_paid)}
+                            className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 border active:opacity-80
+                              ${t.fee_paid ? 'bg-[#2FA84F]/[0.12] border-[#2FA84F]/40' : 'bg-chalk/[0.03] border-chalk/[0.06]'}`}>
+                            <span className={`w-6 h-6 rounded-md grid place-items-center text-[13px] font-extrabold shrink-0
+                              ${t.fee_paid ? 'bg-[#2FA84F] text-white' : 'bg-chalk/[0.08] text-dim'}`}>
+                              {t.fee_paid ? '✓' : ''}
+                            </span>
+                            <span className="flex-1 text-left text-[13px] font-bold text-chalk truncate">{t.name}</span>
+                            <span className={`text-[11.5px] font-extrabold ${t.fee_paid ? 'text-[#2FA84F]' : 'text-dim'}`}>
+                              {t.fee_paid ? 'Πλήρωσε' : 'Εκκρεμεί'}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Ρυθμίσεις χρεώσεων */}
       <div className="bg-turf rounded-xl border border-chalk/[0.05] p-3.5">
