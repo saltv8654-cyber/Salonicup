@@ -887,7 +887,10 @@ export default function SpeakerPanel() {
       )}
 
       {editPlayer && (
-        <PlayerEditSheet player={editPlayer} onSave={savePlayer} onClose={() => setEditPlayer(null)} />
+        <PlayerEditSheet player={editPlayer}
+          note={notes[editPlayer.player_id] ?? ''}
+          onSaveNote={(v) => saveNote(editPlayer.player_id, v)}
+          onSave={savePlayer} onClose={() => setEditPlayer(null)} />
       )}
 
       {/* Κείμενο αγώνα */}
@@ -1825,12 +1828,14 @@ function EventSheet({ player, teamName, minuteLabel, isPen, onPick, onEdit, onCl
   )
 }
 
-/** Επεξεργασία στοιχείων παίκτη (νούμερο & όνομα) από το γήπεδο. */
-function PlayerEditSheet({ player, onSave, onClose }: {
-  player: Player; onSave: (patch: { full_name?: string; number?: number | null }) => void; onClose: () => void
+/** Επεξεργασία στοιχείων παίκτη (νούμερο & όνομα & σημείωση) από το γήπεδο. */
+function PlayerEditSheet({ player, note, onSaveNote, onSave, onClose }: {
+  player: Player; note: string; onSaveNote: (v: string) => void
+  onSave: (patch: { full_name?: string; number?: number | null }) => void; onClose: () => void
 }) {
   const [name, setName] = useState(player.full_name ?? '')
   const [num, setNum] = useState(player.number != null ? String(player.number) : '')
+  const [noteVal, setNoteVal] = useState(note)
   const [busy, setBusy] = useState(false)
   return (
     <div className="fixed inset-0 z-[60] flex flex-col justify-end" onClick={onClose}>
@@ -1856,10 +1861,17 @@ function PlayerEditSheet({ player, onSave, onClose }: {
               className="w-[120px] bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-lg font-extrabold tnum
                 outline-none border border-chalk/[0.07] focus:border-lit/50" />
           </div>
+          <div>
+            <label className="block text-[9px] font-extrabold text-dim tracking-[0.12em] mb-1.5">📝 ΣΗΜΕΙΩΣΗ (για αναγνώριση)</label>
+            <input value={noteVal} onChange={e => setNoteVal(e.target.value)} placeholder="π.χ. ροζ παπούτσια"
+              className="w-full bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-sm
+                outline-none border border-chalk/[0.07] focus:border-lit/50" />
+          </div>
           <button disabled={busy}
             onClick={async () => {
               if (!name.trim()) { toast.error('Γράψε όνομα'); return }
               setBusy(true)
+              if (noteVal.trim() !== note.trim()) onSaveNote(noteVal)
               await onSave({ full_name: name.trim(), number: num.trim() ? parseInt(num) : null })
               setBusy(false)
             }}
