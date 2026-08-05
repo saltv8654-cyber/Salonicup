@@ -40,6 +40,13 @@ const POP_META: Record<Kind, { icon: string; label: string; bg: [string, string]
   RED:    { icon: '🟥', label: 'ΚΟΚΚΙΝΗ ΚΑΡΤΑ', bg: ['#D8483C', '#B23227'] },
 }
 
+/** «Επίθετο Α.» — επίθετο + αρχικό μικρού ονόματος (για τον πάγκο). */
+function surnameInitial(n?: string | null) {
+  if (!n) return '—'
+  const parts = n.trim().split(/\s+/)
+  return parts.length > 1 ? `${parts[parts.length - 1]} ${parts[0][0]}.` : n
+}
+
 export default function OverlayPage() {
   return <Suspense><Overlay /></Suspense>
 }
@@ -391,7 +398,7 @@ function Overlay() {
                     {p?.photo_url ? <img src={p.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : (p?.number ?? (p?.full_name?.[0] ?? '?'))}
                   </span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{p?.full_name ?? '—'}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{surnameInitial(p?.full_name)}</span>
                 </span>
               )
             })}

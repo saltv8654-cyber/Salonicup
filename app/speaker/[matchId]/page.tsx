@@ -64,6 +64,7 @@ export default function SpeakerPanel() {
   const [period, setPeriod]   = useState<Period>('H1')
   const [minute, setMinute]   = useState('')
   const [pick, setPick]       = useState<{ player: Player; side: Side } | null>(null)
+  const [editPlayer, setEditPlayer] = useState<Player | null>(null)
   const [assistSide, setAssistSide] = useState<Side | null>(null)
   const [entryView, setEntryView]   = useState<'list' | 'pitch'>('list')
   const [pitchSide, setPitchSide]   = useState<Side>('a')
@@ -345,6 +346,18 @@ export default function SpeakerPanel() {
 
     const inName = (evSide === 'a' ? byIdA : byIdB)[inPid]?.full_name ?? ''
     toast.success(`Αλλαγή: μπαίνει ${inName}`)
+  }
+
+  // Επεξεργασία στοιχείων παίκτη (νούμερο/όνομα) από το γήπεδο
+  async function savePlayer(patch: { full_name?: string; number?: number | null }) {
+    if (!editPlayer) return
+    const pid = editPlayer.player_id
+    const { error } = await supabase.from('players').update(patch).eq('player_id', pid)
+    if (error) { toast.error('Δεν αποθηκεύτηκε: ' + error.message); return }
+    const upd = (arr: Player[]) => arr.map(p => (p.player_id === pid ? { ...p, ...patch } : p))
+    setRosterA(upd); setRosterB(upd)
+    toast.success('Αποθηκεύτηκε')
+    setEditPlayer(null)
   }
 
   // Πάτημα παίκτη στο γήπεδο (θέση) — σε λειτουργία αλλαγής επιλέγει ποιος βγαίνει
@@ -868,8 +881,13 @@ export default function SpeakerPanel() {
                   ? fmtMinute(period, clockRel(match.clock_started_at)) : ''))}
           isPen={period === 'PEN'}
           onPick={onPickEvent}
+          onEdit={() => { setEditPlayer(pick.player); setPick(null) }}
           onClose={() => setPick(null)}
         />
+      )}
+
+      {editPlayer && (
+        <PlayerEditSheet player={editPlayer} onSave={savePlayer} onClose={() => setEditPlayer(null)} />
       )}
 
       {/* Κείμενο αγώνα */}
@@ -1765,9 +1783,9 @@ function TeamGrid({ name, players, bench, side, notes, dimmed, onTap, stats }: {
 }
 
 /* ── Επιλογή φάσης για τον επιλεγμένο παίκτη ── */
-function EventSheet({ player, teamName, minuteLabel, isPen, onPick, onClose }: {
+function EventSheet({ player, teamName, minuteLabel, isPen, onPick, onEdit, onClose }: {
   player: Player; teamName?: string; minuteLabel: string; isPen: boolean
-  onPick: (ev: EventType) => void; onClose: () => void
+  onPick: (ev: EventType) => void; onEdit: () => void; onClose: () => void
 }) {
   const opts = isPen ? PEN_EVENTS : PLAY_EVENTS
   return (
@@ -1778,11 +1796,16 @@ function EventSheet({ player, teamName, minuteLabel, isPen, onPick, onClose }: {
         <div className="px-4.5 pt-4.5 pb-3 flex items-center gap-3 border-b border-chalk/[0.06]">
           <Avatar url={player.photo_url} name={player.full_name} size={40} />
           <div className="flex-1 min-w-0">
-            <h3 className="text-base font-bold text-chalk truncate">{player.full_name}</h3>
+            <h3 className="text-base font-bold text-chalk truncate">
+              {player.number != null ? <span className="text-dim">#{player.number} </span> : null}{player.full_name}
+            </h3>
             <p className="text-[11px] text-dim mt-0.5">
               {teamName}{minuteLabel ? ` · ${minuteLabel}` : ''}
             </p>
           </div>
+          <button onClick={onEdit}
+            className="px-2.5 h-[30px] rounded-lg bg-chalk/[0.06] border border-chalk/[0.08]
+              grid place-items-center text-silver text-[12px] font-bold shrink-0">✎ Επεξ.</button>
           <button onClick={onClose}
             className="w-[30px] h-[30px] rounded-lg bg-chalk/[0.06]
               grid place-items-center text-silver text-sm shrink-0">✕</button>
@@ -1796,6 +1819,54 @@ function EventSheet({ player, teamName, minuteLabel, isPen, onPick, onClose }: {
               <span className="text-[11px] font-bold text-silver">{EVENTS[t].label}</span>
             </button>
           ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Επεξεργασία στοιχείων παίκτη (νούμερο & όνομα) από το γήπεδο. */
+function PlayerEditSheet({ player, onSave, onClose }: {
+  player: Player; onSave: (patch: { full_name?: string; number?: number | null }) => void; onClose: () => void
+}) {
+  const [name, setName] = useState(player.full_name ?? '')
+  const [num, setNum] = useState(player.number != null ? String(player.number) : '')
+  const [busy, setBusy] = useState(false)
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col justify-end" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/75" />
+      <div onClick={e => e.stopPropagation()}
+        className="relative bg-turf rounded-t-[20px] flex flex-col border-t-2 border-lit pb-7">
+        <div className="px-4.5 pt-4.5 pb-3 flex items-center gap-3 border-b border-chalk/[0.06]">
+          <span className="text-lg">✎</span>
+          <h3 className="flex-1 text-base font-bold text-chalk">Επεξεργασία παίκτη</h3>
+          <button onClick={onClose}
+            className="w-[30px] h-[30px] rounded-lg bg-chalk/[0.06] grid place-items-center text-silver text-sm">✕</button>
+        </div>
+        <div className="px-4 py-4 flex flex-col gap-3">
+          <div>
+            <label className="block text-[9px] font-extrabold text-dim tracking-[0.12em] mb-1.5">ΟΝΟΜΑΤΕΠΩΝΥΜΟ</label>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="Όνομα Επίθετο"
+              className="w-full bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-sm
+                outline-none border border-chalk/[0.07] focus:border-lit/50" />
+          </div>
+          <div>
+            <label className="block text-[9px] font-extrabold text-dim tracking-[0.12em] mb-1.5">ΝΟΥΜΕΡΟ</label>
+            <input value={num} onChange={e => setNum(e.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="π.χ. 10"
+              className="w-[120px] bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-lg font-extrabold tnum
+                outline-none border border-chalk/[0.07] focus:border-lit/50" />
+          </div>
+          <button disabled={busy}
+            onClick={async () => {
+              if (!name.trim()) { toast.error('Γράψε όνομα'); return }
+              setBusy(true)
+              await onSave({ full_name: name.trim(), number: num.trim() ? parseInt(num) : null })
+              setBusy(false)
+            }}
+            className="w-full py-3.5 rounded-xl bg-gradient-to-b from-lit to-brand text-white
+              font-extrabold text-[15px] mt-1 disabled:opacity-50">
+            {busy ? 'Αποθήκευση…' : 'Αποθήκευση'}
+          </button>
         </div>
       </div>
     </div>
