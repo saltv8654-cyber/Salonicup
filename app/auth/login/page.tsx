@@ -19,12 +19,15 @@ function LoginForm() {
   const params = useSearchParams()
   const { signIn, signOut, profile, loading, isAdmin, isSpeaker } = useAuth()
   const supabase = createClient()
+  const [mode, setMode]   = useState<'login' | 'signup'>('login')
+  const [name, setName]   = useState('')
   const [email, setEmail] = useState('')
   const [pass, setPass]   = useState('')
   const [busy, setBusy]   = useState(false)
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    if (mode === 'signup') return signup()
     setBusy(true)
     try {
       await signIn(email, pass)
@@ -33,6 +36,27 @@ function LoginForm() {
     } catch (err: any) {
       toast.error('Λάθος email ή κωδικός')
       setBusy(false)
+    }
+  }
+
+  async function signup() {
+    if (!name.trim()) { toast.error('Γράψε το όνομά σου'); return }
+    if (pass.length < 6) { toast.error('Ο κωδικός θέλει τουλάχιστον 6 χαρακτήρες'); return }
+    setBusy(true)
+    const { data, error } = await supabase.auth.signUp({
+      email, password: pass,
+      options: { data: { full_name: name.trim() }, emailRedirectTo: `${window.location.origin}/bet` },
+    })
+    if (error) {
+      toast.error(/registered|exists/i.test(error.message) ? 'Το email υπάρχει ήδη' : 'Κάτι πήγε στραβά — ξαναδοκίμασε')
+      setBusy(false); return
+    }
+    if (data.session) {
+      toast.success('Καλωσήρθες! 🎉')
+      router.push(params.get('next') ?? '/bet'); router.refresh()
+    } else {
+      toast.success('Σου στείλαμε email — επιβεβαίωσέ το για να μπεις')
+      setBusy(false); setMode('login')
     }
   }
 
@@ -124,14 +148,40 @@ function LoginForm() {
             Salonicup
           </p>
           <h1 className="text-[26px] font-extrabold text-chalk mt-1.5 tracking-tight">
-            Σύνδεση
+            {mode === 'signup' ? 'Εγγραφή' : 'Σύνδεση'}
           </h1>
           <p className="text-[13px] text-dim mt-1.5">
-            Για speakers και διαχειριστές
+            {mode === 'signup'
+              ? 'Φτιάξε λογαριασμό για να παίξεις Salonicup Bet'
+              : 'Σύνδεση στον λογαριασμό σου'}
           </p>
         </div>
 
+        {/* Εναλλαγή Σύνδεση / Εγγραφή */}
+        <div className="flex gap-1 p-1 mb-4 rounded-xl bg-turf border border-chalk/[0.07]">
+          {(['login', 'signup'] as const).map(mo => (
+            <button key={mo} type="button" onClick={() => setMode(mo)}
+              className={`flex-1 py-2 rounded-lg text-[13px] font-bold transition-colors
+                ${mode === mo ? 'bg-gradient-to-b from-lit to-brand text-white' : 'text-silver'}`}>
+              {mo === 'login' ? 'Σύνδεση' : 'Εγγραφή'}
+            </button>
+          ))}
+        </div>
+
         <form onSubmit={submit} className="flex flex-col gap-3">
+          {mode === 'signup' && (
+            <div>
+              <label className="block text-[8.5px] font-extrabold text-dim
+                tracking-[0.12em] mb-1.5 pl-0.5">ΟΝΟΜΑ</label>
+              <input
+                type="text" value={name} required
+                onChange={e => setName(e.target.value)}
+                autoComplete="name"
+                className="w-full bg-turf rounded-xl px-4 py-3.5 text-chalk text-sm
+                  outline-none border border-chalk/[0.07] focus:border-lit/50"
+              />
+            </div>
+          )}
           <div>
             <label className="block text-[8.5px] font-extrabold text-dim
               tracking-[0.12em] mb-1.5 pl-0.5">EMAIL</label>
@@ -148,9 +198,9 @@ function LoginForm() {
             <label className="block text-[8.5px] font-extrabold text-dim
               tracking-[0.12em] mb-1.5 pl-0.5">ΚΩΔΙΚΟΣ</label>
             <input
-              type="password" value={pass} required
+              type="password" value={pass} required minLength={mode === 'signup' ? 6 : undefined}
               onChange={e => setPass(e.target.value)}
-              autoComplete="current-password"
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
               className="w-full bg-turf rounded-xl px-4 py-3.5 text-chalk text-sm
                 outline-none border border-chalk/[0.07] focus:border-lit/50"
             />
@@ -160,14 +210,16 @@ function LoginForm() {
             className="w-full py-3.5 rounded-xl bg-gradient-to-b from-lit to-brand
               text-white font-extrabold text-[15px] mt-2 disabled:opacity-50
               shadow-[0_4px_16px_rgba(224,91,31,0.3)]">
-            {busy ? 'Σύνδεση…' : 'Σύνδεση'}
+            {busy ? '…' : mode === 'signup' ? 'Δημιουργία λογαριασμού' : 'Σύνδεση'}
           </button>
         </form>
 
-        <button type="button" onClick={forgot} disabled={busy}
-          className="w-full py-2.5 mt-2 text-[12.5px] font-semibold text-lit disabled:opacity-50">
-          Ξέχασες τον κωδικό;
-        </button>
+        {mode === 'login' && (
+          <button type="button" onClick={forgot} disabled={busy}
+            className="w-full py-2.5 mt-2 text-[12.5px] font-semibold text-lit disabled:opacity-50">
+            Ξέχασες τον κωδικό;
+          </button>
+        )}
 
         <button onClick={() => router.push('/')}
           className="w-full py-3 mt-1 text-dim font-semibold text-[12.5px]">
