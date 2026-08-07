@@ -498,6 +498,31 @@ function Overlay() {
       fontWeight: strong ? 900 : 700, color: strong ? '#fff' : 'rgba(255,255,255,.9)',
       fontVariantNumeric: 'tabular-nums' }}>{v}</span>
   )
+  // Ζωντανή βαθμολογία: όσο παίζεται ο αγώνας (και δεν έχει καταχωρηθεί ακόμη ως
+  // «Played»), πρόσθεσε το τρέχον σκορ στις δύο ομάδες σαν να τελείωνε τώρα και
+  // ξαναταξινόμησε — έτσι η θέση αλλάζει live αν προηγείται μια ομάδα.
+  const liveProject = match.match_status !== 'Played' && match.match_status !== 'Forfeit'
+    && !!match.clock_period
+  const stDisplay = (() => {
+    if (!liveProject || !standRows.length) return standRows
+    const rows = standRows.map((r: any) => ({ ...r }))
+    const apply = (teamId: string, gf: number, ga: number) => {
+      const r = rows.find((x: any) => x.team_id === teamId)
+      if (!r) return
+      r.played += 1; r.goals_for += gf; r.goals_against += ga
+      r.goal_diff = r.goals_for - r.goals_against
+      if (gf > ga) { r.wins += 1; r.points += 3 }
+      else if (gf === ga) { r.draws += 1; r.points += 1 }
+      else { r.losses += 1 }
+    }
+    apply(match.team_a, match.goals_team_a, match.goals_team_b)
+    apply(match.team_b, match.goals_team_b, match.goals_team_a)
+    rows.sort((a: any, b: any) =>
+      b.points - a.points || b.goal_diff - a.goal_diff || b.goals_for - a.goals_for
+      || String(a.team_name).localeCompare(String(b.team_name)))
+    rows.forEach((r: any, i: number) => { r.position = i + 1 })
+    return rows
+  })()
   const standingsEl = standingsOn && standRows.length > 0 && (
     <div style={{ position: PP, inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -508,8 +533,17 @@ function Overlay() {
           border: '1px solid rgba(255,255,255,.10)', boxShadow: '0 26px 70px rgba(0,0,0,.6)' }}>
           <div style={{ height: 5, background: `linear-gradient(90deg, ${PL.pink}, ${PL.pink2})` }} />
           <div style={{ padding: '16px 26px 20px' }}>
-            <div style={{ textAlign: 'center', fontSize: 15, fontWeight: 800, letterSpacing: '.28em',
-              color: PL.pink, marginBottom: 12 }}>ΒΑΘΜΟΛΟΓΙΑ</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+              marginBottom: 12 }}>
+              <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '.28em', color: PL.pink }}>
+                ΒΑΘΜΟΛΟΓΙΑ</span>
+              {liveProject && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px',
+                  borderRadius: 20, background: '#ff2d2d', color: '#fff', fontSize: 11, fontWeight: 900,
+                  letterSpacing: '.1em' }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#fff' }} />ΖΩΝΤΑΝΑ</span>
+              )}
+            </div>
             {/* Επικεφαλίδα στηλών */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px 8px',
               borderBottom: `2px solid ${PL.pink}` }}>
