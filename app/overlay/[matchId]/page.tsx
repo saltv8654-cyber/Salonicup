@@ -83,6 +83,9 @@ function Overlay() {
   const [lineupsOn, setLineupsOn] = useState(false)
   const [scorersOn, setScorersOn] = useState(false)
   const scorersTimer = useRef<ReturnType<typeof setTimeout>>()
+  const [standingsOn, setStandingsOn] = useState(false)
+  const [standRows, setStandRows] = useState<any[]>([])
+  const standTimer = useRef<ReturnType<typeof setTimeout>>()
   const [luTeam, setLuTeam] = useState<'a' | 'b'>('a')
   const [squadMap, setSquadMap] = useState<Record<string, any>>({})
   const [bigCard, setBigCard] = useState<BigKind | null>(null)
@@ -179,6 +182,12 @@ function Overlay() {
         scorersTimer.current = setTimeout(() => setScorersOn(false), 4000)
         return
       }
+      if (payload?.kind === 'STANDINGS') {
+        setStandingsOn(false); setTimeout(() => setStandingsOn(true), 30)
+        clearTimeout(standTimer.current)
+        standTimer.current = setTimeout(() => setStandingsOn(false), 12000)
+        return
+      }
       setFlash(payload?.kind ?? null)
       clearTimeout(flashTimer.current)
       if (payload?.kind) flashTimer.current = setTimeout(() => setFlash(null), 6000)
@@ -213,6 +222,14 @@ function Overlay() {
     document.addEventListener('visibilitychange', onVis)
     return () => { alive = false; clearInterval(iv); document.removeEventListener('visibilitychange', onVis) }
   }, [urlSponsors.length])
+
+  // Βαθμολογία: φόρτωσε το table του πρωταθλήματος όταν ζητηθεί (ή προφόρτωσε στο load)
+  useEffect(() => {
+    const lid = match?.league_id
+    if (!lid) return
+    supa.current.from('standings').select('*').eq('league_id', lid).order('position')
+      .then(({ data }: any) => setStandRows(data ?? []))
+  }, [match?.league_id, standingsOn])
 
   // Συνθέσεις: 5 δευτ. ομάδα Α, 5 δευτ. ομάδα Β, μετά εξαφανίζεται μόνο του
   useEffect(() => {
@@ -471,6 +488,65 @@ function Overlay() {
     </div>
   )
 
+  // Βαθμολογία — πλήρης πίνακας πρωταθλήματος· οι δύο ομάδες που παίζουν τονίζονται
+  const stHead = (label: string, w: number, align: 'left' | 'right' | 'center' = 'right') => (
+    <span style={{ width: w, flex: 'none', textAlign: align, fontSize: 12, fontWeight: 900,
+      letterSpacing: '.04em', color: 'rgba(255,255,255,.55)' }}>{label}</span>
+  )
+  const stNum = (v: number | string, w: number, strong = false) => (
+    <span style={{ width: w, flex: 'none', textAlign: 'right', fontSize: 16,
+      fontWeight: strong ? 900 : 700, color: strong ? '#fff' : 'rgba(255,255,255,.9)',
+      fontVariantNumeric: 'tabular-nums' }}>{v}</span>
+  )
+  const standingsEl = standingsOn && standRows.length > 0 && (
+    <div style={{ position: PP, inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
+        animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
+        {leagueTab}
+        <div style={{ width: 720, borderRadius: '0 0 16px 16px', overflow: 'hidden',
+          background: `linear-gradient(180deg, ${PL.deep}, ${PL.dark})`,
+          border: '1px solid rgba(255,255,255,.10)', boxShadow: '0 26px 70px rgba(0,0,0,.6)' }}>
+          <div style={{ height: 5, background: `linear-gradient(90deg, ${PL.pink}, ${PL.pink2})` }} />
+          <div style={{ padding: '16px 26px 20px' }}>
+            <div style={{ textAlign: 'center', fontSize: 15, fontWeight: 800, letterSpacing: '.28em',
+              color: PL.pink, marginBottom: 12 }}>ΒΑΘΜΟΛΟΓΙΑ</div>
+            {/* Επικεφαλίδα στηλών */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px 8px',
+              borderBottom: `2px solid ${PL.pink}` }}>
+              <span style={{ width: 26, flex: 'none' }} />
+              <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 900, color: 'rgba(255,255,255,.55)',
+                letterSpacing: '.04em' }}>ΟΜΑΔΑ</span>
+              {stHead('Α', 34)}{stHead('Ν', 30)}{stHead('Ι', 30)}{stHead('Η', 30)}
+              {stHead('ΔΤ', 44)}{stHead('Β', 44)}
+            </div>
+            {standRows.map((r: any) => {
+              const mine = r.team_id === match.team_a || r.team_id === match.team_b
+              return (
+                <div key={r.team_id} style={{ display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '6px 10px', borderRadius: 8,
+                  background: mine ? 'rgba(255,40,130,.18)' : 'transparent',
+                  boxShadow: mine ? `inset 3px 0 0 ${PL.pink}` : 'none' }}>
+                  <span style={{ width: 26, flex: 'none', textAlign: 'center', fontSize: 15, fontWeight: 900,
+                    color: mine ? PL.pink : 'rgba(255,255,255,.7)', fontVariantNumeric: 'tabular-nums' }}>
+                    {r.position}</span>
+                  <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 9 }}>
+                    <Crest name={r.team_name} logo={r.logo_url} size={26} />
+                    <span style={{ fontSize: 16, fontWeight: mine ? 900 : 700, color: '#fff',
+                      textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden',
+                      textOverflow: 'ellipsis' }}>{r.team_name}</span>
+                  </div>
+                  {stNum(r.played, 34)}{stNum(r.wins, 30)}{stNum(r.draws, 30)}{stNum(r.losses, 30)}
+                  {stNum(r.goal_diff > 0 ? `+${r.goal_diff}` : r.goal_diff, 44)}
+                  {stNum(r.points, 44, true)}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
   const varEl = flash === 'VAR' && (
     <div style={{ position: PP, inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '24px 44px', borderRadius: 18,
@@ -689,7 +765,7 @@ function Overlay() {
     </div>
   ) : null
 
-  const scene = <>{styleTag}{sponsorsEl}{!lineupsOn && scoreEl}{brandEl}{subCardEl}{varEl}{lineupsEl}{scorersEl}{bigCardEl}</>
+  const scene = <>{styleTag}{sponsorsEl}{!lineupsOn && !standingsOn && scoreEl}{brandEl}{subCardEl}{varEl}{lineupsEl}{scorersEl}{standingsEl}{bigCardEl}</>
 
   // Πραγματικό OBS: καμβάς 1280×720 κλιμακωμένος να γεμίσει την οθόνη
   if (!preview) return (
@@ -738,6 +814,10 @@ function Overlay() {
           {ctlBtn('#1f5e3a', '#fff', '⚽ Σκόρερς', () => {
             setScorersOn(false); setTimeout(() => setScorersOn(true), 30)
             clearTimeout(scorersTimer.current); scorersTimer.current = setTimeout(() => setScorersOn(false), 4000)
+          })}
+          {ctlBtn('#3d0a45', '#fff', '📊 Βαθμολογία', () => {
+            setStandingsOn(false); setTimeout(() => setStandingsOn(true), 30)
+            clearTimeout(standTimer.current); standTimer.current = setTimeout(() => setStandingsOn(false), 12000)
           })}
           {ctlBtn('#35c66b', '#062', '🔄 Αλλαγή', testSub)}
           {ctlBtn('#0e7a3a', '#fff', '🏁 Έναρξη', () => testBig('KICKOFF'))}

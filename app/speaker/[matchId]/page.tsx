@@ -842,6 +842,11 @@ export default function SpeakerPanel() {
                   bg-[#1f5e3a]/25 border-[#35c66b]/40 text-[#8fe6b0]">
                 ⚽ Σκόρερς
               </button>
+              <button onClick={() => { sendFlash('STANDINGS'); toast.success('Βαθμολογία στο overlay') }}
+                className="flex-1 py-2.5 rounded-xl font-bold text-[12.5px] border
+                  bg-[#3d0a45]/40 border-[#ff2882]/40 text-[#ff8fc0]">
+                📊 Βαθμολογία
+              </button>
             </div>
 
             {/* Κανάλι + LIVE — αλλάζουν ΖΩΝΤΑΝΑ στο OBS overlay */}
