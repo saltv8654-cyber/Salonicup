@@ -108,7 +108,7 @@ begin
   res   := case when m.goals_team_a > m.goals_team_b then '1'
                 when m.goals_team_a < m.goals_team_b then '2' else 'X' end;
   total := coalesce(m.goals_team_a,0) + coalesce(m.goals_team_b,0);
-  ou    := case when total >= 3 then 'O' else 'U' end;
+  ou    := case when total >= 8 then 'O' else 'U' end;  -- Over/Under 7.5
   gg    := case when coalesce(m.goals_team_a,0) > 0 and coalesce(m.goals_team_b,0) > 0 then 'Y' else 'N' end;
 
   for r in select * from bets where match_id = p_match and status = 'pending' loop

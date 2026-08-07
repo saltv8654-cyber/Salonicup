@@ -253,8 +253,8 @@ export default function AdminBet() {
                       {oddsChip('Χ', d.draw, d.p_draw)}
                       {oddsChip('2', d.away, d.p_away)}
                       <div className="w-px self-stretch bg-chalk/10 mx-0.5" />
-                      {oddsChip('O2.5', d.over25)}
-                      {oddsChip('U2.5', d.under25)}
+                      {oddsChip('O7.5', d.over25)}
+                      {oddsChip('U7.5', d.under25)}
                       {oddsChip('GG', d.btts_yes)}
                       <div className="ml-auto flex items-center gap-1.5">
                         {pub && <span className="text-[10px] font-bold text-[#35c66b]">● live</span>}
@@ -271,7 +271,7 @@ export default function AdminBet() {
                       <div className="grid grid-cols-4 gap-2 mt-2">
                         {([
                           ['1', 'home'], ['Χ', 'draw'], ['2', 'away'],
-                          ['O2.5', 'over25'], ['U2.5', 'under25'], ['GG', 'btts_yes'], ['NG', 'btts_no'],
+                          ['O7.5', 'over25'], ['U7.5', 'under25'], ['GG', 'btts_yes'], ['NG', 'btts_no'],
                         ] as [string, keyof Draft][]).map(([lbl, key]) => (
                           <label key={key} className="flex flex-col gap-0.5">
                             <span className="text-[9px] font-black text-dim">{lbl}</span>

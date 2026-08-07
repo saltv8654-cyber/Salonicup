@@ -35,12 +35,12 @@ function outcomes(m: Match) {
   const a = m.goals_team_a ?? 0, b = m.goals_team_b ?? 0, tot = a + b
   return {
     '1X2': a > b ? '1' : a < b ? '2' : 'X',
-    OU25: tot >= 3 ? 'O' : 'U',
+    OU25: tot >= 8 ? 'O' : 'U',
     BTTS: a > 0 && b > 0 ? 'Y' : 'N',
   } as Record<string, string>
 }
 const SEL_LABEL: Record<string, string> = {
-  '1': '1', X: 'Χ', '2': '2', O: 'Over 2.5', U: 'Under 2.5', Y: 'Goal/Goal', N: 'No Goal',
+  '1': '1', X: 'Χ', '2': '2', O: 'Over 7.5', U: 'Under 7.5', Y: 'Goal/Goal', N: 'No Goal',
 }
 
 export default function BetPage() {

@@ -62,7 +62,7 @@ export function computeOdds(home: TeamStat, away: TeamStat, base: number): Odds 
   lH = clamp(lH, 0.15, 6)
   lA = clamp(lA, 0.15, 6)
 
-  const N = 9
+  const N = 16
   let pH = 0, pD = 0, pA = 0, pOver = 0, pBtts = 0
   for (let i = 0; i < N; i++) {
     for (let j = 0; j < N; j++) {
@@ -70,11 +70,11 @@ export function computeOdds(home: TeamStat, away: TeamStat, base: number): Odds 
       if (i > j) pH += p
       else if (i === j) pD += p
       else pA += p
-      if (i + j >= 3) pOver += p     // Over 2.5 = 3+ γκολ
+      if (i + j >= 8) pOver += p     // Over 7.5 = 8+ γκολ (8x8/7x7 → πολλά γκολ)
       if (i > 0 && j > 0) pBtts += p // Goal/Goal
     }
   }
-  // Κανονικοποίηση (η μήτρα κόβεται στα 8 γκολ ανά ομάδα)
+  // Κανονικοποίηση (η μήτρα κόβεται στα 15 γκολ ανά ομάδα)
   const s = pH + pD + pA || 1
   pH /= s; pD /= s; pA /= s
   pOver = clamp(pOver, 0.02, 0.98)
