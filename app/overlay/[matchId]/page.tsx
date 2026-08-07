@@ -502,7 +502,8 @@ function Overlay() {
   // «Played»), πρόσθεσε το τρέχον σκορ στις δύο ομάδες σαν να τελείωνε τώρα και
   // ξαναταξινόμησε — έτσι η θέση αλλάζει live αν προηγείται μια ομάδα.
   const liveProject = match.match_status !== 'Played' && match.match_status !== 'Forfeit'
-    && !!match.clock_period
+    && (!!match.clock_period || match.match_status === 'Live'
+        || (match.goals_team_a ?? 0) > 0 || (match.goals_team_b ?? 0) > 0)
   const stDisplay = (() => {
     if (!liveProject || !standRows.length) return standRows
     const rows = standRows.map((r: any) => ({ ...r }))
