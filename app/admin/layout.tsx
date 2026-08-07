@@ -17,6 +17,7 @@ const NAV = [
   { href: '/admin/post',     label: 'Post',          icon: '📸' },
   { href: '/admin/staff',    label: 'Προσωπικό',     icon: '🎬' },
   { href: '/admin/finance',  label: 'Οικονομικά',    icon: '💰' },
+  { href: '/admin/bet',      label: 'Bet',           icon: '🎲' },
   { href: '/admin/users',    label: 'Χρήστες',       icon: '🔑' },
 ]
 
