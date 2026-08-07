@@ -56,8 +56,8 @@ create policy bets_read   on bets for select using (auth.uid() = user_id or is_a
 
 -- ── Δημόσια κατάταξη (ονόματα + πόντοι, χωρίς email) ──
 create or replace view bet_leaderboard as
-  select w.user_id, coalesce(p.full_name, 'Παίκτης') as name, w.points, w.updated_at
-  from bet_wallets w left join profiles p on p.id = w.user_id;
+  select w.user_id, coalesce(profiles.full_name, 'Παίκτης') as name, w.points, w.updated_at
+  from bet_wallets w left join profiles on profiles.id = w.user_id;
 
 -- ── place_bet: κλείδωμα απόδοσης + κράτηση πόντων (ατομικά) ──
 create or replace function place_bet(p_match uuid, p_market text, p_selection text, p_stake numeric)
