@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
+import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
@@ -1076,8 +1077,8 @@ function ClockBar({ cp, startedAt, now, busy, onSet }: {
 }
 
 function Badge({ team, n }: { team: any; n: number }) {
-  return (
-    <div className="flex-1 min-w-0 flex flex-col items-center gap-1.5">
+  const inner = (
+    <>
       <Crest url={team?.logo_url} name={team?.name} size={52} />
       <span className="text-xs font-bold text-chalk text-center leading-tight">
         {team?.name}
@@ -1085,7 +1086,16 @@ function Badge({ team, n }: { team: any; n: number }) {
       <span className="text-[8.5px] text-dim font-bold tracking-[0.04em]">
         {n} ΠΑΙΚΤΕΣ
       </span>
-    </div>
+    </>
+  )
+  // Λογότυπο + όνομα clickable → σελίδα ομάδας
+  return team?.team_id ? (
+    <Link href={`/team/${team.team_id}`}
+      className="flex-1 min-w-0 flex flex-col items-center gap-1.5 active:opacity-70">
+      {inner}
+    </Link>
+  ) : (
+    <div className="flex-1 min-w-0 flex flex-col items-center gap-1.5">{inner}</div>
   )
 }
 
