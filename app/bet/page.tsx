@@ -18,19 +18,23 @@ type OddsRow = {
   match_id: string; home: number; draw: number; away: number
   over25: number; under25: number; btts_yes: number; btts_no: number
 }
-type Bet = {
-  bet_id: string; match_id: string; market: string; selection: string
-  odds: number; stake: number; status: string; payout: number; created_at: string
-  match: (Match & { league: { name: string } | null }) | null
+type Leg = {
+  matchId: string; market: string; selection: string; odds: number
+  home: string; away: string; league: string
+}
+type SlipRow = {
+  slip_id: string; stake: number; combined_odds: number; status: string; payout: number; created_at: string
+  legs: {
+    bet_id: string; match_id: string; market: string; selection: string; odds: number; status: string
+    match: { team_a_data: Team | null; team_b_data: Team | null; league: { name: string } | null } | null
+  }[]
 }
 type Leader = { user_id: string; name: string; points: number }
 
 type Tab = 'upcoming' | 'results' | 'mine' | 'board'
-type Slip = { match: Match; market: string; selection: string; label: string; odds: number } | null
 
 const pts = (n: number) => `${Math.round(n * 100) / 100}`.replace(/\.00$/, '')
 
-// Ποια επιλογή κέρδισε σε τελειωμένο αγώνα
 function outcomes(m: Match) {
   const a = m.goals_team_a ?? 0, b = m.goals_team_b ?? 0, tot = a + b
   return {
@@ -52,9 +56,10 @@ export default function BetPage() {
   const [results, setResults] = useState<Match[]>([])
   const [odds, setOdds] = useState<Record<string, OddsRow>>({})
   const [wallet, setWallet] = useState<number | null>(null)
-  const [myBets, setMyBets] = useState<Bet[]>([])
+  const [slips, setSlips] = useState<SlipRow[]>([])
   const [board, setBoard] = useState<Leader[]>([])
-  const [slip, setSlip] = useState<Slip>(null)
+  const [legs, setLegs] = useState<Leg[]>([])
+  const [slipOpen, setSlipOpen] = useState(false)
   const [stake, setStake] = useState('50')
   const [placing, setPlacing] = useState(false)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -80,14 +85,16 @@ export default function BetPage() {
   }
 
   async function fetchMine() {
-    if (!profile?.id) { setWallet(null); setMyBets([]); return }
-    const [w, b] = await Promise.all([
+    if (!profile?.id) { setWallet(null); setSlips([]); return }
+    const [w, s] = await Promise.all([
       supabase.from('bet_wallets').select('points').eq('user_id', profile.id).maybeSingle(),
-      supabase.from('bets').select(`*, match:match_id(${sel})`)
+      supabase.from('bet_slips').select(`slip_id, stake, combined_odds, status, payout, created_at,
+        legs:bets(bet_id, match_id, market, selection, odds, status,
+          match:match_id(team_a_data:team_a(name), team_b_data:team_b(name), league:league_id(name)))`)
         .order('created_at', { ascending: false }).limit(50),
     ])
     setWallet(w.data?.points ?? 1000)
-    setMyBets((b.data ?? []) as any)
+    setSlips((s.data ?? []) as any)
   }
 
   async function fetchBoard() {
@@ -99,43 +106,60 @@ export default function BetPage() {
   useEffect(() => { fetchCore(); fetchBoard() }, [])
   useEffect(() => { if (!authLoading) fetchMine() }, [profile?.id, authLoading])
 
-  function openSlip(match: Match, market: string, selection: string, odds: number) {
-    if (!profile?.id) { toast.error('Συνδέσου για να στοιχηματίσεις'); return }
-    setSlip({ match, market, selection, odds, label: SEL_LABEL[selection] })
-    setStake('50')
+  const combined = useMemo(() => legs.reduce((a, l) => a * l.odds, 1), [legs])
+  const isSel = (matchId: string, market: string, selection: string) =>
+    legs.some(l => l.matchId === matchId && l.market === market && l.selection === selection)
+
+  function toggleLeg(m: Match, market: string, selection: string, odds: number) {
+    setLegs(prev => {
+      const existing = prev.find(l => l.matchId === m.match_id)
+      // ίδια επιλογή → αφαίρεση
+      if (existing && existing.market === market && existing.selection === selection)
+        return prev.filter(l => l.matchId !== m.match_id)
+      // ένα σκέλος ανά αγώνα → αντικατάσταση
+      const rest = prev.filter(l => l.matchId !== m.match_id)
+      return [...rest, {
+        matchId: m.match_id, market, selection, odds,
+        home: m.team_a_data?.name ?? '', away: m.team_b_data?.name ?? '', league: m.league?.name ?? '',
+      }]
+    })
   }
+  const removeLeg = (matchId: string) => setLegs(prev => prev.filter(l => l.matchId !== matchId))
 
   async function place() {
-    if (!slip) return
+    if (!legs.length) return
+    if (!profile?.id) { toast.error('Συνδέσου για να στοιχηματίσεις'); return }
     const amount = parseFloat(stake)
     if (!Number.isFinite(amount) || amount <= 0) { toast.error('Βάλε ποσό'); return }
     if (wallet != null && amount > wallet) { toast.error('Δεν έχεις αρκετούς πόντους'); return }
     setPlacing(true)
-    const { error } = await supabase.rpc('place_bet', {
-      p_match: slip.match.match_id, p_market: slip.market,
-      p_selection: slip.selection, p_stake: amount,
+    const { error } = await supabase.rpc('place_slip', {
+      p_legs: legs.map(l => ({ match: l.matchId, market: l.market, selection: l.selection })),
+      p_stake: amount,
     })
     setPlacing(false)
     if (error) { toast.error(error.message.replace(/^.*?:\s*/, '')); return }
-    toast.success('Το κουπόνι μπήκε!')
-    setSlip(null)
+    toast.success(legs.length > 1 ? 'Το παρλέ μπήκε! 🎉' : 'Το κουπόνι μπήκε!')
+    setLegs([]); setSlipOpen(false)
     fetchMine(); fetchBoard()
   }
 
   const OddBtn = ({ m, market, selection, val }:
-    { m: Match; market: string; selection: string; val?: number }) => (
-    <button disabled={val == null} onClick={() => openSlip(m, market, selection, val!)}
-      className={`flex-1 flex flex-col items-center py-2 rounded-lg border transition-colors
-        ${val == null ? 'bg-chalk/[0.03] border-chalk/[0.05] text-dim'
-          : 'bg-chalk/[0.05] border-chalk/[0.09] text-chalk active:bg-brand/25 active:border-brand/50'}`}>
-      <span className="text-[9.5px] font-black text-dim">{SEL_LABEL[selection]}</span>
-      <span className="text-[15px] font-black tabular-nums leading-tight">{val != null ? val.toFixed(2) : '—'}</span>
-    </button>
-  )
+    { m: Match; market: string; selection: string; val?: number }) => {
+    const on = isSel(m.match_id, market, selection)
+    return (
+      <button disabled={val == null} onClick={() => toggleLeg(m, market, selection, val!)}
+        className={`flex-1 flex flex-col items-center py-2 rounded-lg border transition-colors
+          ${val == null ? 'bg-chalk/[0.03] border-chalk/[0.05] text-dim'
+            : on ? 'bg-brand border-lit text-white'
+              : 'bg-chalk/[0.05] border-chalk/[0.09] text-chalk active:bg-brand/25'}`}>
+        <span className={`text-[9.5px] font-black ${on ? 'text-white/80' : 'text-dim'}`}>{SEL_LABEL[selection]}</span>
+        <span className="text-[15px] font-black tabular-nums leading-tight">{val != null ? val.toFixed(2) : '—'}</span>
+      </button>
+    )
+  }
 
-  if (load || authLoading) return (
-    <div className="min-h-screen bg-pitch"><Loading /></div>
-  )
+  if (load || authLoading) return <div className="min-h-screen bg-pitch"><Loading /></div>
 
   const TABS: [Tab, string][] = [
     ['upcoming', '🎯 Αγώνες'], ['results', '✅ Αποτελέσματα'],
@@ -143,7 +167,7 @@ export default function BetPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-pitch pb-24">
+    <div className={`min-h-screen bg-pitch ${legs.length ? 'pb-40' : 'pb-24'}`}>
       <header className="relative px-4 pt-6 pb-4 overflow-hidden">
         <div className="absolute -right-6 -top-4 w-32 h-36"><Watermark opacity={0.05} /></div>
         <div className="relative flex items-end justify-between gap-3">
@@ -163,11 +187,10 @@ export default function BetPage() {
           )}
         </div>
         <p className="relative text-[11px] text-silver mt-2 leading-snug">
-          Αποδόσεις από στατιστική ανάλυση. Στοίχημα με πόντους — χωρίς λεφτά, μόνο για πλάκα & κατάταξη.
+          Αποδόσεις από στατιστική ανάλυση. Διάλεξε πολλά για <b className="text-chalk">παρλέ</b> — οι αποδόσεις πολλαπλασιάζονται!
         </p>
       </header>
 
-      {/* Tabs */}
       <div className="flex gap-2 px-3.5 pb-3 overflow-x-auto">
         {TABS.map(([t, lbl]) => (
           <button key={t} onClick={() => setTab(t)}
@@ -271,31 +294,44 @@ export default function BetPage() {
         {/* ── ΤΑ ΚΟΥΠΟΝΙΑ ΜΟΥ ── */}
         {tab === 'mine' && (
           !profile?.id ? <Msg>Συνδέσου για να δεις τα κουπόνια σου. <Link href="/auth/login" className="text-lit font-bold underline">Σύνδεση</Link></Msg>
-            : myBets.length === 0 ? <Msg>Δεν έχεις κουπόνια ακόμη. Πήγαινε στους αγώνες!</Msg>
-              : <div className="flex flex-col gap-2">
-                {myBets.map(b => {
-                  const st = b.status
+            : slips.length === 0 ? <Msg>Δεν έχεις κουπόνια ακόμη. Πήγαινε στους αγώνες!</Msg>
+              : <div className="flex flex-col gap-2.5">
+                {slips.map(s => {
+                  const st = s.status
                   const color = st === 'won' ? '#35c66b' : st === 'lost' ? '#e0563c' : st === 'void' ? '#8a8a95' : '#F5782E'
                   const stLbl = st === 'won' ? 'ΚΕΡΔΙΣΕ' : st === 'lost' ? 'ΕΧΑΣΕ' : st === 'void' ? 'ΑΚΥΡΟ' : 'ΕΚΚΡΕΜΕΙ'
+                  const isParlay = s.legs.length > 1
                   return (
-                    <div key={b.bet_id} className="rounded-xl bg-turf border p-3"
-                      style={{ borderColor: color + '55' }}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[11px] font-bold text-chalk truncate">
-                          {b.match?.team_a_data?.name} – {b.match?.team_b_data?.name}</span>
+                    <div key={s.slip_id} className="rounded-xl bg-turf border p-3" style={{ borderColor: color + '55' }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-black tracking-wider px-2 py-0.5 rounded-full bg-chalk/[0.06] text-silver">
+                          {isParlay ? `ΠΑΡΛΕ ${s.legs.length}x` : 'ΜΟΝΟ'} · @{s.combined_odds.toFixed(2)}</span>
                         <span className="text-[9.5px] font-black px-2 py-0.5 rounded-full"
                           style={{ color, background: color + '22' }}>{stLbl}</span>
                       </div>
-                      <div className="flex items-center justify-between text-[11.5px]">
+                      <div className="flex flex-col gap-1.5 mb-2">
+                        {s.legs.map(lg => {
+                          const lc = lg.status === 'won' ? '#35c66b' : lg.status === 'lost' ? '#e0563c'
+                            : lg.status === 'void' ? '#8a8a95' : '#8a8a95'
+                          const ic = lg.status === 'won' ? '✓' : lg.status === 'lost' ? '✗' : lg.status === 'void' ? '∅' : '•'
+                          return (
+                            <div key={lg.bet_id} className="flex items-center gap-2 text-[11.5px]">
+                              <span className="w-4 text-center font-black" style={{ color: lc }}>{ic}</span>
+                              <span className="text-silver truncate flex-1">
+                                {lg.match?.team_a_data?.name} – {lg.match?.team_b_data?.name}</span>
+                              <b className="text-chalk shrink-0">{SEL_LABEL[lg.selection] ?? lg.selection}</b>
+                              <span className="text-lit tabular-nums shrink-0">{lg.odds.toFixed(2)}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <div className="flex items-center justify-between text-[11.5px] pt-2 border-t border-chalk/[0.06]">
+                        <span className="text-silver">Ποντάρισμα <b className="text-chalk tabular-nums">{pts(s.stake)}</b></span>
                         <span className="text-silver">
-                          <b className="text-chalk">{SEL_LABEL[b.selection] ?? b.selection}</b>
-                          <span className="text-dim"> @ </span>
-                          <b className="text-lit tabular-nums">{b.odds.toFixed(2)}</b>
-                        </span>
-                        <span className="text-silver">
-                          Ποντάρισμα <b className="text-chalk tabular-nums">{pts(b.stake)}</b>
-                          {st === 'won' && <span className="text-[#35c66b] font-bold"> → +{pts(b.payout)}</span>}
-                          {st === 'pending' && <span className="text-dim"> → {pts(b.stake * b.odds)}</span>}
+                          {st === 'won' ? <span className="text-[#35c66b] font-bold">Κέρδος +{pts(s.payout)}</span>
+                            : st === 'void' ? <span className="text-silver">Επιστροφή {pts(s.payout)}</span>
+                              : st === 'lost' ? <span className="text-[#e0563c]">—</span>
+                                : <>Πιθανό <b className="text-chalk tabular-nums">{pts(s.stake * s.combined_odds)}</b></>}
                         </span>
                       </div>
                     </div>
@@ -327,25 +363,53 @@ export default function BetPage() {
         )}
       </div>
 
-      {/* ── Δελτίο στοιχήματος (bet slip) ── */}
-      {slip && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"
-          onClick={() => setSlip(null)}>
-          <div className="w-full max-w-md bg-turf border-t border-lit/30 rounded-t-2xl p-4 pb-6"
+      {/* ── Μπάρα κουπονιού (πάνω από το nav) ── */}
+      {legs.length > 0 && !slipOpen && (
+        <button onClick={() => setSlipOpen(true)}
+          className="fixed left-3 right-3 bottom-[72px] z-40 flex items-center justify-between
+            px-4 py-3 rounded-2xl bg-gradient-to-b from-lit to-brand text-white
+            shadow-[0_8px_28px_rgba(224,91,31,0.45)]">
+          <span className="flex items-center gap-2 font-black text-[14px]">
+            <span className="w-6 h-6 rounded-full bg-white/25 grid place-items-center text-[12px]">{legs.length}</span>
+            {legs.length > 1 ? `Παρλέ ${legs.length}x` : 'Κουπόνι'}
+          </span>
+          <span className="font-black text-[15px] tabular-nums">απόδοση {combined.toFixed(2)} ›</span>
+        </button>
+      )}
+
+      {/* ── Δελτίο (slip sheet) ── */}
+      {slipOpen && legs.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={() => setSlipOpen(false)}>
+          <div className="w-full max-w-md bg-turf border-t border-lit/30 rounded-t-2xl p-4 pb-6 max-h-[85vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}>
             <div className="w-10 h-1 rounded-full bg-chalk/20 mx-auto mb-3" />
-            <div className="text-[11px] text-lit font-bold uppercase tracking-wider">{slip.match.league?.name}</div>
-            <div className="text-[15px] font-black text-chalk mb-3">
-              {slip.match.team_a_data?.name} – {slip.match.team_b_data?.name}</div>
-            <div className="flex items-center justify-between bg-pitch rounded-xl px-3.5 py-3 mb-3">
-              <span className="text-[13px] font-bold text-chalk">{slip.label}</span>
-              <span className="text-[16px] font-black text-lit tabular-nums">{slip.odds.toFixed(2)}</span>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[15px] font-black text-chalk">
+                {legs.length > 1 ? `Παρλέ ${legs.length}x` : 'Κουπόνι'}</span>
+              <button onClick={() => setLegs([])} className="text-[11px] font-bold text-dim">Καθάρισμα</button>
+            </div>
+            <div className="flex flex-col gap-2 mb-3">
+              {legs.map(l => (
+                <div key={l.matchId} className="flex items-center gap-2 bg-pitch rounded-xl px-3 py-2.5">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[9.5px] text-lit font-bold uppercase tracking-wider truncate">{l.league}</div>
+                    <div className="text-[12.5px] font-bold text-chalk truncate">{l.home} – {l.away}</div>
+                    <div className="text-[11px] text-silver">Επιλογή: <b className="text-chalk">{SEL_LABEL[l.selection]}</b></div>
+                  </div>
+                  <span className="text-[14px] font-black text-lit tabular-nums">{l.odds.toFixed(2)}</span>
+                  <button onClick={() => removeLeg(l.matchId)}
+                    className="w-6 h-6 rounded-full bg-chalk/[0.06] text-dim text-[13px] grid place-items-center shrink-0">✕</button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between bg-pitch rounded-xl px-3.5 py-2.5 mb-3">
+              <span className="text-[12px] font-bold text-silver">Συνολική απόδοση</span>
+              <span className="text-[18px] font-black text-lit tabular-nums">{combined.toFixed(2)}</span>
             </div>
             <label className="block text-[10px] font-bold text-dim uppercase tracking-wider mb-1">Ποντάρισμα (πόντοι)</label>
             <div className="flex gap-2 mb-2">
               <input value={stake} inputMode="numeric" onChange={e => setStake(e.target.value)}
-                className="flex-1 bg-pitch border border-chalk/10 rounded-xl px-3.5 py-3
-                  text-chalk text-[17px] font-black tabular-nums" />
+                className="flex-1 bg-pitch border border-chalk/10 rounded-xl px-3.5 py-3 text-chalk text-[17px] font-black tabular-nums" />
               {['25', '50', '100'].map(v => (
                 <button key={v} onClick={() => setStake(v)}
                   className="px-3 rounded-xl bg-chalk/[0.06] text-silver text-[12px] font-bold">{v}</button>
@@ -353,17 +417,19 @@ export default function BetPage() {
             </div>
             <div className="flex items-center justify-between text-[12px] mb-4">
               <span className="text-silver">Πιθανό κέρδος</span>
-              <span className="text-[15px] font-black text-[#35c66b] tabular-nums">
-                {pts((parseFloat(stake) || 0) * slip.odds)}</span>
+              <span className="text-[15px] font-black text-[#35c66b] tabular-nums">{pts((parseFloat(stake) || 0) * combined)}</span>
             </div>
-            {wallet != null && (
-              <div className="text-[11px] text-dim mb-3 text-right">Διαθέσιμοι πόντοι: <b className="text-silver">{pts(wallet)}</b></div>
+            {!profile?.id ? (
+              <Link href="/auth/login"
+                className="block text-center w-full py-3.5 rounded-xl font-black text-[15px] text-white bg-gradient-to-b from-lit to-brand">
+                Συνδέσου για στοίχημα
+              </Link>
+            ) : (
+              <button onClick={place} disabled={placing}
+                className="w-full py-3.5 rounded-xl font-black text-[15px] text-white bg-gradient-to-b from-lit to-brand disabled:opacity-60">
+                {placing ? 'Καταχώρηση…' : `🎲 Στοίχημα ${legs.length > 1 ? `(Παρλέ ${legs.length}x)` : ''}`}
+              </button>
             )}
-            <button onClick={place} disabled={placing}
-              className="w-full py-3.5 rounded-xl font-black text-[15px] text-white
-                bg-gradient-to-b from-lit to-brand disabled:opacity-60">
-              {placing ? 'Καταχώρηση…' : '🎲 Στοίχημα'}
-            </button>
           </div>
         </div>
       )}

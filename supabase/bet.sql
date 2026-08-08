@@ -161,3 +161,179 @@ end $$;
 drop trigger if exists trg_bet_settle on matches;
 create trigger trg_bet_settle after update of match_status on matches
   for each row execute function bet_on_match_status();
+
+-- ╔══════════════════════════════════════════════════════════════════╗
+-- ║  Salonicup Bet v2 — Παρλέ (accumulator)                            ║
+-- ╚══════════════════════════════════════════════════════════════════╝
+
+create table if not exists bet_slips (
+  slip_id       uuid primary key default gen_random_uuid(),
+  user_id       uuid not null references auth.users(id) on delete cascade,
+  stake         numeric(12,2) not null check (stake > 0),
+  combined_odds numeric(12,2) not null,
+  status        text not null default 'pending',
+  payout        numeric(12,2) not null default 0,
+  created_at    timestamptz not null default now(),
+  settled_at    timestamptz
+);
+create index if not exists bet_slips_user_idx on bet_slips(user_id);
+
+-- Τα «bets» γίνονται τα σκέλη (legs) του κουπονιού
+alter table bets add column if not exists slip_id uuid references bet_slips(slip_id) on delete cascade;
+alter table bets alter column stake drop not null;
+alter table bets drop constraint if exists bets_stake_check;
+create index if not exists bets_slip_idx on bets(slip_id);
+
+alter table bet_slips enable row level security;
+drop policy if exists slips_read on bet_slips;
+create policy slips_read on bet_slips for select using (auth.uid() = user_id or is_admin());
+
+-- Τοποθέτηση κουπονιού (μονό = 1 σκέλος, παρλέ = πολλά)
+create or replace function place_slip(p_legs jsonb, p_stake numeric)
+returns bet_slips language plpgsql security definer set search_path = public as $$
+declare
+  leg jsonb; m matches; o bet_odds; v_odds numeric; comb numeric := 1;
+  w bet_wallets; s bet_slips; seen uuid[] := '{}';
+  v_market text; v_sel text; v_match uuid;
+begin
+  if auth.uid() is null then raise exception 'Πρέπει να συνδεθείς'; end if;
+  if p_stake is null or p_stake <= 0 then raise exception 'Άκυρο ποσό'; end if;
+  if jsonb_typeof(p_legs) <> 'array' or jsonb_array_length(p_legs) = 0 then
+    raise exception 'Άδειο κουπόνι'; end if;
+
+  for leg in select * from jsonb_array_elements(p_legs) loop
+    v_match  := (leg->>'match')::uuid;
+    v_market := leg->>'market';
+    v_sel    := leg->>'selection';
+    if v_match = any(seen) then raise exception 'Ένας αγώνας μόνο μία φορά στο παρλέ'; end if;
+    seen := seen || v_match;
+    select * into m from matches where match_id = v_match;
+    if not found then raise exception 'Ο αγώνας δεν βρέθηκε'; end if;
+    if m.match_status <> 'Scheduled' then raise exception 'Ένας αγώνας έκλεισε'; end if;
+    select * into o from bet_odds where match_id = v_match;
+    if not found then raise exception 'Λείπουν αποδόσεις'; end if;
+    v_odds := case v_market
+      when '1X2'  then case v_sel when '1' then o.home when 'X' then o.draw when '2' then o.away end
+      when 'OU25' then case v_sel when 'O' then o.over25 when 'U' then o.under25 end
+      when 'BTTS' then case v_sel when 'Y' then o.btts_yes when 'N' then o.btts_no end
+    end;
+    if v_odds is null then raise exception 'Άκυρη επιλογή'; end if;
+    comb := comb * v_odds;
+  end loop;
+  comb := round(comb, 2);
+
+  insert into bet_wallets(user_id) values (auth.uid()) on conflict (user_id) do nothing;
+  select * into w from bet_wallets where user_id = auth.uid() for update;
+  if w.points < p_stake then raise exception 'Δεν έχεις αρκετούς πόντους'; end if;
+  update bet_wallets set points = points - p_stake, updated_at = now() where user_id = auth.uid();
+
+  insert into bet_slips(user_id, stake, combined_odds) values (auth.uid(), p_stake, comb)
+    returning * into s;
+
+  for leg in select * from jsonb_array_elements(p_legs) loop
+    v_match  := (leg->>'match')::uuid;
+    v_market := leg->>'market';
+    v_sel    := leg->>'selection';
+    select * into o from bet_odds where match_id = v_match;
+    v_odds := case v_market
+      when '1X2'  then case v_sel when '1' then o.home when 'X' then o.draw when '2' then o.away end
+      when 'OU25' then case v_sel when 'O' then o.over25 when 'U' then o.under25 end
+      when 'BTTS' then case v_sel when 'Y' then o.btts_yes when 'N' then o.btts_no end
+    end;
+    insert into bets(user_id, match_id, market, selection, odds, stake, slip_id)
+      values (auth.uid(), v_match, v_market, v_sel, v_odds, null, s.slip_id);
+  end loop;
+
+  return s;
+end $$;
+revoke all on function place_slip(jsonb, numeric) from public;
+grant execute on function place_slip(jsonb, numeric) to authenticated;
+
+-- Εκκαθάριση κουπονιού όταν όλα τα σκέλη έχουν κριθεί
+create or replace function bet_try_settle_slip(p_slip uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare s bet_slips; pend int; lost int; comb numeric;
+begin
+  select * into s from bet_slips where slip_id = p_slip;
+  if not found or s.status <> 'pending' then return; end if;
+  select count(*) filter (where status = 'pending'),
+         count(*) filter (where status = 'lost')
+    into pend, lost from bets where slip_id = p_slip;
+  if pend > 0 then return; end if;
+  if lost > 0 then
+    update bet_slips set status = 'lost', payout = 0, settled_at = now() where slip_id = p_slip;
+    return;
+  end if;
+  if not exists (select 1 from bets where slip_id = p_slip and status = 'won') then
+    update bet_slips set status = 'void', payout = s.stake, settled_at = now() where slip_id = p_slip;
+    insert into bet_wallets(user_id) values (s.user_id) on conflict (user_id) do nothing;
+    update bet_wallets set points = points + s.stake, updated_at = now() where user_id = s.user_id;
+    return;
+  end if;
+  select coalesce(round(exp(sum(ln(odds))), 2), 1) into comb
+    from bets where slip_id = p_slip and status = 'won';
+  update bet_slips set status = 'won', payout = round(s.stake * comb, 2), settled_at = now()
+    where slip_id = p_slip;
+  insert into bet_wallets(user_id) values (s.user_id) on conflict (user_id) do nothing;
+  update bet_wallets set points = points + round(s.stake * comb, 2), updated_at = now()
+    where user_id = s.user_id;
+end $$;
+revoke all on function bet_try_settle_slip(uuid) from public;
+
+-- Εκκαθάριση αγώνα v2: μονά (legacy) + σκέλη παρλέ
+create or replace function bet_settle_match(p_match uuid)
+returns integer language plpgsql security definer set search_path = public as $$
+declare
+  m matches; res text; total int; ou text; gg text; r bets; n int := 0; won boolean;
+  slips uuid[] := '{}'; sid uuid;
+begin
+  select * into m from matches where match_id = p_match;
+  if not found then return 0; end if;
+  if m.match_status not in ('Played','Forfeit') then return 0; end if;
+  res   := case when m.goals_team_a > m.goals_team_b then '1'
+                when m.goals_team_a < m.goals_team_b then '2' else 'X' end;
+  total := coalesce(m.goals_team_a,0) + coalesce(m.goals_team_b,0);
+  ou    := case when total >= 8 then 'O' else 'U' end;
+  gg    := case when coalesce(m.goals_team_a,0) > 0 and coalesce(m.goals_team_b,0) > 0 then 'Y' else 'N' end;
+
+  for r in select * from bets where match_id = p_match and status = 'pending' loop
+    won := (r.market='1X2' and r.selection=res) or (r.market='OU25' and r.selection=ou)
+        or (r.market='BTTS' and r.selection=gg);
+    if r.slip_id is null then
+      if won then
+        update bets set status='won', payout=round(r.stake*r.odds,2), settled_at=now() where bet_id=r.bet_id;
+        insert into bet_wallets(user_id) values (r.user_id) on conflict (user_id) do nothing;
+        update bet_wallets set points=points+round(r.stake*r.odds,2), updated_at=now() where user_id=r.user_id;
+      else
+        update bets set status='lost', payout=0, settled_at=now() where bet_id=r.bet_id;
+      end if;
+    else
+      update bets set status = case when won then 'won' else 'lost' end, settled_at=now() where bet_id=r.bet_id;
+      if not (r.slip_id = any(slips)) then slips := slips || r.slip_id; end if;
+    end if;
+    n := n + 1;
+  end loop;
+
+  foreach sid in array slips loop perform bet_try_settle_slip(sid); end loop;
+  return n;
+end $$;
+
+-- Ακύρωση (αναβολή) v2
+create or replace function bet_void_match(p_match uuid)
+returns integer language plpgsql security definer set search_path = public as $$
+declare r bets; n int := 0; slips uuid[] := '{}'; sid uuid;
+begin
+  for r in select * from bets where match_id = p_match and status = 'pending' loop
+    if r.slip_id is null then
+      update bets set status='void', payout=r.stake, settled_at=now() where bet_id=r.bet_id;
+      insert into bet_wallets(user_id) values (r.user_id) on conflict (user_id) do nothing;
+      update bet_wallets set points=points+r.stake, updated_at=now() where user_id=r.user_id;
+    else
+      update bets set status='void', settled_at=now() where bet_id=r.bet_id;
+      if not (r.slip_id = any(slips)) then slips := slips || r.slip_id; end if;
+    end if;
+    n := n + 1;
+  end loop;
+  foreach sid in array slips loop perform bet_try_settle_slip(sid); end loop;
+  return n;
+end $$;
