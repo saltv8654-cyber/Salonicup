@@ -848,6 +848,11 @@ export default function SpeakerPanel() {
                   bg-[#3d0a45]/40 border-[#ff2882]/40 text-[#ff8fc0]">
                 📊 Βαθμολογία
               </button>
+              <button onClick={() => { sendFlash('PREMATCH'); toast.success('Pre-match στο overlay') }}
+                className="flex-1 py-2.5 rounded-xl font-bold text-[12.5px] border
+                  bg-[#12001a]/60 border-[#ff2882]/40 text-[#ff8fc0]">
+                📋 Pre-match
+              </button>
             </div>
 
             {/* Κανάλι + LIVE — αλλάζουν ΖΩΝΤΑΝΑ στο OBS overlay */}

@@ -86,6 +86,9 @@ function Overlay() {
   const [standingsOn, setStandingsOn] = useState(false)
   const [standRows, setStandRows] = useState<any[]>([])
   const standTimer = useRef<ReturnType<typeof setTimeout>>()
+  const [preMatchOn, setPreMatchOn] = useState(false)
+  const [preRows, setPreRows] = useState<any[]>([])
+  const preTimer = useRef<ReturnType<typeof setTimeout>>()
   const [luTeam, setLuTeam] = useState<'a' | 'b'>('a')
   const [squadMap, setSquadMap] = useState<Record<string, any>>({})
   const [bigCard, setBigCard] = useState<BigKind | null>(null)
@@ -188,6 +191,12 @@ function Overlay() {
         standTimer.current = setTimeout(() => setStandingsOn(false), 12000)
         return
       }
+      if (payload?.kind === 'PREMATCH') {
+        setPreMatchOn(false); setTimeout(() => setPreMatchOn(true), 30)
+        clearTimeout(preTimer.current)
+        preTimer.current = setTimeout(() => setPreMatchOn(false), 14000)
+        return
+      }
       setFlash(payload?.kind ?? null)
       clearTimeout(flashTimer.current)
       if (payload?.kind) flashTimer.current = setTimeout(() => setFlash(null), 6000)
@@ -230,6 +239,18 @@ function Overlay() {
     supa.current.from('standings').select('*').eq('league_id', lid).order('position')
       .then(({ data }: any) => setStandRows(data ?? []))
   }, [match?.league_id, standingsOn])
+
+  // Pre-match: παλαιότεροι αγώνες των δύο ομάδων (για φόρμα + ιστορικό H2H)
+  useEffect(() => {
+    const a = match?.team_a, b = match?.team_b
+    if (!a || !b) return
+    supa.current.from('matches')
+      .select('team_a, team_b, goals_team_a, goals_team_b, match_date, match_status')
+      .in('match_status', ['Played', 'Forfeit'])
+      .or(`team_a.in.(${a},${b}),team_b.in.(${a},${b})`)
+      .order('match_date', { ascending: false }).limit(80)
+      .then(({ data }: any) => setPreRows(data ?? []))
+  }, [match?.team_a, match?.team_b, preMatchOn])
 
   // Συνθέσεις: 5 δευτ. ομάδα Α, 5 δευτ. ομάδα Β, μετά εξαφανίζεται μόνο του
   useEffect(() => {
@@ -582,6 +603,101 @@ function Overlay() {
     </div>
   )
 
+  // Pre-match κάρτα: θέση βαθμολογίας + φόρμα (τελευταία 5) + ιστορικό H2H
+  const FORM_C: Record<string, string> = { W: '#35c66b', D: '#9a9aa5', L: '#e0563c' }
+  const preTeamCol = (teamId: string, name?: string, logo?: string | null) => {
+    const st = standRows.find((r: any) => r.team_id === teamId)
+    const games = preRows.filter((m: any) => m.team_a === teamId || m.team_b === teamId).slice(0, 5)
+    const form = games.map((m: any) => {
+      const gf = m.team_a === teamId ? m.goals_team_a : m.goals_team_b
+      const ga = m.team_a === teamId ? m.goals_team_b : m.goals_team_a
+      return gf > ga ? 'W' : gf === ga ? 'D' : 'L'
+    }).reverse()
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+        <Crest name={name} logo={logo} size={58} />
+        <span style={{ fontSize: 20, fontWeight: 800, textTransform: 'uppercase', color: '#fff',
+          textAlign: 'center', lineHeight: 1.05 }}>{name}</span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: PL.pink }}>
+          {st ? `${st.position}ος · ${st.points}β` : '—'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
+          {form.length ? form.map((f, i) => (
+            <span key={i} style={{ width: 20, height: 20, borderRadius: 6, display: 'grid', placeItems: 'center',
+              fontSize: 11, fontWeight: 900, color: '#fff', background: FORM_C[f] }}>{f === 'W' ? 'Ν' : f === 'D' ? 'Ι' : 'Η'}</span>
+          )) : <span style={{ fontSize: 12, color: 'rgba(255,255,255,.5)' }}>χωρίς ιστορικό</span>}
+        </div>
+      </div>
+    )
+  }
+  const h2hList = preRows.filter((m: any) =>
+    (m.team_a === match.team_a && m.team_b === match.team_b) ||
+    (m.team_a === match.team_b && m.team_b === match.team_a))
+  let h2hA = 0, h2hD = 0, h2hB = 0
+  h2hList.forEach((m: any) => {
+    const gA = m.team_a === match.team_a ? m.goals_team_a : m.goals_team_b
+    const gB = m.team_a === match.team_a ? m.goals_team_b : m.goals_team_a
+    if (gA > gB) h2hA++; else if (gA === gB) h2hD++; else h2hB++
+  })
+  const h2hScores = h2hList.slice(0, 3).map((m: any) => {
+    const gA = m.team_a === match.team_a ? m.goals_team_a : m.goals_team_b
+    const gB = m.team_a === match.team_a ? m.goals_team_b : m.goals_team_a
+    return `${gA}-${gB}`
+  })
+  const preMatchEl = preMatchOn && (
+    <div style={{ position: PP, inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
+        animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
+        {leagueTab}
+        <div style={{ width: 720, borderRadius: '0 0 16px 16px', overflow: 'hidden',
+          background: `linear-gradient(180deg, ${PL.deep}, ${PL.dark})`,
+          border: '1px solid rgba(255,255,255,.10)', boxShadow: '0 26px 70px rgba(0,0,0,.6)' }}>
+          <div style={{ height: 5, background: `linear-gradient(90deg, ${PL.pink}, ${PL.pink2})` }} />
+          <div style={{ padding: '20px 30px 24px' }}>
+            <div style={{ textAlign: 'center', fontSize: 15, fontWeight: 800, letterSpacing: '.28em',
+              color: PL.pink, marginBottom: 20 }}>ΑΝΑΛΥΣΗ ΑΓΩΝΑ</div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+              {preTeamCol(match.team_a, match.team_a_data?.name, match.team_a_data?.logo_url)}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, paddingTop: 18 }}>
+                <span style={{ fontSize: 26, fontWeight: 900, color: 'rgba(255,255,255,.35)' }}>VS</span>
+              </div>
+              {preTeamCol(match.team_b, match.team_b_data?.name, match.team_b_data?.logo_url)}
+            </div>
+            <div style={{ height: 1, background: 'rgba(255,255,255,.12)', margin: '22px 0 16px' }} />
+            <div style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, letterSpacing: '.2em',
+              color: 'rgba(255,255,255,.55)', marginBottom: 12 }}>ΜΕΤΑΞΥ ΤΟΥΣ</div>
+            {h2hList.length ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 30 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontSize: 30, fontWeight: 900, color: '#fff', lineHeight: 1 }}>{h2hA}</span>
+                    <span style={{ fontSize: 22, color: PL.pink, fontWeight: 800 }}>–</span>
+                    <span style={{ fontSize: 30, fontWeight: 900, color: '#fff', lineHeight: 1 }}>{h2hD}</span>
+                    <span style={{ fontSize: 22, color: PL.pink, fontWeight: 800 }}>–</span>
+                    <span style={{ fontSize: 30, fontWeight: 900, color: '#fff', lineHeight: 1 }}>{h2hB}</span>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.06em', color: 'rgba(255,255,255,.5)' }}>
+                    Νίκες · Ισοπαλίες · Νίκες</span>
+                </div>
+                {h2hScores.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: 26,
+                    borderLeft: '1px solid rgba(255,255,255,.14)' }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.1em', color: 'rgba(255,255,255,.45)' }}>
+                      ΤΕΛΕΥΤΑΙΑ</span>
+                    <span style={{ fontSize: 18, fontWeight: 800, color: '#fff', letterSpacing: '.06em' }}>
+                      {h2hScores.join('  ·  ')}</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', fontSize: 16, fontWeight: 700, color: 'rgba(255,255,255,.6)' }}>
+                Πρώτη μεταξύ τους αναμέτρηση</div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
   const varEl = flash === 'VAR' && (
     <div style={{ position: PP, inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '24px 44px', borderRadius: 18,
@@ -800,7 +916,7 @@ function Overlay() {
     </div>
   ) : null
 
-  const scene = <>{styleTag}{sponsorsEl}{!lineupsOn && !standingsOn && scoreEl}{brandEl}{subCardEl}{varEl}{lineupsEl}{scorersEl}{standingsEl}{bigCardEl}</>
+  const scene = <>{styleTag}{sponsorsEl}{!lineupsOn && !standingsOn && !preMatchOn && scoreEl}{brandEl}{subCardEl}{varEl}{lineupsEl}{scorersEl}{standingsEl}{preMatchEl}{bigCardEl}</>
 
   // Πραγματικό OBS: καμβάς 1280×720 κλιμακωμένος να γεμίσει την οθόνη
   if (!preview) return (
@@ -853,6 +969,10 @@ function Overlay() {
           {ctlBtn('#3d0a45', '#fff', '📊 Βαθμολογία', () => {
             setStandingsOn(false); setTimeout(() => setStandingsOn(true), 30)
             clearTimeout(standTimer.current); standTimer.current = setTimeout(() => setStandingsOn(false), 12000)
+          })}
+          {ctlBtn('#12001a', '#fff', '📋 Pre-match', () => {
+            setPreMatchOn(false); setTimeout(() => setPreMatchOn(true), 30)
+            clearTimeout(preTimer.current); preTimer.current = setTimeout(() => setPreMatchOn(false), 14000)
           })}
           {ctlBtn('#35c66b', '#062', '🔄 Αλλαγή', testSub)}
           {ctlBtn('#0e7a3a', '#fff', '🏁 Έναρξη', () => testBig('KICKOFF'))}
