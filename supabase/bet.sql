@@ -337,3 +337,134 @@ begin
   foreach sid in array slips loop perform bet_try_settle_slip(sid); end loop;
   return n;
 end $$;
+
+-- ╔══════════════════════════════════════════════════════════════════╗
+-- ║  Salonicup Bet v3 — Ημερήσιο μπόνους + Διπλή ευκαιρία (DC)         ║
+-- ╚══════════════════════════════════════════════════════════════════╝
+
+alter table bet_wallets add column if not exists last_bonus date;
+
+-- Ημερήσιο δώρο πόντων (μία φορά τη μέρα)
+create or replace function claim_daily_bonus()
+returns numeric language plpgsql security definer set search_path = public as $$
+declare w bet_wallets; bonus numeric := 100;
+begin
+  if auth.uid() is null then raise exception 'Πρέπει να συνδεθείς'; end if;
+  insert into bet_wallets(user_id) values (auth.uid()) on conflict (user_id) do nothing;
+  select * into w from bet_wallets where user_id = auth.uid() for update;
+  if w.last_bonus = current_date then raise exception 'Το πήρες ήδη σήμερα'; end if;
+  update bet_wallets set points = points + bonus, last_bonus = current_date, updated_at = now()
+    where user_id = auth.uid();
+  return w.points + bonus;
+end $$;
+revoke all on function claim_daily_bonus() from public;
+grant execute on function claim_daily_bonus() to authenticated;
+
+-- Τιμή από πιθανότητα (ίδιος τύπος με τη μηχανή: margin 7%, min 1.05)
+create or replace function bet_price(p numeric) returns numeric language sql immutable as $$
+  select case when p is null or p <= 0 then null else greatest(1.05, round((1/p)/1.07, 2)) end
+$$;
+
+-- place_slip v3: + αγορά DC (Διπλή ευκαιρία) από τις πιθανότητες
+create or replace function place_slip(p_legs jsonb, p_stake numeric)
+returns bet_slips language plpgsql security definer set search_path = public as $$
+declare
+  leg jsonb; m matches; o bet_odds; v_odds numeric; comb numeric := 1;
+  w bet_wallets; s bet_slips; seen uuid[] := '{}';
+  v_market text; v_sel text; v_match uuid;
+begin
+  if auth.uid() is null then raise exception 'Πρέπει να συνδεθείς'; end if;
+  if p_stake is null or p_stake <= 0 then raise exception 'Άκυρο ποσό'; end if;
+  if jsonb_typeof(p_legs) <> 'array' or jsonb_array_length(p_legs) = 0 then
+    raise exception 'Άδειο κουπόνι'; end if;
+  for leg in select * from jsonb_array_elements(p_legs) loop
+    v_match  := (leg->>'match')::uuid;
+    v_market := leg->>'market';
+    v_sel    := leg->>'selection';
+    if v_match = any(seen) then raise exception 'Ένας αγώνας μόνο μία φορά στο παρλέ'; end if;
+    seen := seen || v_match;
+    select * into m from matches where match_id = v_match;
+    if not found then raise exception 'Ο αγώνας δεν βρέθηκε'; end if;
+    if m.match_status <> 'Scheduled' then raise exception 'Ένας αγώνας έκλεισε'; end if;
+    select * into o from bet_odds where match_id = v_match;
+    if not found then raise exception 'Λείπουν αποδόσεις'; end if;
+    v_odds := case v_market
+      when '1X2'  then case v_sel when '1' then o.home when 'X' then o.draw when '2' then o.away end
+      when 'OU25' then case v_sel when 'O' then o.over25 when 'U' then o.under25 end
+      when 'BTTS' then case v_sel when 'Y' then o.btts_yes when 'N' then o.btts_no end
+      when 'DC'   then case v_sel
+        when '1X' then bet_price(o.p_home + o.p_draw)
+        when '12' then bet_price(o.p_home + o.p_away)
+        when 'X2' then bet_price(o.p_draw + o.p_away) end
+    end;
+    if v_odds is null then raise exception 'Άκυρη επιλογή'; end if;
+    comb := comb * v_odds;
+  end loop;
+  comb := round(comb, 2);
+  insert into bet_wallets(user_id) values (auth.uid()) on conflict (user_id) do nothing;
+  select * into w from bet_wallets where user_id = auth.uid() for update;
+  if w.points < p_stake then raise exception 'Δεν έχεις αρκετούς πόντους'; end if;
+  update bet_wallets set points = points - p_stake, updated_at = now() where user_id = auth.uid();
+  insert into bet_slips(user_id, stake, combined_odds) values (auth.uid(), p_stake, comb) returning * into s;
+  for leg in select * from jsonb_array_elements(p_legs) loop
+    v_match  := (leg->>'match')::uuid;
+    v_market := leg->>'market';
+    v_sel    := leg->>'selection';
+    select * into o from bet_odds where match_id = v_match;
+    v_odds := case v_market
+      when '1X2'  then case v_sel when '1' then o.home when 'X' then o.draw when '2' then o.away end
+      when 'OU25' then case v_sel when 'O' then o.over25 when 'U' then o.under25 end
+      when 'BTTS' then case v_sel when 'Y' then o.btts_yes when 'N' then o.btts_no end
+      when 'DC'   then case v_sel
+        when '1X' then bet_price(o.p_home + o.p_draw)
+        when '12' then bet_price(o.p_home + o.p_away)
+        when 'X2' then bet_price(o.p_draw + o.p_away) end
+    end;
+    insert into bets(user_id, match_id, market, selection, odds, stake, slip_id)
+      values (auth.uid(), v_match, v_market, v_sel, v_odds, null, s.slip_id);
+  end loop;
+  return s;
+end $$;
+revoke all on function place_slip(jsonb, numeric) from public;
+grant execute on function place_slip(jsonb, numeric) to authenticated;
+
+-- bet_settle_match v3: + έλεγχος DC
+create or replace function bet_settle_match(p_match uuid)
+returns integer language plpgsql security definer set search_path = public as $$
+declare
+  m matches; res text; total int; ou text; gg text; r bets; n int := 0; won boolean;
+  slips uuid[] := '{}'; sid uuid;
+begin
+  select * into m from matches where match_id = p_match;
+  if not found then return 0; end if;
+  if m.match_status not in ('Played','Forfeit') then return 0; end if;
+  res   := case when m.goals_team_a > m.goals_team_b then '1'
+                when m.goals_team_a < m.goals_team_b then '2' else 'X' end;
+  total := coalesce(m.goals_team_a,0) + coalesce(m.goals_team_b,0);
+  ou    := case when total >= 8 then 'O' else 'U' end;
+  gg    := case when coalesce(m.goals_team_a,0) > 0 and coalesce(m.goals_team_b,0) > 0 then 'Y' else 'N' end;
+  for r in select * from bets where match_id = p_match and status = 'pending' loop
+    won := (r.market='1X2' and r.selection=res)
+        or (r.market='OU25' and r.selection=ou)
+        or (r.market='BTTS' and r.selection=gg)
+        or (r.market='DC' and (
+             (r.selection='1X' and res in ('1','X')) or
+             (r.selection='12' and res in ('1','2')) or
+             (r.selection='X2' and res in ('X','2')) ));
+    if r.slip_id is null then
+      if won then
+        update bets set status='won', payout=round(r.stake*r.odds,2), settled_at=now() where bet_id=r.bet_id;
+        insert into bet_wallets(user_id) values (r.user_id) on conflict (user_id) do nothing;
+        update bet_wallets set points=points+round(r.stake*r.odds,2), updated_at=now() where user_id=r.user_id;
+      else
+        update bets set status='lost', payout=0, settled_at=now() where bet_id=r.bet_id;
+      end if;
+    else
+      update bets set status = case when won then 'won' else 'lost' end, settled_at=now() where bet_id=r.bet_id;
+      if not (r.slip_id = any(slips)) then slips := slips || r.slip_id; end if;
+    end if;
+    n := n + 1;
+  end loop;
+  foreach sid in array slips loop perform bet_try_settle_slip(sid); end loop;
+  return n;
+end $$;

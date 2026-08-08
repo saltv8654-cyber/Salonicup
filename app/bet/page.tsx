@@ -17,6 +17,7 @@ type Match = {
 type OddsRow = {
   match_id: string; home: number; draw: number; away: number
   over25: number; under25: number; btts_yes: number; btts_no: number
+  p_home: number | null; p_draw: number | null; p_away: number | null
 }
 type Leg = {
   matchId: string; market: string; selection: string; odds: number
@@ -45,7 +46,12 @@ function outcomes(m: Match) {
 }
 const SEL_LABEL: Record<string, string> = {
   '1': '1', X: 'Χ', '2': '2', O: 'Over 7.5', U: 'Under 7.5', Y: 'Goal/Goal', N: 'No Goal',
+  '1X': '1Χ', '12': '12', X2: 'Χ2',
 }
+const todayUTC = () => new Date().toISOString().slice(0, 10)
+// Απόδοση διπλής ευκαιρίας από τις πιθανότητες (ίδιος τύπος με το SQL bet_price)
+const dcOdds = (a?: number | null, b?: number | null) =>
+  a == null || b == null || a + b <= 0 ? undefined : Math.max(1.05, Math.round((1 / (a + b)) / 1.07 * 100) / 100)
 
 export default function BetPage() {
   const supabase = createClient()
@@ -56,6 +62,8 @@ export default function BetPage() {
   const [results, setResults] = useState<Match[]>([])
   const [odds, setOdds] = useState<Record<string, OddsRow>>({})
   const [wallet, setWallet] = useState<number | null>(null)
+  const [lastBonus, setLastBonus] = useState<string | null>(null)
+  const [claiming, setClaiming] = useState(false)
   const [slips, setSlips] = useState<SlipRow[]>([])
   const [board, setBoard] = useState<Leader[]>([])
   const [legs, setLegs] = useState<Leg[]>([])
@@ -87,14 +95,26 @@ export default function BetPage() {
   async function fetchMine() {
     if (!profile?.id) { setWallet(null); setSlips([]); return }
     const [w, s] = await Promise.all([
-      supabase.from('bet_wallets').select('points').eq('user_id', profile.id).maybeSingle(),
+      supabase.from('bet_wallets').select('points, last_bonus').eq('user_id', profile.id).maybeSingle(),
       supabase.from('bet_slips').select(`slip_id, stake, combined_odds, status, payout, created_at,
         legs:bets(bet_id, match_id, market, selection, odds, status,
           match:match_id(team_a_data:team_a(name), team_b_data:team_b(name), league:league_id(name)))`)
         .order('created_at', { ascending: false }).limit(50),
     ])
     setWallet(w.data?.points ?? 1000)
+    setLastBonus((w.data as any)?.last_bonus ?? null)
     setSlips((s.data ?? []) as any)
+  }
+
+  async function claimBonus() {
+    if (!profile?.id) { toast.error('Συνδέσου πρώτα'); return }
+    setClaiming(true)
+    const { data, error } = await supabase.rpc('claim_daily_bonus')
+    setClaiming(false)
+    if (error) { toast.error(error.message.replace(/^.*?:\s*/, '')); return }
+    if (typeof data === 'number') setWallet(data)
+    setLastBonus(todayUTC())
+    toast.success('🎁 +100 πόντοι!')
   }
 
   async function fetchBoard() {
@@ -107,6 +127,18 @@ export default function BetPage() {
   useEffect(() => { if (!authLoading) fetchMine() }, [profile?.id, authLoading])
 
   const combined = useMemo(() => legs.reduce((a, l) => a * l.odds, 1), [legs])
+  const myStats = useMemo(() => {
+    const decided = slips.filter(s => s.status === 'won' || s.status === 'lost')
+    const wins = decided.filter(s => s.status === 'won').length
+    const biggest = slips.filter(s => s.status === 'won').reduce((mx, s) => Math.max(mx, s.payout), 0)
+    let streak = 0
+    for (const s of slips) {
+      if (s.status === 'pending' || s.status === 'void') continue
+      if (s.status === 'won') streak++; else break
+    }
+    return { decided: decided.length, wins,
+      winRate: decided.length ? Math.round((wins / decided.length) * 100) : 0, biggest, streak }
+  }, [slips])
   const isSel = (matchId: string, market: string, selection: string) =>
     legs.some(l => l.matchId === matchId && l.market === market && l.selection === selection)
 
@@ -176,9 +208,18 @@ export default function BetPage() {
             <h1 className="text-2xl font-extrabold text-chalk mt-1 tracking-tight">🎲 Bet</h1>
           </div>
           {profile?.id ? (
-            <div className="text-right">
-              <div className="text-[9px] font-bold text-dim tracking-wider uppercase">Πόντοι</div>
-              <div className="text-xl font-black text-lit tabular-nums">{wallet != null ? pts(wallet) : '—'}</div>
+            <div className="flex items-center gap-2.5">
+              <button onClick={claimBonus} disabled={claiming || lastBonus === todayUTC()}
+                className={`text-[11px] font-black rounded-full px-3 py-2 border
+                  ${lastBonus === todayUTC()
+                    ? 'bg-chalk/[0.05] border-chalk/[0.07] text-dim'
+                    : 'bg-[#35c66b]/20 border-[#35c66b]/45 text-[#7fe0a5]'}`}>
+                {lastBonus === todayUTC() ? '🎁 ✓' : claiming ? '…' : '🎁 +100'}
+              </button>
+              <div className="text-right">
+                <div className="text-[9px] font-bold text-dim tracking-wider uppercase">Πόντοι</div>
+                <div className="text-xl font-black text-lit tabular-nums">{wallet != null ? pts(wallet) : '—'}</div>
+              </div>
             </div>
           ) : (
             <Link href="/auth/login"
@@ -237,12 +278,19 @@ export default function BetPage() {
                           <OddBtn m={m} market="1X2" selection="2" val={o.away} />
                         </div>
                         {ex && (
-                          <div className="flex gap-1.5 mt-1.5">
-                            <OddBtn m={m} market="OU25" selection="O" val={o.over25} />
-                            <OddBtn m={m} market="OU25" selection="U" val={o.under25} />
-                            <OddBtn m={m} market="BTTS" selection="Y" val={o.btts_yes} />
-                            <OddBtn m={m} market="BTTS" selection="N" val={o.btts_no} />
-                          </div>
+                          <>
+                            <div className="flex gap-1.5 mt-1.5">
+                              <OddBtn m={m} market="OU25" selection="O" val={o.over25} />
+                              <OddBtn m={m} market="OU25" selection="U" val={o.under25} />
+                              <OddBtn m={m} market="BTTS" selection="Y" val={o.btts_yes} />
+                              <OddBtn m={m} market="BTTS" selection="N" val={o.btts_no} />
+                            </div>
+                            <div className="flex gap-1.5 mt-1.5">
+                              <OddBtn m={m} market="DC" selection="1X" val={dcOdds(o.p_home, o.p_draw)} />
+                              <OddBtn m={m} market="DC" selection="12" val={dcOdds(o.p_home, o.p_away)} />
+                              <OddBtn m={m} market="DC" selection="X2" val={dcOdds(o.p_draw, o.p_away)} />
+                            </div>
+                          </>
                         )}
                         <button onClick={() => setExpanded(s => {
                           const n = new Set(s); n.has(m.match_id) ? n.delete(m.match_id) : n.add(m.match_id); return n
@@ -296,6 +344,19 @@ export default function BetPage() {
           !profile?.id ? <Msg>Συνδέσου για να δεις τα κουπόνια σου. <Link href="/auth/login" className="text-lit font-bold underline">Σύνδεση</Link></Msg>
             : slips.length === 0 ? <Msg>Δεν έχεις κουπόνια ακόμη. Πήγαινε στους αγώνες!</Msg>
               : <div className="flex flex-col gap-2.5">
+                <div className="grid grid-cols-4 gap-2 mb-1">
+                  {([
+                    ['Νίκες', `${myStats.wins}/${myStats.decided}`],
+                    ['Επιτυχία', `${myStats.winRate}%`],
+                    ['Σερί', `${myStats.streak}🔥`],
+                    ['Μεγ. νίκη', pts(myStats.biggest)],
+                  ] as [string, string][]).map(([lbl, val]) => (
+                    <div key={lbl} className="rounded-xl bg-turf border border-chalk/[0.07] py-2 text-center">
+                      <div className="text-[8.5px] font-bold text-dim uppercase tracking-wide">{lbl}</div>
+                      <div className="text-[15px] font-black text-lit tabular-nums leading-tight mt-0.5">{val}</div>
+                    </div>
+                  ))}
+                </div>
                 {slips.map(s => {
                   const st = s.status
                   const color = st === 'won' ? '#35c66b' : st === 'lost' ? '#e0563c' : st === 'void' ? '#8a8a95' : '#F5782E'
