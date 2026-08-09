@@ -49,8 +49,11 @@ function Jersey({ primary, secondary, pattern, number, size }: {
         <path d={JERSEY_D} fill={fill} stroke="#fff" strokeWidth={3} strokeLinejoin="round" />
       </svg>
       {number != null && (
-        <span style={{ position: 'absolute', inset: 0, top: size * 0.12, display: 'grid', placeItems: 'center',
-          fontSize: size * 0.34, fontWeight: 800, color: idealText(primary) }}>{number}</span>
+        <span style={{ position: 'absolute', inset: 0, top: size * 0.14, display: 'grid', placeItems: 'center' }}>
+          <span style={{ minWidth: size * 0.42, height: size * 0.42, padding: `0 ${size * 0.05}px`,
+            borderRadius: size * 0.24, background: 'rgba(0,0,0,0.42)', display: 'grid', placeItems: 'center',
+            fontSize: size * 0.3, fontWeight: 800, color: '#fff' }}>{number}</span>
+        </span>
       )}
     </span>
   )

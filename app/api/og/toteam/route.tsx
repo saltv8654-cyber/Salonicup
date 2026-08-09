@@ -168,9 +168,13 @@ export async function GET(req: Request) {
                       <div style={{ position: 'relative', display: 'flex', width: 150, height: 150,
                         alignItems: 'center', justifyContent: 'center' }}>
                         {jerseySvg('kit' + i, primary, secondary, pattern)}
-                        <div style={{ position: 'absolute', top: 60, display: 'flex', fontSize: 40, fontWeight: 700,
-                          color: idealText(primary) }}>
-                          {p?.number != null ? String(p.number) : (p?.full_name?.[0] ?? '')}</div>
+                        <div style={{ position: 'absolute', top: 52, left: 0, right: 0, display: 'flex',
+                          justifyContent: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 50,
+                            height: 50, padding: '0 10px', borderRadius: 25, background: 'rgba(0,0,0,0.42)',
+                            color: '#fff', fontSize: 36, fontWeight: 700 }}>
+                            {p?.number != null ? String(p.number) : (p?.full_name?.[0] ?? '')}</div>
+                        </div>
                         {posTag(i, 8, 6)}
                       </div>
                     )
