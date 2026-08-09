@@ -145,6 +145,7 @@ function Overlay() {
     setPreMatchOn(false); setTimeout(() => setPreMatchOn(true), 30)
     clearTimeout(preTimer.current); preTimer.current = setTimeout(() => setPreMatchOn(false), 5000)
   }
+  function showLineups() { setLineupsOn(false); setTimeout(() => setLineupsOn(true), 30) }
 
   // Καμβάς σχεδίασης 1280×720· κλιμακώνεται για να γεμίσει την πραγματική οθόνη/OBS
   const REF_W = 1280, REF_H = 720
@@ -358,13 +359,14 @@ function Overlay() {
     return () => timers.forEach(clearTimeout)
   }, [auto, match?.clock_period])
 
-  // ΑΥΤΟΜΑΤΗ ΛΕΙΤΟΥΡΓΙΑ — μία φορά πριν το σφύριγμα: pre-match κάρτα
+  // ΑΥΤΟΜΑΤΗ ΛΕΙΤΟΥΡΓΙΑ — μία φορά πριν το σφύριγμα: pre-match κάρτα + συνθέσεις
   useEffect(() => {
     if (!auto || preFired.current) return
     if (match?.clock_period || match?.match_status === 'Played' || match?.match_status === 'Forfeit') return
     preFired.current = true
-    const t = setTimeout(showPreMatch, 1200)
-    return () => clearTimeout(t)
+    const t1 = setTimeout(showPreMatch, 1200)   // pre-match κάρτα (5s)
+    const t2 = setTimeout(showLineups, 8000)     // μετά οι συνθέσεις (~10s)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [auto, match?.clock_period, match?.match_status])
 
   // Αυτόματη κάρτα αλλαγής (IN/OUT) όταν προστίθεται νέα αλλαγή
