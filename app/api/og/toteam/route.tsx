@@ -145,7 +145,7 @@ export async function GET(req: Request) {
                   </div>
                   <div style={{ display: 'flex', marginTop: 12, background: 'rgba(0,0,0,0.66)', borderRadius: 10,
                     padding: '6px 14px', color: '#fff', fontSize: 26, fontWeight: 700, maxWidth: NODE + 44 }}>
-                    {(p?.last_name?.trim() || (p?.full_name || '').trim().split(/\s+/)[0]) || '—'}</div>
+                    {((p?.last_name?.trim() || (p?.full_name || '').trim().split(/\s+/)[0]) || '—').toUpperCase()}</div>
                   {p?.team?.name ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5,
                       background: 'rgba(0,0,0,0.5)', borderRadius: 8, padding: '3px 10px', maxWidth: NODE + 50 }}>
