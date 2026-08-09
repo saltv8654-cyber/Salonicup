@@ -1,6 +1,28 @@
 import { ImageResponse } from 'next/og'
+import { createElement as hh } from 'react'
 import { dbAdmin, loadFonts, C } from '../shared'
 import { slotCoords } from '@/lib/formations'
+
+const JERSEY_PATH = 'M35 8 L18 18 L8 38 L22 48 L33 40 L33 92 L67 92 L67 40 L78 48 L92 38 L82 18 L65 8 L58 15 C53 19 47 19 42 15 Z'
+// Φανέλα (SVG) με μοτίβο ομάδας: μονόχρωμο / ρίγες / μισό-μισό
+function jerseySvg(id: string, primary: string, secondary: string | null, pattern: string) {
+  let fill: string = primary, defs: any = null
+  if (pattern === 'halves' && secondary) {
+    defs = hh('defs', null, hh('linearGradient', { id, x1: '0', y1: '0', x2: '1', y2: '0' },
+      hh('stop', { offset: '50%', 'stop-color': primary }), hh('stop', { offset: '50%', 'stop-color': secondary })))
+    fill = `url(#${id})`
+  } else if (pattern === 'stripes' && secondary) {
+    const cols = [primary, secondary]; const stops: any[] = []
+    for (let k = 0; k < 6; k++) {
+      stops.push(hh('stop', { key: 'a' + k, offset: `${(k / 6 * 100).toFixed(2)}%`, 'stop-color': cols[k % 2] }),
+        hh('stop', { key: 'b' + k, offset: `${((k + 1) / 6 * 100).toFixed(2)}%`, 'stop-color': cols[k % 2] }))
+    }
+    defs = hh('defs', null, hh('linearGradient', { id, x1: '0', y1: '0', x2: '1', y2: '0' }, stops))
+    fill = `url(#${id})`
+  }
+  return hh('svg', { width: 150, height: 150, viewBox: '0 0 100 100' }, defs,
+    hh('path', { d: JERSEY_PATH, fill, stroke: '#ffffff', strokeWidth: 3, strokeLinejoin: 'round' }))
+}
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -51,7 +73,7 @@ export async function GET(req: Request) {
     const supabase = dbAdmin()
     const { data } = idsQuery.length
       ? await supabase.from('players')
-          .select('player_id, full_name, last_name, number, photo_url, team:team_id(name, logo_url)')
+          .select('player_id, full_name, last_name, number, photo_url, team:team_id(name, logo_url, kit_primary, kit_secondary, kit_pattern)')
           .in('player_id', idsQuery)
       : { data: [] as any[] }
     const byId: Record<string, any> = {}
@@ -149,18 +171,22 @@ export async function GET(req: Request) {
                       )}
                       {posTag(i, -8, -10)}
                     </div>
-                  ) : (
-                    <div style={{ position: 'relative', display: 'flex', width: 150, height: 150,
-                      alignItems: 'center', justifyContent: 'center' }}>
-                      <svg width={150} height={150} viewBox="0 0 100 100">
-                        <path d="M35 8 L18 18 L8 38 L22 48 L33 40 L33 92 L67 92 L67 40 L78 48 L92 38 L82 18 L65 8 L58 15 C53 19 47 19 42 15 Z"
-                          fill={accent} stroke="#ffffff" strokeWidth={3} strokeLinejoin="round" />
-                      </svg>
-                      <div style={{ position: 'absolute', top: 60, display: 'flex', fontSize: 40, fontWeight: 700, color: '#fff' }}>
-                        {p?.number != null ? String(p.number) : (p?.full_name?.[0] ?? '')}</div>
-                      {posTag(i, 8, 6)}
-                    </div>
-                  )}
+                  ) : (() => {
+                    const kit = (p?.team as any) || {}
+                    const primary = kit.kit_primary || accent
+                    const secondary = kit.kit_secondary || null
+                    const pattern = kit.kit_pattern || 'solid'
+                    return (
+                      <div style={{ position: 'relative', display: 'flex', width: 150, height: 150,
+                        alignItems: 'center', justifyContent: 'center' }}>
+                        {jerseySvg('kit' + i, primary, secondary, pattern)}
+                        <div style={{ position: 'absolute', top: 60, display: 'flex', fontSize: 40, fontWeight: 700,
+                          color: idealText(primary) }}>
+                          {p?.number != null ? String(p.number) : (p?.full_name?.[0] ?? '')}</div>
+                        {posTag(i, 8, 6)}
+                      </div>
+                    )
+                  })()}
 
                   {/* Πλακέτα ονόματος (PL style) */}
                   <div style={{ display: 'flex', alignItems: 'stretch', marginTop: 12, borderRadius: 10, overflow: 'hidden',

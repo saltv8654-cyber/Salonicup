@@ -125,6 +125,9 @@ function TeamForm({ row, leagues, onClose, onSaved }: {
   const [name, setName]     = useState(row?.name ?? '')
   const [league, setLeague] = useState(row?.league_id ?? '')
   const [logo, setLogo]     = useState(row?.logo_url ?? '')
+  const [kitP, setKitP]     = useState((row as any)?.kit_primary ?? '#E05B1F')
+  const [kitS, setKitS]     = useState((row as any)?.kit_secondary ?? '#111318')
+  const [kitPat, setKitPat] = useState((row as any)?.kit_pattern ?? 'solid')
   const [busy, setBusy]     = useState(false)
 
   async function save() {
@@ -136,6 +139,9 @@ function TeamForm({ row, leagues, onClose, onSaved }: {
       name: name.trim(),
       league_id: league,
       logo_url: logo.trim() || null,
+      kit_primary: kitP,
+      kit_secondary: kitS,
+      kit_pattern: kitPat,
     }
     const { error } = row
       ? await supabase.from('teams').update(payload).eq('team_id', row.team_id)
@@ -152,7 +158,68 @@ function TeamForm({ row, leagues, onClose, onSaved }: {
       <Select label="ΠΡΩΤΑΘΛΗΜΑ" value={league} onChange={setLeague}
         options={leagues.map(l => ({ value: l.league_id, label: l.name }))} />
       <LogoUpload bucket="logos" url={logo} onChange={setLogo} fallback="⚽" label="ΣΗΜΑ ΟΜΑΔΑΣ" />
+
+      {/* Εμφάνιση φανέλας (για Team of the Week) */}
+      <div className="mt-1">
+        <label className="block text-[8.5px] font-extrabold text-dim tracking-[0.12em] mb-1.5 pl-0.5">
+          ΕΜΦΑΝΙΣΗ ΦΑΝΕΛΑΣ</label>
+        <div className="flex items-center gap-3 bg-turf rounded-xl p-3 border border-chalk/[0.07]">
+          <KitJersey primary={kitP} secondary={kitS} pattern={kitPat} />
+          <div className="flex-1 flex flex-col gap-2">
+            <label className="flex items-center justify-between gap-2">
+              <span className="text-[11.5px] text-silver font-semibold">Κύριο χρώμα</span>
+              <input type="color" value={kitP} onChange={e => setKitP(e.target.value)}
+                className="w-10 h-8 rounded bg-transparent" />
+            </label>
+            <label className="flex items-center justify-between gap-2">
+              <span className="text-[11.5px] text-silver font-semibold">2ο χρώμα</span>
+              <input type="color" value={kitS} onChange={e => setKitS(e.target.value)}
+                className="w-10 h-8 rounded bg-transparent" />
+            </label>
+            <select value={kitPat} onChange={e => setKitPat(e.target.value)}
+              className="bg-pitch border border-chalk/10 rounded-lg px-2 py-1.5 text-chalk text-[12.5px]">
+              <option value="solid">Μονόχρωμο</option>
+              <option value="stripes">Ρίγες</option>
+              <option value="halves">Μισό-μισό</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
       <SaveBtn busy={busy} onClick={save} />
     </Modal>
+  )
+}
+
+/* Προεπισκόπηση φανέλας ομάδας (μονόχρωμο / ρίγες / μισό-μισό) */
+function KitJersey({ primary, secondary, pattern }: { primary: string; secondary: string; pattern: string }) {
+  const J = 'M35 8 L18 18 L8 38 L22 48 L33 40 L33 92 L67 92 L67 40 L78 48 L92 38 L82 18 L65 8 L58 15 C53 19 47 19 42 15 Z'
+  const id = `kp-${pattern}-${primary}-${secondary}`.replace(/[^a-zA-Z0-9-]/g, '')
+  let fill: string = primary
+  let defs: React.ReactNode = null
+  if (pattern === 'halves') {
+    fill = `url(#${id})`
+    defs = (
+      <defs><linearGradient id={id} x1="0" y1="0" x2="1" y2="0">
+        <stop offset="50%" stopColor={primary} /><stop offset="50%" stopColor={secondary} />
+      </linearGradient></defs>
+    )
+  } else if (pattern === 'stripes') {
+    fill = `url(#${id})`
+    const cols = [primary, secondary]
+    const stops: React.ReactNode[] = []
+    for (let k = 0; k < 6; k++) {
+      stops.push(
+        <stop key={'a' + k} offset={`${(k / 6) * 100}%`} stopColor={cols[k % 2]} />,
+        <stop key={'b' + k} offset={`${((k + 1) / 6) * 100}%`} stopColor={cols[k % 2]} />,
+      )
+    }
+    defs = <defs><linearGradient id={id} x1="0" y1="0" x2="1" y2="0">{stops}</linearGradient></defs>
+  }
+  return (
+    <svg width={70} height={70} viewBox="0 0 100 100" style={{ flex: 'none' }}>
+      {defs}
+      <path d={J} fill={fill} stroke="#fff" strokeWidth={3} strokeLinejoin="round" />
+    </svg>
   )
 }
