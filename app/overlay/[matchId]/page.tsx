@@ -618,8 +618,9 @@ function Overlay() {
                     color: mine ? PL.pink : 'rgba(255,255,255,.7)', fontVariantNumeric: 'tabular-nums' }}>
                     {r.position}
                     {d !== 0 && (
-                      <span style={{ fontSize: 10, fontWeight: 900, lineHeight: 1,
-                        color: d > 0 ? '#35c66b' : '#e0563c' }}>{d > 0 ? '▲' : '▼'}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 1, fontSize: 10,
+                        fontWeight: 900, lineHeight: 1, color: d > 0 ? '#35c66b' : '#e0563c' }}>
+                        {d > 0 ? '▲' : '▼'}{Math.abs(d) > 1 ? Math.abs(d) : ''}</span>
                     )}
                   </span>
                   <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 9 }}>
