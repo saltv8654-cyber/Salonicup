@@ -60,7 +60,7 @@ export async function GET(req: Request) {
     const supabase = dbAdmin()
     const { data } = idsQuery.length
       ? await supabase.from('players')
-          .select('player_id, full_name, number, photo_url, team:team_id(name, logo_url)')
+          .select('player_id, full_name, last_name, number, photo_url, team:team_id(name, logo_url)')
           .in('player_id', idsQuery)
       : { data: [] as any[] }
     const byId: Record<string, any> = {}
@@ -145,7 +145,7 @@ export async function GET(req: Request) {
                   </div>
                   <div style={{ display: 'flex', marginTop: 12, background: 'rgba(0,0,0,0.66)', borderRadius: 10,
                     padding: '6px 14px', color: '#fff', fontSize: 26, fontWeight: 700, maxWidth: NODE + 44 }}>
-                    {shortName(p?.full_name) || '—'}</div>
+                    {(p?.last_name?.trim() || (p?.full_name || '').trim().split(/\s+/)[0]) || '—'}</div>
                   {p?.team?.name ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5,
                       background: 'rgba(0,0,0,0.5)', borderRadius: 8, padding: '3px 10px', maxWidth: NODE + 50 }}>

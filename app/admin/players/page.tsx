@@ -190,6 +190,7 @@ function PlayerForm({ row, teamId, teams, onClose, onSaved }: {
 }) {
   const supabase = createClient()
   const [name, setName]   = useState(row?.full_name ?? '')
+  const [last, setLast]   = useState((row as any)?.last_name ?? '')
   const [num, setNum]     = useState(row?.number != null ? String(row.number) : '')
   const [team, setTeam]   = useState(row?.team_id ?? teamId)
   const [photo, setPhoto] = useState(row?.photo_url ?? '')
@@ -219,6 +220,7 @@ function PlayerForm({ row, teamId, teams, onClose, onSaved }: {
     setBusy(true)
     const payload = {
       full_name: name.trim(),
+      last_name: last.trim() || null,
       number: num ? parseInt(num) : null,
       team_id: team,
       photo_url: photo || null,
@@ -254,6 +256,8 @@ function PlayerForm({ row, teamId, teams, onClose, onSaved }: {
 
       <Field label="ΟΝΟΜΑΤΕΠΩΝΥΜΟ" value={name} onChange={setName}
         placeholder="Παύλου Γιάννης" />
+      <Field label="ΕΠΙΘΕΤΟ (εμφανίζεται σε εικόνες)" value={last} onChange={setLast}
+        placeholder="Παύλου" />
       <Field label="ΝΟΥΜΕΡΟ" value={num} onChange={setNum} numeric placeholder="9" />
       <Select label="ΟΜΑΔΑ" value={team} onChange={setTeam}
         options={teams.map(t => ({ value: t.team_id, label: t.name }))} />
