@@ -60,16 +60,26 @@ export default function LineupPitch({ formation, line, players, onSlot, accent =
               WebkitTapHighlightColor: 'transparent',
               cursor: onSlot ? 'pointer' : 'default',
             }}>
-            <span
-              className={`w-12 h-12 rounded-full grid place-items-center text-[14px] font-extrabold
-                overflow-hidden ${p ? 'text-white border-2' : 'border-2 border-dashed border-white/45 text-white/70'}`}
-              style={p ? { background: accent, borderColor: 'rgba(255,255,255,0.9)' } : undefined}>
-              {p
-                ? (p.photo_url
-                    ? <img src={p.photo_url} alt="" className="w-full h-full object-cover" />
-                    : (p.number ?? (p.full_name?.[0] ?? '?')))
-                : (onSlot ? '+' : '')}
-            </span>
+            <div className="relative w-12 h-12">
+              <span
+                className={`w-12 h-12 rounded-full grid place-items-center text-[14px] font-extrabold
+                  overflow-hidden ${p ? 'text-white border-2' : 'border-2 border-dashed border-white/45 text-white/70'}`}
+                style={p ? { background: accent, borderColor: 'rgba(255,255,255,0.9)' } : undefined}>
+                {p
+                  ? (p.photo_url
+                      ? <img src={p.photo_url} alt="" className="w-full h-full object-cover" />
+                      : (p.number ?? (p.full_name?.[0] ?? '?')))
+                  : (onSlot ? '+' : '')}
+              </span>
+              {/* Αριθμός φανέλας — σήμα στη γωνία όταν υπάρχει φωτό (αλλιώς φαίνεται μέσα στον κύκλο) */}
+              {p && p.photo_url && p.number != null && (
+                <span className="absolute -bottom-1 -right-1 min-w-[18px] h-[18px] px-[3px] rounded-full
+                  grid place-items-center text-[10px] font-black text-white leading-none
+                  border-2 border-white/85 tabular-nums" style={{ background: '#0b0b0e' }}>
+                  {p.number}
+                </span>
+              )}
+            </div>
             {p && (
               <span className="text-[10px] font-semibold text-white text-center leading-tight
                 px-1 py-0.5 rounded bg-black/55 max-w-[104px]">
