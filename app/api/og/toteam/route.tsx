@@ -20,7 +20,7 @@ function jerseySvg(id: string, primary: string, secondary: string | null, patter
     defs = hh('defs', null, hh('linearGradient', { id, x1: '0', y1: '0', x2: '1', y2: '0' }, stops))
     fill = `url(#${id})`
   }
-  return hh('svg', { width: 150, height: 150, viewBox: '0 0 100 100' }, defs,
+  return hh('svg', { width: 136, height: 136, viewBox: '0 0 100 100' }, defs,
     hh('path', { d: JERSEY_PATH, fill, stroke: '#ffffff', strokeWidth: 3, strokeLinejoin: 'round' }))
 }
 
@@ -79,17 +79,21 @@ export async function GET(req: Request) {
     const byId: Record<string, any> = {}
     ;(data ?? []).forEach((p: any) => { byId[p.player_id] = p })
 
+    const { data: settings } = await supabase.from('app_settings').select('sponsors').eq('id', 1).maybeSingle()
+    const sponsors: string[] = ((settings?.sponsors ?? []) as string[]).filter(Boolean)
+    const footerH = sponsors.length ? 92 : 0
+
     const { W, H } = SIZES[size] || SIZES.post
     const coords = slotCoords(formation)
     const uniqY = [...new Set(coords.map(c => c.y))].sort((a, b) => b - a)
-    const yTop = 0.14, yBot = 0.87, L = uniqY.length
+    const yTop = 0.15, yBot = 0.84, L = uniqY.length
     const yMap = new Map<number, number>()
     uniqY.forEach((y, k) => yMap.set(y, L <= 1 ? 0.5 : yBot - k * ((yBot - yTop) / (L - 1))))
     const labels = positionLabels(formation)
 
     const margin = 36, headerH = 250, NODE = 176
     const PLEFT = margin, PW = W - 2 * margin
-    const availH = H - headerH - margin
+    const availH = H - headerH - margin - footerH
     const PH = Math.min(availH, PW * 1.5)
     const PTOP = headerH + (availH - PH) / 2
     const posText = idealText(accent)
@@ -152,7 +156,7 @@ export async function GET(req: Request) {
               const p = byId[ids[i]]
               const cy = yMap.get(c.y) ?? c.y
               const left = c.x * PW - NODE / 2
-              const top = cy * PH - 104
+              const top = cy * PH - 96
               const sName = surnameOf(p)
               const nameFs = sName.length > 14 ? 18 : sName.length > 11 ? 21 : 25
               return (
@@ -165,10 +169,10 @@ export async function GET(req: Request) {
                     const secondary = kit.kit_secondary || null
                     const pattern = kit.kit_pattern || 'solid'
                     return (
-                      <div style={{ position: 'relative', display: 'flex', width: 150, height: 150,
+                      <div style={{ position: 'relative', display: 'flex', width: 136, height: 136,
                         alignItems: 'center', justifyContent: 'center' }}>
                         {jerseySvg('kit' + i, primary, secondary, pattern)}
-                        <div style={{ position: 'absolute', top: 52, left: 0, right: 0, display: 'flex',
+                        <div style={{ position: 'absolute', top: 46, left: 0, right: 0, display: 'flex',
                           justifyContent: 'center' }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 50,
                             height: 50, padding: '0 10px', borderRadius: 25, background: 'rgba(0,0,0,0.42)',
@@ -200,6 +204,22 @@ export async function GET(req: Request) {
               )
             })}
           </div>
+
+          {/* Powered by — χορηγοί */}
+          {sponsors.length ? (
+            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 24, display: 'flex',
+              flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{ display: 'flex', fontSize: 18, fontWeight: 700, letterSpacing: 6,
+                color: 'rgba(255,255,255,0.5)', marginBottom: 10 }}>POWERED BY</div>
+              <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                {sponsors.map((u, i) => (
+                  <div key={i} style={{ display: 'flex', background: '#fff', borderRadius: 10, padding: '8px 16px' }}>
+                    <img src={u} width={130} height={44} style={{ width: 130, height: 44, objectFit: 'contain' }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       ),
       { width: W, height: H, fonts }
