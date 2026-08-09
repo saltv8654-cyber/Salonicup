@@ -24,6 +24,34 @@ function themeFor(leagueId: string | undefined, override: string | null): Theme 
   return THEMES[KEYS[h % 3]]
 }
 
+// Παλέτα scoreboard/γραφικών ανά πρωτάθλημα (βαθύ τόνος + φωτεινό accent).
+type PLTheme = { deep: string; deep2: string; dark: string; pink: string; pink2: string }
+const PL_DEFAULT: PLTheme = { deep: '#3d0a45', deep2: '#26002c', dark: '#12001a', pink: '#ff2882', pink2: '#e0176b' }
+const LEAGUE_THEMES: { re: RegExp; t: PLTheme }[] = [
+  { re: /elite/i,  t: { deep: '#3a2a05', deep2: '#241a02', dark: '#120c00', pink: '#F7B01B', pink2: '#E08A00' } }, // πορτοκαλοκίτρινο
+  { re: /liga/i,   t: { deep: '#33300a', deep2: '#201e04', dark: '#100f00', pink: '#FFE000', pink2: '#E5C400' } }, // καναρίνι
+  { re: /master/i, t: { deep: '#08301f', deep2: '#041d12', dark: '#010d07', pink: '#2BD46E', pink2: '#16A34A' } }, // πράσινο
+  { re: /trophy/i, t: { deep: '#340a08', deep2: '#200503', dark: '#100201', pink: '#F0463A', pink2: '#C41F16' } }, // κόκκινο
+  { re: /east/i,   t: { deep: '#0a1838', deep2: '#050e22', dark: '#01060f', pink: '#3A78FF', pink2: '#1E4FCC' } }, // μπλε
+  { re: /summer/i, t: { deep: '#180a42', deep2: '#0d0620', dark: '#06010f', pink: '#37E0FF', pink2: '#B14BFF' } }, // miami neon
+]
+function leagueTheme(name?: string | null): PLTheme {
+  if (!name) return PL_DEFAULT
+  for (const { re, t } of LEAGUE_THEMES) if (re.test(name)) return t
+  return PL_DEFAULT
+}
+function hexA(hex: string, a: number): string {
+  const h = hex.replace('#', '')
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16)
+  return `rgba(${r},${g},${b},${a})`
+}
+// Σκούρο ή λευκό κείμενο πάνω σε φωτεινό accent (ώστε το ρολόι να διαβάζεται σε κίτρινο/γαλάζιο)
+function idealText(hex: string): string {
+  const h = hex.replace('#', '')
+  const r = parseInt(h.slice(0, 2), 16) / 255, g = parseInt(h.slice(2, 4), 16) / 255, b = parseInt(h.slice(4, 6), 16) / 255
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.55 ? '#141414' : '#fff'
+}
+
 type Kind = 'GOAL' | 'OWN' | 'YELLOW' | 'RED'
 type Pop = { kind: Kind; name: string; sub: string; photo: string | null; assist?: string }
 type BigKind = 'KICKOFF' | 'HT' | 'FT'
@@ -350,8 +378,8 @@ function Overlay() {
   const clkStop = clockStoppage(match.clock_period, match.clock_started_at, now)
   const PP: 'fixed' | 'absolute' = 'absolute'
 
-  // Παλέτα scoreboard τύπου Premier League (βαθύ μωβ + ματζέντα)
-  const PL = { deep: '#3d0a45', deep2: '#26002c', dark: '#12001a', pink: '#ff2882', pink2: '#e0176b' }
+  // Παλέτα scoreboard/γραφικών — αλλάζει ανά πρωτάθλημα (accent + βαθύ τόνος)
+  const PL = leagueTheme(match.league?.name)
 
   const M = Number.isFinite(parseInt(params.get('margin') || '')) ? parseInt(params.get('margin')!) : 0
   const posStyle: React.CSSProperties =
@@ -551,7 +579,7 @@ function Overlay() {
         animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
         {leagueTab}
         <div style={{ width: 720, borderRadius: '0 0 16px 16px', overflow: 'hidden',
-          background: 'linear-gradient(180deg, rgba(61,10,69,0.8), rgba(18,0,26,0.8))',
+          background: `linear-gradient(180deg, ${hexA(PL.deep, 0.8)}, ${hexA(PL.dark, 0.8)})`,
           backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)',
           border: '1px solid rgba(255,255,255,.10)', boxShadow: '0 26px 70px rgba(0,0,0,.6)' }}>
           <div style={{ height: 5, background: `linear-gradient(90deg, ${PL.pink}, ${PL.pink2})` }} />
@@ -650,7 +678,7 @@ function Overlay() {
         animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
         {leagueTab}
         <div style={{ width: 720, borderRadius: '0 0 16px 16px', overflow: 'hidden',
-          background: 'linear-gradient(180deg, rgba(61,10,69,0.8), rgba(18,0,26,0.8))',
+          background: `linear-gradient(180deg, ${hexA(PL.deep, 0.8)}, ${hexA(PL.dark, 0.8)})`,
           backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)',
           border: '1px solid rgba(255,255,255,.10)', boxShadow: '0 26px 70px rgba(0,0,0,.6)' }}>
           <div style={{ height: 5, background: `linear-gradient(90deg, ${PL.pink}, ${PL.pink2})` }} />
@@ -837,7 +865,7 @@ function Overlay() {
           </div>
           {clkStop && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              gap: 2, minWidth: 92, padding: '0 16px', color: '#fff', fontVariantNumeric: 'tabular-nums',
+              gap: 2, minWidth: 92, padding: '0 16px', color: idealText(PL.pink), fontVariantNumeric: 'tabular-nums',
               background: `linear-gradient(180deg, ${PL.pink}, ${PL.pink2})` }}>
               <span style={{ fontSize: 23, fontWeight: 900, lineHeight: 1 }}>{clkStop.main}</span>
               {clkStop.added && (
