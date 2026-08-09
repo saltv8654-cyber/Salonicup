@@ -31,7 +31,7 @@ export default function PublicMatch() {
     const ids = squadKey ? squadKey.split(',') : []
     if (!ids.length) { setSquad([]); return }
     supabase.from('players')
-      .select('player_id, full_name, number, photo_url, team_id')
+      .select('player_id, full_name, number, photo_url, team_id, team:team_id(kit_primary, kit_secondary, kit_pattern)')
       .in('player_id', ids)
       .then(({ data }) => setSquad(data ?? []))
   }, [squadKey])

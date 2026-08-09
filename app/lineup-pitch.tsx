@@ -1,12 +1,59 @@
 'use client'
+import { useId } from 'react'
 import { slotCoords } from '@/lib/formations'
 
-type P = { full_name?: string; number?: number | null; photo_url?: string | null }
+type P = {
+  full_name?: string; number?: number | null; photo_url?: string | null
+  kit_primary?: string | null; kit_secondary?: string | null; kit_pattern?: string | null
+  team?: { kit_primary?: string | null; kit_secondary?: string | null; kit_pattern?: string | null } | null
+}
 
 export function shortName(n?: string) {
   if (!n) return ''
   const parts = n.trim().split(/\s+/)
   return parts.length > 1 ? `${parts[0][0]}. ${parts[parts.length - 1]}` : n
+}
+
+function idealText(hex?: string | null) {
+  if (!hex || hex[0] !== '#' || hex.length < 7) return '#fff'
+  const r = parseInt(hex.slice(1, 3), 16) / 255, g = parseInt(hex.slice(3, 5), 16) / 255, b = parseInt(hex.slice(5, 7), 16) / 255
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.55 ? '#141414' : '#fff'
+}
+
+const JERSEY_D = 'M35 8 L18 18 L8 38 L22 48 L33 40 L33 92 L67 92 L67 40 L78 48 L92 38 L82 18 L65 8 L58 15 C53 19 47 19 42 15 Z'
+
+/** Φανέλα ομάδας (χρώμα/μοτίβο) με το νούμερο. */
+function Jersey({ primary, secondary, pattern, number, size }: {
+  primary: string; secondary?: string | null; pattern?: string | null; number?: number | null; size: number
+}) {
+  const id = 'jp' + useId().replace(/:/g, '')
+  let fill: string = primary
+  let defs: React.ReactNode = null
+  if (pattern === 'halves' && secondary) {
+    fill = `url(#${id})`
+    defs = <defs><linearGradient id={id} x1="0" y1="0" x2="1" y2="0">
+      <stop offset="50%" stopColor={primary} /><stop offset="50%" stopColor={secondary} />
+    </linearGradient></defs>
+  } else if (pattern === 'stripes' && secondary) {
+    fill = `url(#${id})`
+    const cols = [primary, secondary]; const stops: React.ReactNode[] = []
+    for (let k = 0; k < 6; k++) stops.push(
+      <stop key={'a' + k} offset={`${(k / 6) * 100}%`} stopColor={cols[k % 2]} />,
+      <stop key={'b' + k} offset={`${((k + 1) / 6) * 100}%`} stopColor={cols[k % 2]} />)
+    defs = <defs><linearGradient id={id} x1="0" y1="0" x2="1" y2="0">{stops}</linearGradient></defs>
+  }
+  return (
+    <span style={{ position: 'relative', width: size, height: size, display: 'inline-flex' }}>
+      <svg width={size} height={size} viewBox="0 0 100 100">
+        {defs}
+        <path d={JERSEY_D} fill={fill} stroke="#fff" strokeWidth={3} strokeLinejoin="round" />
+      </svg>
+      {number != null && (
+        <span style={{ position: 'absolute', inset: 0, top: size * 0.12, display: 'grid', placeItems: 'center',
+          fontSize: size * 0.34, fontWeight: 800, color: idealText(primary) }}>{number}</span>
+      )}
+    </span>
+  )
 }
 
 function PitchLines() {
@@ -26,8 +73,9 @@ function PitchLines() {
 
 type Tally = { g: number; a: number; y: number; r: number }
 
-/** Γήπεδο με διάταξη. Διαδραστικό (onSlot) για τον σπίκερ, αλλιώς μόνο εμφάνιση. */
-export default function LineupPitch({ formation, line, players, onSlot, accent = '#E05B1F', notes, stats, bg, borderColor }: {
+/** Γήπεδο με διάταξη. Διαδραστικό (onSlot) για τον σπίκερ, αλλιώς μόνο εμφάνιση.
+ *  Κάθε παίκτης εμφανίζεται με τη φανέλα της ομάδας του (χρώμα/μοτίβο). */
+export default function LineupPitch({ formation, line, players, onSlot, accent = '#E05B1F', notes, stats, bg, borderColor, kit }: {
   formation: string
   line: (string | null)[]
   players: Record<string, P>
@@ -37,6 +85,7 @@ export default function LineupPitch({ formation, line, players, onSlot, accent =
   stats?: Record<string, Tally>
   bg?: string
   borderColor?: string
+  kit?: { primary?: string | null; secondary?: string | null; pattern?: string | null }
 }) {
   const coords = slotCoords(formation)
   return (
@@ -49,6 +98,9 @@ export default function LineupPitch({ formation, line, players, onSlot, accent =
         const p = pid ? players[pid] : null
         const note = pid ? notes?.[pid] : undefined
         const st = pid ? stats?.[pid] : undefined
+        const kp = p?.kit_primary ?? p?.team?.kit_primary ?? kit?.primary ?? accent
+        const ks = p?.kit_secondary ?? p?.team?.kit_secondary ?? kit?.secondary ?? null
+        const kpat = p?.kit_pattern ?? p?.team?.kit_pattern ?? kit?.pattern ?? 'solid'
         return (
           <div key={i}
             role={onSlot ? 'button' : undefined}
@@ -60,26 +112,14 @@ export default function LineupPitch({ formation, line, players, onSlot, accent =
               WebkitTapHighlightColor: 'transparent',
               cursor: onSlot ? 'pointer' : 'default',
             }}>
-            <div className="relative w-12 h-12">
-              <span
-                className={`w-12 h-12 rounded-full grid place-items-center text-[14px] font-extrabold
-                  overflow-hidden ${p ? 'text-white border-2' : 'border-2 border-dashed border-white/45 text-white/70'}`}
-                style={p ? { background: accent, borderColor: 'rgba(255,255,255,0.9)' } : undefined}>
-                {p
-                  ? (p.photo_url
-                      ? <img src={p.photo_url} alt="" className="w-full h-full object-cover" />
-                      : (p.number ?? (p.full_name?.[0] ?? '?')))
-                  : (onSlot ? '+' : '')}
+            {p ? (
+              <Jersey primary={kp} secondary={ks} pattern={kpat} number={p.number} size={54} />
+            ) : (
+              <span className="w-12 h-12 rounded-full grid place-items-center border-2 border-dashed
+                border-white/45 text-white/70 text-[14px] font-extrabold">
+                {onSlot ? '+' : ''}
               </span>
-              {/* Αριθμός φανέλας — σήμα στη γωνία όταν υπάρχει φωτό (αλλιώς φαίνεται μέσα στον κύκλο) */}
-              {p && p.photo_url && p.number != null && (
-                <span className="absolute -bottom-1 -right-1 min-w-[18px] h-[18px] px-[3px] rounded-full
-                  grid place-items-center text-[10px] font-black text-white leading-none
-                  border-2 border-white/85 tabular-nums" style={{ background: '#0b0b0e' }}>
-                  {p.number}
-                </span>
-              )}
-            </div>
+            )}
             {p && (
               <span className="text-[10px] font-semibold text-white text-center leading-tight
                 px-1 py-0.5 rounded bg-black/55 max-w-[104px]">

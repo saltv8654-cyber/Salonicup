@@ -166,9 +166,9 @@ export default function SpeakerPanel() {
   useEffect(() => {
     if (!match) return
     Promise.all([
-      supabase.from('players').select('*').eq('team_id', match.team_a)
+      supabase.from('players').select('*, team:team_id(kit_primary, kit_secondary, kit_pattern)').eq('team_id', match.team_a)
         .eq('active', true).order('number', { nullsFirst: false }),
-      supabase.from('players').select('*').eq('team_id', match.team_b)
+      supabase.from('players').select('*, team:team_id(kit_primary, kit_secondary, kit_pattern)').eq('team_id', match.team_b)
         .eq('active', true).order('number', { nullsFirst: false }),
     ]).then(([a, b]) => {
       const byOrder = (x: any, y: any) =>

@@ -47,7 +47,7 @@ export default function TeamOfWeekBuilder({ mode = 'speaker' }: { mode?: 'speake
   useEffect(() => {
     (async () => {
       const [p, t, l] = await Promise.all([
-        supabase.from('players').select('player_id, full_name, number, photo_url, team_id').order('number'),
+        supabase.from('players').select('player_id, full_name, number, photo_url, team_id, team:team_id(kit_primary, kit_secondary, kit_pattern)').order('number'),
         supabase.from('teams').select('team_id, name, logo_url, league_id'),
         supabase.from('leagues').select('league_id, name, logo_url').eq('active', true).order('sort_order'),
       ])

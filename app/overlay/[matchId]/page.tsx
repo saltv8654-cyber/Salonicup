@@ -313,7 +313,7 @@ function Overlay() {
     if (!match) return
     const ids = [...(match.squad_a ?? []), ...(match.squad_b ?? [])]
     if (!ids.length) return
-    supa.current.from('players').select('player_id, full_name, number, photo_url').in('player_id', ids)
+    supa.current.from('players').select('player_id, full_name, number, photo_url, team:team_id(kit_primary, kit_secondary, kit_pattern)').in('player_id', ids)
       .then(({ data }) => {
         const m: Record<string, any> = {}
         ;(data ?? []).forEach((p: any) => { m[p.player_id] = p })
