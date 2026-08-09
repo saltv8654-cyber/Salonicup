@@ -5,31 +5,20 @@ import { slotCoords } from '@/lib/formations'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// «Ομάδα της αγωνιστικής» — εικόνα για Instagram (Post ή Story).
-// ?ids=uuid1,uuid2,...  &formation=3-3-1  &size=post|story|square
-// &league=...  &title=...  &sub=...  &accent=%23E05B1F
+// «Ομάδα της αγωνιστικής» — εικόνα Premier-League style (Post ή Story).
+// ?ids=...&formation=3-3-1&size=post|story|square&league=..&leagueLogo=..&title=..&sub=..&accent=%23..
 
 const SIZES: Record<string, { W: number; H: number }> = {
-  post: { W: 1080, H: 1350 },
-  story: { W: 1080, H: 1920 },
-  square: { W: 1080, H: 1080 },
-}
-
-function shortName(n?: string) {
-  if (!n) return ''
-  const parts = n.trim().split(/\s+/)
-  return parts.length > 1 ? `${parts[0][0]}. ${parts[parts.length - 1]}` : n
+  post: { W: 1080, H: 1350 }, story: { W: 1080, H: 1920 }, square: { W: 1080, H: 1080 },
 }
 function idealText(hex: string) {
   const h = hex.replace('#', '')
   const r = parseInt(h.slice(0, 2), 16) / 255, g = parseInt(h.slice(2, 4), 16) / 255, b = parseInt(h.slice(4, 6), 16) / 255
   return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.55 ? '#141414' : '#fff'
 }
-// Ετικέτες θέσεων ανά διάταξη (GK + γραμμές). 3-3-1 → GK,LB,CB,RB,LW,MF,RW,CF
 function positionLabels(formation: string): string[] {
   const rows = formation.split('-').map(n => parseInt(n)).filter(n => n > 0)
-  const labels = ['GK']
-  const n = rows.length
+  const labels = ['GK']; const n = rows.length
   rows.forEach((count, ri) => {
     const kind = ri === 0 ? 'D' : ri === n - 1 ? 'F' : 'M'
     for (let i = 0; i < count; i++) {
@@ -42,6 +31,8 @@ function positionLabels(formation: string): string[] {
   })
   return labels
 }
+const surnameOf = (p: any) =>
+  ((p?.last_name?.trim() || (p?.full_name || '').trim().split(/\s+/)[0]) || '—').toUpperCase()
 
 export async function GET(req: Request) {
   const origin = new URL(req.url).origin
@@ -68,31 +59,56 @@ export async function GET(req: Request) {
 
     const { W, H } = SIZES[size] || SIZES.post
     const coords = slotCoords(formation)
-    // Ίσια κατανομή γραμμών κάθετα (ώστε ο τερματοφύλακας να μην «κολλάει» στην άμυνα)
     const uniqY = [...new Set(coords.map(c => c.y))].sort((a, b) => b - a)
-    const yTop = 0.13, yBot = 0.88, L = uniqY.length
+    const yTop = 0.14, yBot = 0.87, L = uniqY.length
     const yMap = new Map<number, number>()
     uniqY.forEach((y, k) => yMap.set(y, L <= 1 ? 0.5 : yBot - k * ((yBot - yTop) / (L - 1))))
     const labels = positionLabels(formation)
-    const margin = 40, headerH = 250, NODE = 172
+
+    const margin = 36, headerH = 250, NODE = 176
     const PLEFT = margin, PW = W - 2 * margin
     const availH = H - headerH - margin
-    const PH = Math.min(availH, PW * 1.42)
+    const PH = Math.min(availH, PW * 1.5)
     const PTOP = headerH + (availH - PH) / 2
+    const posText = idealText(accent)
 
     const fonts = await loadFonts(origin)
-    const posText = idealText(accent)
+
+    const LINE = 'rgba(255,255,255,0.42)'
+    const inset = 22
+    const line = (st: any, key: string) => (<div key={key} style={{ position: 'absolute', display: 'flex', ...st }} />)
+    // Ρίγες γκαζόν
+    const bands = Array.from({ length: 10 }).map((_, i) =>
+      line({ left: 0, top: (PH / 10) * i, width: PW, height: PH / 10, background: i % 2 ? '#1c4a2c' : '#20563299' }, 'b' + i))
+    const boxW = PW * 0.52, boxH = PH * 0.12, gW = PW * 0.26, gH = PH * 0.05
+    const cc = PW * 0.26
+    const marks = [
+      line({ left: inset, top: inset, width: PW - 2 * inset, height: PH - 2 * inset, border: `3px solid ${LINE}`, borderRadius: 6 }, 'bd'),
+      line({ left: inset, top: PH / 2 - 1.5, width: PW - 2 * inset, height: 3, background: LINE }, 'hl'),
+      line({ left: PW / 2 - cc / 2, top: PH / 2 - cc / 2, width: cc, height: cc, borderRadius: cc / 2, border: `3px solid ${LINE}` }, 'cc'),
+      line({ left: PW / 2 - 5, top: PH / 2 - 5, width: 10, height: 10, borderRadius: 5, background: LINE }, 'cs'),
+      // top box + goal area
+      line({ left: (PW - boxW) / 2, top: inset, width: boxW, height: boxH, border: `3px solid ${LINE}`, borderTop: 'none' }, 'tb'),
+      line({ left: (PW - gW) / 2, top: inset, width: gW, height: gH, border: `3px solid ${LINE}`, borderTop: 'none' }, 'tg'),
+      // bottom box + goal area
+      line({ left: (PW - boxW) / 2, top: PH - inset - boxH, width: boxW, height: boxH, border: `3px solid ${LINE}`, borderBottom: 'none' }, 'bb'),
+      line({ left: (PW - gW) / 2, top: PH - inset - gH, width: gW, height: gH, border: `3px solid ${LINE}`, borderBottom: 'none' }, 'bg'),
+    ]
+
+    const posTag = (i: number, top: number, left: number) => (
+      <div style={{ position: 'absolute', top, left, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        minWidth: 46, height: 32, padding: '0 8px', borderRadius: 9, background: accent, color: posText,
+        fontSize: 19, fontWeight: 700, border: '3px solid #fff' }}>{labels[i] || ''}</div>
+    )
 
     const res = new ImageResponse(
       (
         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
-          background: `linear-gradient(160deg, ${C.bg}, #05100a)`, fontFamily: 'Deja', color: C.chalk }}>
-          {/* Λογότυπο πρωταθλήματος (πάνω-δεξιά) */}
+          background: '#0B0B0E', fontFamily: 'Deja', color: C.chalk }}>
           {leagueLogo ? (
             <img src={leagueLogo} width={132} height={132}
               style={{ position: 'absolute', top: 44, right: 48, width: 132, height: 132, objectFit: 'contain' }} />
           ) : null}
-
           {/* Header */}
           <div style={{ display: 'flex', flexDirection: 'column', padding: '42px 48px 0' }}>
             <div style={{ display: 'flex', fontSize: 22, fontWeight: 700, letterSpacing: 7, color: C.silver }}>SALONICUP</div>
@@ -106,53 +122,60 @@ export async function GET(req: Request) {
 
           {/* Γήπεδο */}
           <div style={{ position: 'absolute', left: PLEFT, top: PTOP, width: PW, height: PH, display: 'flex',
-            borderRadius: 28, background: 'linear-gradient(180deg, #1f5130, #12351f 60%, #0e2b19)',
-            border: '2px solid rgba(255,255,255,0.14)' }}>
-            <div style={{ position: 'absolute', left: 24, top: PH / 2 - 1, width: PW - 48, height: 2, display: 'flex',
-              background: 'rgba(255,255,255,0.16)' }} />
-            <div style={{ position: 'absolute', left: PW / 2 - 90, top: PH / 2 - 90, width: 180, height: 180,
-              display: 'flex', borderRadius: 90, border: '2px solid rgba(255,255,255,0.16)' }} />
+            borderRadius: 26, overflow: 'hidden', background: '#1e5231',
+            border: '2px solid rgba(255,255,255,0.14)', boxShadow: '0 24px 70px rgba(0,0,0,0.5)' }}>
+            {bands}{marks}
 
             {coords.map((c, i) => {
               const p = byId[ids[i]]
               const cy = yMap.get(c.y) ?? c.y
               const left = c.x * PW - NODE / 2
-              const top = cy * PH - 100
+              const top = cy * PH - 104
+              const sName = surnameOf(p)
+              const nameFs = sName.length > 14 ? 18 : sName.length > 11 ? 21 : 25
               return (
                 <div key={i} style={{ position: 'absolute', left, top, width: NODE, display: 'flex',
                   flexDirection: 'column', alignItems: 'center' }}>
-                  <div style={{ position: 'relative', display: 'flex' }}>
-                    <div style={{ width: 132, height: 132, borderRadius: 66, display: 'flex',
-                      alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-                      border: '5px solid #ffffff', background: accent }}>
-                      {p?.photo_url
-                        ? <img src={p.photo_url} width={132} height={132} style={{ width: 132, height: 132, objectFit: 'cover' }} />
-                        : <div style={{ display: 'flex', fontSize: 54, fontWeight: 700, color: '#fff' }}>
-                            {p?.number != null ? String(p.number) : (p?.full_name?.[0] ?? '?')}</div>}
+                  {p?.photo_url ? (
+                    <div style={{ position: 'relative', display: 'flex', width: 134, height: 134 }}>
+                      <div style={{ width: 134, height: 134, borderRadius: 67, overflow: 'hidden',
+                        border: '5px solid #fff', display: 'flex', background: accent }}>
+                        <img src={p.photo_url} width={134} height={134} style={{ width: 134, height: 134, objectFit: 'cover' }} />
+                      </div>
+                      {p?.number != null && (
+                        <div style={{ position: 'absolute', bottom: -6, right: -6, minWidth: 44, height: 44, display: 'flex',
+                          alignItems: 'center', justifyContent: 'center', borderRadius: 22, background: '#0b0b0e',
+                          color: '#fff', fontSize: 24, fontWeight: 700, border: '4px solid #fff' }}>{String(p.number)}</div>
+                      )}
+                      {posTag(i, -8, -10)}
                     </div>
-                    {/* Θέση (πάνω-αριστερά) */}
-                    <div style={{ position: 'absolute', top: -8, left: -10, display: 'flex', alignItems: 'center',
-                      justifyContent: 'center', minWidth: 46, height: 34, padding: '0 8px', borderRadius: 9,
-                      background: accent, color: posText, fontSize: 20, fontWeight: 700, border: '3px solid #fff' }}>
-                      {labels[i] || ''}</div>
-                    {/* Νούμερο (κάτω-δεξιά) όταν υπάρχει φωτό */}
-                    {p?.photo_url && p?.number != null && (
-                      <div style={{ position: 'absolute', bottom: -6, right: -6, minWidth: 44, height: 44,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 22,
-                        background: '#0b0b0e', color: '#fff', fontSize: 24, fontWeight: 700, border: '4px solid #fff' }}>
-                        {String(p.number)}</div>
-                    )}
+                  ) : (
+                    <div style={{ position: 'relative', display: 'flex', width: 150, height: 150,
+                      alignItems: 'center', justifyContent: 'center' }}>
+                      <svg width={150} height={150} viewBox="0 0 100 100">
+                        <path d="M35 8 L18 18 L8 38 L22 48 L33 40 L33 92 L67 92 L67 40 L78 48 L92 38 L82 18 L65 8 L58 15 C53 19 47 19 42 15 Z"
+                          fill={accent} stroke="#ffffff" strokeWidth={3} strokeLinejoin="round" />
+                      </svg>
+                      <div style={{ position: 'absolute', top: 60, display: 'flex', fontSize: 40, fontWeight: 700, color: '#fff' }}>
+                        {p?.number != null ? String(p.number) : (p?.full_name?.[0] ?? '')}</div>
+                      {posTag(i, 8, 6)}
+                    </div>
+                  )}
+
+                  {/* Πλακέτα ονόματος (PL style) */}
+                  <div style={{ display: 'flex', alignItems: 'stretch', marginTop: 12, borderRadius: 10, overflow: 'hidden',
+                    background: 'rgba(6,8,12,0.82)', border: '1px solid rgba(255,255,255,0.12)', maxWidth: 320 }}>
+                    <div style={{ display: 'flex', width: 6, background: accent }} />
+                    <div style={{ display: 'flex', alignItems: 'center', padding: '6px 12px', color: '#fff',
+                      fontSize: nameFs, fontWeight: 700, whiteSpace: 'nowrap' }}>{sName}</div>
                   </div>
-                  <div style={{ display: 'flex', marginTop: 12, background: 'rgba(0,0,0,0.66)', borderRadius: 10,
-                    padding: '6px 14px', color: '#fff', fontSize: 26, fontWeight: 700, maxWidth: NODE + 44 }}>
-                    {((p?.last_name?.trim() || (p?.full_name || '').trim().split(/\s+/)[0]) || '—').toUpperCase()}</div>
                   {p?.team?.name ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5,
-                      background: 'rgba(0,0,0,0.5)', borderRadius: 8, padding: '3px 10px', maxWidth: NODE + 50 }}>
+                      background: 'rgba(0,0,0,0.5)', borderRadius: 8, padding: '3px 10px', maxWidth: NODE + 46 }}>
                       {p.team.logo_url
                         ? <img src={p.team.logo_url} width={22} height={22} style={{ width: 22, height: 22, objectFit: 'contain' }} />
                         : null}
-                      <div style={{ display: 'flex', color: C.silver, fontSize: 19, fontWeight: 700 }}>{p.team.name}</div>
+                      <div style={{ display: 'flex', color: C.silver, fontSize: 18, fontWeight: 700 }}>{p.team.name}</div>
                     </div>
                   ) : null}
                 </div>
