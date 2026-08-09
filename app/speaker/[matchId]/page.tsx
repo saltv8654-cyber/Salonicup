@@ -74,6 +74,7 @@ export default function SpeakerPanel() {
   const [editEv, setEditEv]   = useState<any>(null)
   const [obsBrand, setObsBrand] = useState('SALTV1')   // κανάλι στο overlay (ζωντανά)
   const [obsLive, setObsLive]   = useState(true)       // παλλόμενο LIVE στο overlay
+  const [obsAuto, setObsAuto]   = useState(false)      // αυτόματα γραφικά στο overlay
   const [saving, setSaving]   = useState(false)
   const [clockBusy, setClockBusy] = useState(false)
   const [streamUrl, setStreamUrl] = useState('')
@@ -827,6 +828,16 @@ export default function SpeakerPanel() {
                 📺 Αντιγραφή link
               </button>
             </div>
+            <button
+              onClick={() => { const n = !obsAuto; setObsAuto(n); sendFlash('AUTO', { on: n }); toast.success(n ? '🤖 Αυτόματα γραφικά ON — σχολίασε ελεύθερα' : 'Αυτόματα γραφικά OFF') }}
+              className={`w-full py-3 rounded-xl font-black text-[13px] border transition-colors
+                ${obsAuto ? 'bg-gradient-to-b from-[#16a34a] to-[#0e7a3a] text-white border-[#16a34a]'
+                  : 'bg-chalk/[0.05] border-chalk/[0.09] text-silver'}`}>
+              🤖 Αυτόματη λειτουργία {obsAuto ? 'ON' : 'OFF'}
+            </button>
+            <p className="text-[10.5px] text-dim leading-snug -mt-1">
+              Όταν είναι ON, το overlay βγάζει μόνο του βαθμολογία/σκόρερς στο ημίχρονο & τελικό και pre-match πριν το σφύριγμα — εσύ απλώς σχολιάζεις.
+            </p>
             <div className="flex gap-2">
               <button onClick={() => { sendFlash('VAR'); toast.success('VAR στο overlay') }}
                 className="flex-1 py-2.5 rounded-xl font-bold text-[12.5px]

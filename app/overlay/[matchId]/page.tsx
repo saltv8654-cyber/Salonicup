@@ -117,6 +117,10 @@ function Overlay() {
   const [preMatchOn, setPreMatchOn] = useState(false)
   const [preRows, setPreRows] = useState<any[]>([])
   const preTimer = useRef<ReturnType<typeof setTimeout>>()
+  // Αυτόματη λειτουργία: το overlay βγάζει μόνο του τα ενημερωτικά γραφικά
+  const [auto, setAuto] = useState(params.get('auto') === '1')
+  const prevAutoCP = useRef<string | null | undefined>(undefined)
+  const preFired = useRef(false)
   const [luTeam, setLuTeam] = useState<'a' | 'b'>('a')
   const [squadMap, setSquadMap] = useState<Record<string, any>>({})
   const [bigCard, setBigCard] = useState<BigKind | null>(null)
@@ -127,6 +131,20 @@ function Overlay() {
   const prevCP = useRef<string | null | undefined>(undefined)
   const prevSubTs = useRef<number>(0)
   const supa = useRef(createClient())
+
+  // Κοινές «σκανδάλες» γραφικών (χρησιμοποιούνται από κουμπιά + αυτόματη λειτουργία)
+  function showStandings() {
+    setStandingsOn(false); setTimeout(() => setStandingsOn(true), 30)
+    clearTimeout(standTimer.current); standTimer.current = setTimeout(() => setStandingsOn(false), 7000)
+  }
+  function showScorers() {
+    setScorersOn(false); setTimeout(() => setScorersOn(true), 30)
+    clearTimeout(scorersTimer.current); scorersTimer.current = setTimeout(() => setScorersOn(false), 5000)
+  }
+  function showPreMatch() {
+    setPreMatchOn(false); setTimeout(() => setPreMatchOn(true), 30)
+    clearTimeout(preTimer.current); preTimer.current = setTimeout(() => setPreMatchOn(false), 5000)
+  }
 
   // Καμβάς σχεδίασης 1280×720· κλιμακώνεται για να γεμίσει την πραγματική οθόνη/OBS
   const REF_W = 1280, REF_H = 720
@@ -206,6 +224,7 @@ function Overlay() {
       // Ζωντανή αλλαγή καναλιού / LIVE από τον σπίκερ → ενημερώνεται ακαριαία το OBS
       if (payload?.kind === 'BRAND') { setBrand(payload.value ?? ''); return }
       if (payload?.kind === 'LIVE')  { setLive(!!payload.on); return }
+      if (payload?.kind === 'AUTO')  { setAuto(!!payload.on); return }
       if (payload?.kind === 'LINEUPS') { setLineupsOn(false); setTimeout(() => setLineupsOn(true), 30); return }
       if (payload?.kind === 'SCORERS') {
         setScorersOn(false); setTimeout(() => setScorersOn(true), 30)
@@ -319,6 +338,34 @@ function Overlay() {
     clearTimeout(bigTimer.current)
     bigTimer.current = setTimeout(() => setBigCard(null), kind === 'KICKOFF' ? 8000 : 11000)
   }, [match?.clock_period])
+
+  // ΑΥΤΟΜΑΤΗ ΛΕΙΤΟΥΡΓΙΑ — στο ημίχρονο/τελικό βγάζει μόνο του βαθμολογία & σκόρερς,
+  // ώστε ο σπίκερ να σχολιάζει χωρίς να πατάει κουμπιά.
+  useEffect(() => {
+    const cp = match?.clock_period
+    if (!auto) { prevAutoCP.current = cp ?? null; return }
+    if (prevAutoCP.current === undefined) { prevAutoCP.current = cp ?? null; return }
+    if (cp === prevAutoCP.current) return
+    prevAutoCP.current = cp ?? null
+    const timers: ReturnType<typeof setTimeout>[] = []
+    if (cp === 'HT') {                       // Ημίχρονο: μετά την κάρτα → βαθμολογία, μετά σκόρερς
+      timers.push(setTimeout(showStandings, 12000))
+      timers.push(setTimeout(showScorers, 20500))
+    } else if (cp === 'FT') {                // Τελικό: σκόρερς, μετά τελική βαθμολογία
+      timers.push(setTimeout(showScorers, 12000))
+      timers.push(setTimeout(showStandings, 18000))
+    }
+    return () => timers.forEach(clearTimeout)
+  }, [auto, match?.clock_period])
+
+  // ΑΥΤΟΜΑΤΗ ΛΕΙΤΟΥΡΓΙΑ — μία φορά πριν το σφύριγμα: pre-match κάρτα
+  useEffect(() => {
+    if (!auto || preFired.current) return
+    if (match?.clock_period || match?.match_status === 'Played' || match?.match_status === 'Forfeit') return
+    preFired.current = true
+    const t = setTimeout(showPreMatch, 1200)
+    return () => clearTimeout(t)
+  }, [auto, match?.clock_period, match?.match_status])
 
   // Αυτόματη κάρτα αλλαγής (IN/OUT) όταν προστίθεται νέα αλλαγή
   useEffect(() => {
@@ -1009,10 +1056,8 @@ function Overlay() {
             setStandingsOn(false); setTimeout(() => setStandingsOn(true), 30)
             clearTimeout(standTimer.current); standTimer.current = setTimeout(() => setStandingsOn(false), 7000)
           })}
-          {ctlBtn('#12001a', '#fff', '📋 Pre-match', () => {
-            setPreMatchOn(false); setTimeout(() => setPreMatchOn(true), 30)
-            clearTimeout(preTimer.current); preTimer.current = setTimeout(() => setPreMatchOn(false), 5000)
-          })}
+          {ctlBtn('#12001a', '#fff', '📋 Pre-match', showPreMatch)}
+          {ctlBtn(auto ? '#0e7a3a' : '#2b3242', '#fff', auto ? '🤖 Auto ON' : '🤖 Auto OFF', () => setAuto(a => !a))}
           {ctlBtn('#35c66b', '#062', '🔄 Αλλαγή', testSub)}
           {ctlBtn('#0e7a3a', '#fff', '🏁 Έναρξη', () => testBig('KICKOFF'))}
           {ctlBtn('#8a6d1f', '#fff', '⏸ Ημίχρονο', () => testBig('HT'))}
@@ -1069,6 +1114,7 @@ function Overlay() {
               q.set('pos', pos)
               if (brand) q.set('brand', brand); else q.delete('brand')
               if (live) q.delete('live'); else q.set('live', '0')
+              if (auto) q.set('auto', '1'); else q.delete('auto')
               const link = `${window.location.origin}/overlay/${matchId}?${q.toString()}`
               navigator.clipboard?.writeText(link)
               setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000)
