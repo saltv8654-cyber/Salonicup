@@ -158,20 +158,8 @@ export async function GET(req: Request) {
               return (
                 <div key={i} style={{ position: 'absolute', left, top, width: NODE, display: 'flex',
                   flexDirection: 'column', alignItems: 'center' }}>
-                  {p?.photo_url ? (
-                    <div style={{ position: 'relative', display: 'flex', width: 134, height: 134 }}>
-                      <div style={{ width: 134, height: 134, borderRadius: 67, overflow: 'hidden',
-                        border: '5px solid #fff', display: 'flex', background: accent }}>
-                        <img src={p.photo_url} width={134} height={134} style={{ width: 134, height: 134, objectFit: 'cover' }} />
-                      </div>
-                      {p?.number != null && (
-                        <div style={{ position: 'absolute', bottom: -6, right: -6, minWidth: 44, height: 44, display: 'flex',
-                          alignItems: 'center', justifyContent: 'center', borderRadius: 22, background: '#0b0b0e',
-                          color: '#fff', fontSize: 24, fontWeight: 700, border: '4px solid #fff' }}>{String(p.number)}</div>
-                      )}
-                      {posTag(i, -8, -10)}
-                    </div>
-                  ) : (() => {
+                  {(() => {
+                    // Όλοι με φανέλα (τύπου BBC) — χρώμα/μοτίβο ομάδας
                     const kit = (p?.team as any) || {}
                     const primary = kit.kit_primary || accent
                     const secondary = kit.kit_secondary || null
