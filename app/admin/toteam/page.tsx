@@ -8,7 +8,7 @@ export default function AdminToteam() {
       <p className="text-[12px] text-silver mb-4">
         Διάλεξε πρωτάθλημα, βάλε τους παίκτες ανά ομάδα, αποθήκευσε και βγάλε την εικόνα για Instagram.
       </p>
-      <TeamOfWeekBuilder />
+      <TeamOfWeekBuilder mode="admin" />
     </div>
   )
 }
