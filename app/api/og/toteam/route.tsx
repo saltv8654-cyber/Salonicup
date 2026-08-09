@@ -21,7 +21,8 @@ export async function GET(req: Request) {
   const ids = (url.searchParams.get('ids') || '').split(',').map(s => s.trim())  // κρατά κενές θέσεις για σωστή στοίχιση
   const idsQuery = ids.filter(Boolean)
   const formation = url.searchParams.get('formation') || '3-3-1'
-  const title = url.searchParams.get('title') || 'Η ΟΜΑΔΑ ΤΗΣ ΑΓΩΝΙΣΤΙΚΗΣ'
+  const league = url.searchParams.get('league') || ''
+  const title = url.searchParams.get('title') || 'TEAM OF THE WEEK'
   const sub = url.searchParams.get('sub') || ''
   const accent = url.searchParams.get('accent') || C.brand
 
@@ -34,7 +35,7 @@ export async function GET(req: Request) {
     ;(data ?? []).forEach((p: any) => { byId[p.player_id] = p })
 
     const coords = slotCoords(formation)
-    const PW = 1000, PH = 1080, PLEFT = 40, PTOP = 250
+    const PW = 1000, PH = 1050, PLEFT = 40, PTOP = 262
     const NODE = 160
 
     const fonts = await loadFonts(origin)
@@ -44,12 +45,16 @@ export async function GET(req: Request) {
         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
           background: `linear-gradient(160deg, ${C.bg}, #05100a)`, fontFamily: 'Deja', color: C.chalk }}>
           {/* Header */}
-          <div style={{ display: 'flex', flexDirection: 'column', padding: '44px 48px 0' }}>
-            <div style={{ display: 'flex', fontSize: 28, fontWeight: 700, letterSpacing: 8, color: accent }}>
+          <div style={{ display: 'flex', flexDirection: 'column', padding: '42px 48px 0' }}>
+            <div style={{ display: 'flex', fontSize: 22, fontWeight: 700, letterSpacing: 7, color: C.silver }}>
               SALONICUP
             </div>
-            <div style={{ display: 'flex', fontSize: 60, fontWeight: 700, marginTop: 6, lineHeight: 1.05 }}>{title}</div>
-            {sub ? <div style={{ display: 'flex', fontSize: 32, color: C.silver, marginTop: 6 }}>{sub}</div> : null}
+            {league ? (
+              <div style={{ display: 'flex', fontSize: 40, fontWeight: 700, letterSpacing: 1, color: accent, marginTop: 2 }}>
+                {league.toUpperCase()}</div>
+            ) : null}
+            <div style={{ display: 'flex', fontSize: 64, fontWeight: 700, marginTop: 2, lineHeight: 1.02 }}>{title}</div>
+            {sub ? <div style={{ display: 'flex', fontSize: 30, color: C.silver, marginTop: 6 }}>{sub}</div> : null}
           </div>
 
           {/* Γήπεδο */}

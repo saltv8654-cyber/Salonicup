@@ -57,6 +57,14 @@ export default async function SpeakerHome() {
         </h1>
       </header>
 
+      <div className="px-4 mb-2">
+        <Link href="/team-of-week"
+          className="flex items-center justify-between rounded-xl bg-turf border border-lit/25 px-4 py-3">
+          <span className="text-[13.5px] font-bold text-chalk">🏅 Team of the Week — δήλωσε την ομάδα</span>
+          <span className="text-lit text-lg">›</span>
+        </Link>
+      </div>
+
       <SpeakerDays matches={matches ?? []} isAdmin={isAdmin} />
     </div>
   )
