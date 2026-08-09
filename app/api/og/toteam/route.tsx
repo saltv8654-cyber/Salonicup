@@ -51,6 +51,7 @@ export async function GET(req: Request) {
   const formation = url.searchParams.get('formation') || '3-3-1'
   const size = url.searchParams.get('size') || 'post'
   const league = url.searchParams.get('league') || ''
+  const leagueLogo = url.searchParams.get('leagueLogo') || ''
   const title = url.searchParams.get('title') || 'TEAM OF THE WEEK'
   const sub = url.searchParams.get('sub') || ''
   const accent = url.searchParams.get('accent') || C.brand
@@ -59,7 +60,7 @@ export async function GET(req: Request) {
     const supabase = dbAdmin()
     const { data } = idsQuery.length
       ? await supabase.from('players')
-          .select('player_id, full_name, number, photo_url, team:team_id(name)')
+          .select('player_id, full_name, number, photo_url, team:team_id(name, logo_url)')
           .in('player_id', idsQuery)
       : { data: [] as any[] }
     const byId: Record<string, any> = {}
@@ -86,6 +87,12 @@ export async function GET(req: Request) {
       (
         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
           background: `linear-gradient(160deg, ${C.bg}, #05100a)`, fontFamily: 'Deja', color: C.chalk }}>
+          {/* Λογότυπο πρωταθλήματος (πάνω-δεξιά) */}
+          {leagueLogo ? (
+            <img src={leagueLogo} width={132} height={132}
+              style={{ position: 'absolute', top: 44, right: 48, width: 132, height: 132, objectFit: 'contain' }} />
+          ) : null}
+
           {/* Header */}
           <div style={{ display: 'flex', flexDirection: 'column', padding: '42px 48px 0' }}>
             <div style={{ display: 'flex', fontSize: 22, fontWeight: 700, letterSpacing: 7, color: C.silver }}>SALONICUP</div>
@@ -140,9 +147,13 @@ export async function GET(req: Request) {
                     padding: '6px 14px', color: '#fff', fontSize: 26, fontWeight: 700, maxWidth: NODE + 44 }}>
                     {shortName(p?.full_name) || '—'}</div>
                   {p?.team?.name ? (
-                    <div style={{ display: 'flex', marginTop: 5, background: 'rgba(0,0,0,0.5)', borderRadius: 8,
-                      padding: '3px 10px', color: C.silver, fontSize: 19, fontWeight: 700, maxWidth: NODE + 44 }}>
-                      {p.team.name}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5,
+                      background: 'rgba(0,0,0,0.5)', borderRadius: 8, padding: '3px 10px', maxWidth: NODE + 50 }}>
+                      {p.team.logo_url
+                        ? <img src={p.team.logo_url} width={22} height={22} style={{ width: 22, height: 22, objectFit: 'contain' }} />
+                        : null}
+                      <div style={{ display: 'flex', color: C.silver, fontSize: 19, fontWeight: 700 }}>{p.team.name}</div>
+                    </div>
                   ) : null}
                 </div>
               )

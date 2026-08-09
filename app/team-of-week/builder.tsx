@@ -9,7 +9,7 @@ import toast from 'react-hot-toast'
 
 type Player = { player_id: string; full_name: string; number: number | null; photo_url: string | null; team_id: string }
 type Team = { team_id: string; name: string; logo_url: string | null; league_id: string }
-type Lg = { league_id: string; name: string }
+type Lg = { league_id: string; name: string; logo_url: string | null }
 
 export function leagueAccent(name?: string): string {
   const n = (name || '').toLowerCase()
@@ -43,7 +43,7 @@ export default function TeamOfWeekBuilder() {
       const [p, t, l] = await Promise.all([
         supabase.from('players').select('player_id, full_name, number, photo_url, team_id').order('number'),
         supabase.from('teams').select('team_id, name, logo_url, league_id'),
-        supabase.from('leagues').select('league_id, name').eq('active', true).order('sort_order'),
+        supabase.from('leagues').select('league_id, name, logo_url').eq('active', true).order('sort_order'),
       ])
       setPlayers((p.data ?? []) as any)
       setTeams((t.data ?? []) as any)
@@ -115,8 +115,8 @@ export default function TeamOfWeekBuilder() {
   function openImage(sizeKind: 'post' | 'story' = 'post') {
     const ids = picks.map(x => x ?? '').join(',')
     const u = `/api/og/toteam?ids=${encodeURIComponent(ids)}&formation=${formation}&size=${sizeKind}` +
-      `&league=${encodeURIComponent(league?.name ?? '')}&title=${encodeURIComponent(title)}` +
-      `&sub=${encodeURIComponent(sub)}&accent=${encodeURIComponent(accent)}&_=${Date.now()}`
+      `&league=${encodeURIComponent(league?.name ?? '')}&leagueLogo=${encodeURIComponent(league?.logo_url ?? '')}` +
+      `&title=${encodeURIComponent(title)}&sub=${encodeURIComponent(sub)}&accent=${encodeURIComponent(accent)}&_=${Date.now()}`
     window.open(u, '_blank')
   }
 
