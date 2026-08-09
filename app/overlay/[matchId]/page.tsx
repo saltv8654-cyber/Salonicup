@@ -554,7 +554,8 @@ function Overlay() {
     && (!!match.clock_period || match.match_status === 'Live'
         || (match.goals_team_a ?? 0) > 0 || (match.goals_team_b ?? 0) > 0)
   const stDisplay = (() => {
-    if (!liveProject || !standRows.length) return standRows
+    if (!liveProject || !standRows.length) return standRows.map((r: any) => ({ ...r, _delta: 0 }))
+    const basePos = new Map<string, number>(standRows.map((r: any) => [r.team_id, r.position]))
     const rows = standRows.map((r: any) => ({ ...r }))
     const apply = (teamId: string, gf: number, ga: number) => {
       const r = rows.find((x: any) => x.team_id === teamId)
@@ -570,7 +571,7 @@ function Overlay() {
     rows.sort((a: any, b: any) =>
       b.points - a.points || b.goal_diff - a.goal_diff || b.goals_for - a.goals_for
       || String(a.team_name).localeCompare(String(b.team_name)))
-    rows.forEach((r: any, i: number) => { r.position = i + 1 })
+    rows.forEach((r: any, i: number) => { r.position = i + 1; r._delta = (basePos.get(r.team_id) ?? (i + 1)) - (i + 1) })
     return rows
   })()
   const standingsEl = standingsOn && standRows.length > 0 && (
@@ -598,22 +599,29 @@ function Overlay() {
             {/* Επικεφαλίδα στηλών */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px 8px',
               borderBottom: `2px solid ${PL.pink}` }}>
-              <span style={{ width: 26, flex: 'none' }} />
+              <span style={{ width: 40, flex: 'none' }} />
               <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 900, color: 'rgba(255,255,255,.55)',
                 letterSpacing: '.04em' }}>ΟΜΑΔΑ</span>
               {stHead('Α', 34)}{stHead('Ν', 30)}{stHead('Ι', 30)}{stHead('Η', 30)}
               {stHead('ΔΤ', 44)}{stHead('Β', 44)}
             </div>
-            {standRows.map((r: any) => {
+            {stDisplay.map((r: any) => {
               const mine = r.team_id === match.team_a || r.team_id === match.team_b
+              const d = r._delta ?? 0
               return (
                 <div key={r.team_id} style={{ display: 'flex', alignItems: 'center', gap: 8,
                   padding: '6px 10px', borderRadius: 8,
-                  background: mine ? 'rgba(255,40,130,.18)' : 'transparent',
+                  background: mine ? hexA(PL.pink, 0.18) : 'transparent',
                   boxShadow: mine ? `inset 3px 0 0 ${PL.pink}` : 'none' }}>
-                  <span style={{ width: 26, flex: 'none', textAlign: 'center', fontSize: 15, fontWeight: 900,
+                  <span style={{ width: 40, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    gap: 3, fontSize: 15, fontWeight: 900,
                     color: mine ? PL.pink : 'rgba(255,255,255,.7)', fontVariantNumeric: 'tabular-nums' }}>
-                    {r.position}</span>
+                    {r.position}
+                    {d !== 0 && (
+                      <span style={{ fontSize: 10, fontWeight: 900, lineHeight: 1,
+                        color: d > 0 ? '#35c66b' : '#e0563c' }}>{d > 0 ? '▲' : '▼'}</span>
+                    )}
+                  </span>
                   <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 9 }}>
                     <Crest name={r.team_name} logo={r.logo_url} size={26} />
                     <span style={{ fontSize: 16, fontWeight: mine ? 900 : 700, color: '#fff',
