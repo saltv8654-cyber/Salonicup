@@ -188,13 +188,13 @@ function Overlay() {
       if (payload?.kind === 'STANDINGS') {
         setStandingsOn(false); setTimeout(() => setStandingsOn(true), 30)
         clearTimeout(standTimer.current)
-        standTimer.current = setTimeout(() => setStandingsOn(false), 12000)
+        standTimer.current = setTimeout(() => setStandingsOn(false), 7000)
         return
       }
       if (payload?.kind === 'PREMATCH') {
         setPreMatchOn(false); setTimeout(() => setPreMatchOn(true), 30)
         clearTimeout(preTimer.current)
-        preTimer.current = setTimeout(() => setPreMatchOn(false), 14000)
+        preTimer.current = setTimeout(() => setPreMatchOn(false), 5000)
         return
       }
       setFlash(payload?.kind ?? null)
@@ -551,7 +551,8 @@ function Overlay() {
         animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
         {leagueTab}
         <div style={{ width: 720, borderRadius: '0 0 16px 16px', overflow: 'hidden',
-          background: `linear-gradient(180deg, ${PL.deep}, ${PL.dark})`,
+          background: 'linear-gradient(180deg, rgba(61,10,69,0.8), rgba(18,0,26,0.8))',
+          backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)',
           border: '1px solid rgba(255,255,255,.10)', boxShadow: '0 26px 70px rgba(0,0,0,.6)' }}>
           <div style={{ height: 5, background: `linear-gradient(90deg, ${PL.pink}, ${PL.pink2})` }} />
           <div style={{ padding: '16px 26px 20px' }}>
@@ -649,7 +650,8 @@ function Overlay() {
         animation: 'ovPop .45s cubic-bezier(.2,.9,.25,1) forwards' }}>
         {leagueTab}
         <div style={{ width: 720, borderRadius: '0 0 16px 16px', overflow: 'hidden',
-          background: `linear-gradient(180deg, ${PL.deep}, ${PL.dark})`,
+          background: 'linear-gradient(180deg, rgba(61,10,69,0.8), rgba(18,0,26,0.8))',
+          backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)',
           border: '1px solid rgba(255,255,255,.10)', boxShadow: '0 26px 70px rgba(0,0,0,.6)' }}>
           <div style={{ height: 5, background: `linear-gradient(90deg, ${PL.pink}, ${PL.pink2})` }} />
           <div style={{ padding: '20px 30px 24px' }}>
@@ -968,11 +970,11 @@ function Overlay() {
           })}
           {ctlBtn('#3d0a45', '#fff', '📊 Βαθμολογία', () => {
             setStandingsOn(false); setTimeout(() => setStandingsOn(true), 30)
-            clearTimeout(standTimer.current); standTimer.current = setTimeout(() => setStandingsOn(false), 12000)
+            clearTimeout(standTimer.current); standTimer.current = setTimeout(() => setStandingsOn(false), 7000)
           })}
           {ctlBtn('#12001a', '#fff', '📋 Pre-match', () => {
             setPreMatchOn(false); setTimeout(() => setPreMatchOn(true), 30)
-            clearTimeout(preTimer.current); preTimer.current = setTimeout(() => setPreMatchOn(false), 14000)
+            clearTimeout(preTimer.current); preTimer.current = setTimeout(() => setPreMatchOn(false), 5000)
           })}
           {ctlBtn('#35c66b', '#062', '🔄 Αλλαγή', testSub)}
           {ctlBtn('#0e7a3a', '#fff', '🏁 Έναρξη', () => testBig('KICKOFF'))}
