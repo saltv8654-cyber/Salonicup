@@ -112,9 +112,9 @@ export default function TeamOfWeekBuilder() {
     toast.success('Αποθηκεύτηκε ✓')
   }
 
-  function openImage() {
+  function openImage(sizeKind: 'post' | 'story' = 'post') {
     const ids = picks.map(x => x ?? '').join(',')
-    const u = `/api/og/toteam?ids=${encodeURIComponent(ids)}&formation=${formation}` +
+    const u = `/api/og/toteam?ids=${encodeURIComponent(ids)}&formation=${formation}&size=${sizeKind}` +
       `&league=${encodeURIComponent(league?.name ?? '')}&title=${encodeURIComponent(title)}` +
       `&sub=${encodeURIComponent(sub)}&accent=${encodeURIComponent(accent)}&_=${Date.now()}`
     window.open(u, '_blank')
@@ -159,14 +159,18 @@ export default function TeamOfWeekBuilder() {
           : <>Επιλεγμένοι <b className="text-chalk">{count}/{picks.length}</b> · πάτα θέση για άδειασμα</>}
       </div>
 
+      <button onClick={save} disabled={saving}
+        className="w-full py-3 mb-2 rounded-xl font-black text-[14px] text-chalk bg-chalk/[0.06] border border-chalk/10 disabled:opacity-50">
+        {saving ? '…' : '💾 Αποθήκευση'}
+      </button>
       <div className="flex gap-2 mb-5">
-        <button onClick={save} disabled={saving}
-          className="flex-1 py-3 rounded-xl font-black text-[14px] text-chalk bg-chalk/[0.06] border border-chalk/10 disabled:opacity-50">
-          {saving ? '…' : '💾 Αποθήκευση'}
-        </button>
-        <button onClick={openImage} disabled={count === 0}
+        <button onClick={() => openImage('post')} disabled={count === 0}
           className="flex-1 py-3 rounded-xl font-black text-[14px] text-white bg-gradient-to-b from-lit to-brand disabled:opacity-50">
-          📸 Εικόνα
+          📸 Post
+        </button>
+        <button onClick={() => openImage('story')} disabled={count === 0}
+          className="flex-1 py-3 rounded-xl font-black text-[14px] text-white bg-gradient-to-b from-lit to-brand disabled:opacity-50">
+          📱 Story
         </button>
       </div>
 

@@ -5,22 +5,51 @@ import { slotCoords } from '@/lib/formations'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// «Ομάδα της αγωνιστικής» — εικόνα έτοιμη για Instagram (1080×1350).
-// ?ids=uuid1,uuid2,...  (σειρά = θέσεις της διάταξης, index 0 = τερματοφύλακας)
-// &formation=3-3-1  &title=...  &sub=...  &accent=%23E05B1F
+// «Ομάδα της αγωνιστικής» — εικόνα για Instagram (Post ή Story).
+// ?ids=uuid1,uuid2,...  &formation=3-3-1  &size=post|story|square
+// &league=...  &title=...  &sub=...  &accent=%23E05B1F
+
+const SIZES: Record<string, { W: number; H: number }> = {
+  post: { W: 1080, H: 1350 },
+  story: { W: 1080, H: 1920 },
+  square: { W: 1080, H: 1080 },
+}
 
 function shortName(n?: string) {
   if (!n) return ''
   const parts = n.trim().split(/\s+/)
   return parts.length > 1 ? `${parts[0][0]}. ${parts[parts.length - 1]}` : n
 }
+function idealText(hex: string) {
+  const h = hex.replace('#', '')
+  const r = parseInt(h.slice(0, 2), 16) / 255, g = parseInt(h.slice(2, 4), 16) / 255, b = parseInt(h.slice(4, 6), 16) / 255
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.55 ? '#141414' : '#fff'
+}
+// Ετικέτες θέσεων ανά διάταξη (GK + γραμμές). 3-3-1 → GK,LB,CB,RB,LW,MF,RW,CF
+function positionLabels(formation: string): string[] {
+  const rows = formation.split('-').map(n => parseInt(n)).filter(n => n > 0)
+  const labels = ['GK']
+  const n = rows.length
+  rows.forEach((count, ri) => {
+    const kind = ri === 0 ? 'D' : ri === n - 1 ? 'F' : 'M'
+    for (let i = 0; i < count; i++) {
+      const left = i === 0, right = i === count - 1
+      if (count === 1) labels.push(kind === 'D' ? 'CB' : kind === 'F' ? 'CF' : 'MF')
+      else if (kind === 'D') labels.push(left ? 'LB' : right ? 'RB' : 'CB')
+      else if (kind === 'M') labels.push(left ? 'LW' : right ? 'RW' : 'MF')
+      else labels.push(left ? 'LW' : right ? 'RW' : 'CF')
+    }
+  })
+  return labels
+}
 
 export async function GET(req: Request) {
   const origin = new URL(req.url).origin
   const url = new URL(req.url)
-  const ids = (url.searchParams.get('ids') || '').split(',').map(s => s.trim())  // κρατά κενές θέσεις για σωστή στοίχιση
+  const ids = (url.searchParams.get('ids') || '').split(',').map(s => s.trim())
   const idsQuery = ids.filter(Boolean)
   const formation = url.searchParams.get('formation') || '3-3-1'
+  const size = url.searchParams.get('size') || 'post'
   const league = url.searchParams.get('league') || ''
   const title = url.searchParams.get('title') || 'TEAM OF THE WEEK'
   const sub = url.searchParams.get('sub') || ''
@@ -29,16 +58,29 @@ export async function GET(req: Request) {
   try {
     const supabase = dbAdmin()
     const { data } = idsQuery.length
-      ? await supabase.from('players').select('player_id, full_name, number, photo_url').in('player_id', idsQuery)
+      ? await supabase.from('players')
+          .select('player_id, full_name, number, photo_url, team:team_id(name)')
+          .in('player_id', idsQuery)
       : { data: [] as any[] }
     const byId: Record<string, any> = {}
     ;(data ?? []).forEach((p: any) => { byId[p.player_id] = p })
 
+    const { W, H } = SIZES[size] || SIZES.post
     const coords = slotCoords(formation)
-    const PW = 1000, PH = 1050, PLEFT = 40, PTOP = 262
-    const NODE = 160
+    // Ίσια κατανομή γραμμών κάθετα (ώστε ο τερματοφύλακας να μην «κολλάει» στην άμυνα)
+    const uniqY = [...new Set(coords.map(c => c.y))].sort((a, b) => b - a)
+    const yTop = 0.13, yBot = 0.88, L = uniqY.length
+    const yMap = new Map<number, number>()
+    uniqY.forEach((y, k) => yMap.set(y, L <= 1 ? 0.5 : yBot - k * ((yBot - yTop) / (L - 1))))
+    const labels = positionLabels(formation)
+    const margin = 40, headerH = 250, NODE = 172
+    const PLEFT = margin, PW = W - 2 * margin
+    const availH = H - headerH - margin
+    const PH = Math.min(availH, PW * 1.42)
+    const PTOP = headerH + (availH - PH) / 2
 
     const fonts = await loadFonts(origin)
+    const posText = idealText(accent)
 
     const res = new ImageResponse(
       (
@@ -46,9 +88,7 @@ export async function GET(req: Request) {
           background: `linear-gradient(160deg, ${C.bg}, #05100a)`, fontFamily: 'Deja', color: C.chalk }}>
           {/* Header */}
           <div style={{ display: 'flex', flexDirection: 'column', padding: '42px 48px 0' }}>
-            <div style={{ display: 'flex', fontSize: 22, fontWeight: 700, letterSpacing: 7, color: C.silver }}>
-              SALONICUP
-            </div>
+            <div style={{ display: 'flex', fontSize: 22, fontWeight: 700, letterSpacing: 7, color: C.silver }}>SALONICUP</div>
             {league ? (
               <div style={{ display: 'flex', fontSize: 40, fontWeight: 700, letterSpacing: 1, color: accent, marginTop: 2 }}>
                 {league.toUpperCase()}</div>
@@ -58,11 +98,9 @@ export async function GET(req: Request) {
           </div>
 
           {/* Γήπεδο */}
-          <div style={{ position: 'absolute', left: PLEFT, top: PTOP, width: PW, height: PH,
-            display: 'flex', borderRadius: 28,
-            background: 'linear-gradient(180deg, #1f5130, #12351f 60%, #0e2b19)',
+          <div style={{ position: 'absolute', left: PLEFT, top: PTOP, width: PW, height: PH, display: 'flex',
+            borderRadius: 28, background: 'linear-gradient(180deg, #1f5130, #12351f 60%, #0e2b19)',
             border: '2px solid rgba(255,255,255,0.14)' }}>
-            {/* Γραμμές */}
             <div style={{ position: 'absolute', left: 24, top: PH / 2 - 1, width: PW - 48, height: 2, display: 'flex',
               background: 'rgba(255,255,255,0.16)' }} />
             <div style={{ position: 'absolute', left: PW / 2 - 90, top: PH / 2 - 90, width: 180, height: 180,
@@ -70,8 +108,9 @@ export async function GET(req: Request) {
 
             {coords.map((c, i) => {
               const p = byId[ids[i]]
+              const cy = yMap.get(c.y) ?? c.y
               const left = c.x * PW - NODE / 2
-              const top = c.y * PH - 96
+              const top = cy * PH - 100
               return (
                 <div key={i} style={{ position: 'absolute', left, top, width: NODE, display: 'flex',
                   flexDirection: 'column', alignItems: 'center' }}>
@@ -84,6 +123,12 @@ export async function GET(req: Request) {
                         : <div style={{ display: 'flex', fontSize: 54, fontWeight: 700, color: '#fff' }}>
                             {p?.number != null ? String(p.number) : (p?.full_name?.[0] ?? '?')}</div>}
                     </div>
+                    {/* Θέση (πάνω-αριστερά) */}
+                    <div style={{ position: 'absolute', top: -8, left: -10, display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', minWidth: 46, height: 34, padding: '0 8px', borderRadius: 9,
+                      background: accent, color: posText, fontSize: 20, fontWeight: 700, border: '3px solid #fff' }}>
+                      {labels[i] || ''}</div>
+                    {/* Νούμερο (κάτω-δεξιά) όταν υπάρχει φωτό */}
                     {p?.photo_url && p?.number != null && (
                       <div style={{ position: 'absolute', bottom: -6, right: -6, minWidth: 44, height: 44,
                         display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 22,
@@ -91,16 +136,21 @@ export async function GET(req: Request) {
                         {String(p.number)}</div>
                     )}
                   </div>
-                  <div style={{ display: 'flex', marginTop: 12, background: 'rgba(0,0,0,0.62)', borderRadius: 10,
-                    padding: '7px 14px', color: '#fff', fontSize: 26, fontWeight: 700, maxWidth: NODE + 40 }}>
+                  <div style={{ display: 'flex', marginTop: 12, background: 'rgba(0,0,0,0.66)', borderRadius: 10,
+                    padding: '6px 14px', color: '#fff', fontSize: 26, fontWeight: 700, maxWidth: NODE + 44 }}>
                     {shortName(p?.full_name) || '—'}</div>
+                  {p?.team?.name ? (
+                    <div style={{ display: 'flex', marginTop: 5, background: 'rgba(0,0,0,0.5)', borderRadius: 8,
+                      padding: '3px 10px', color: C.silver, fontSize: 19, fontWeight: 700, maxWidth: NODE + 44 }}>
+                      {p.team.name}</div>
+                  ) : null}
                 </div>
               )
             })}
           </div>
         </div>
       ),
-      { width: 1080, height: 1350, fonts }
+      { width: W, height: H, fonts }
     )
     res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
     return res
