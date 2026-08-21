@@ -100,6 +100,8 @@ export default function AdminMatches() {
   const [load, setLoad]       = useState(true)
   const [open, setOpen]       = useState(false)
   const [edit, setEdit]       = useState<any>(null)
+  const [preset, setPreset]   = useState<any>(null)
+  const [standings, setStandings] = useState<any[]>([])
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   const toggleTeam = (key: string) => setExpanded(prev => {
@@ -109,7 +111,7 @@ export default function AdminMatches() {
   })
 
   async function fetchAll() {
-    const [m, l, t, v, p, st] = await Promise.all([
+    const [m, l, t, v, p, st, sd] = await Promise.all([
       supabase.from('matches').select(`
         *, team_a_data:team_a(name, logo_url), team_b_data:team_b(name, logo_url),
         league:league_id(name), venue:venue_id(name)
@@ -119,6 +121,7 @@ export default function AdminMatches() {
       supabase.from('venues').select('*').order('name'),
       supabase.from('profiles').select('id, full_name, email, role, team_id').order('full_name'),
       supabase.from('staff').select('id, name, kind').order('name'),
+      supabase.from('standings').select('league_id, team_id, team_name, logo_url, position').order('position'),
     ])
     setRows(m.data ?? [])
     setLeagues(l.data ?? [])
@@ -126,6 +129,7 @@ export default function AdminMatches() {
     setVenues(v.data ?? [])
     setPeople(p.data ?? [])
     setStaff(st.data ?? [])
+    setStandings(sd.data ?? [])
     setLoad(false)
   }
 
@@ -170,11 +174,24 @@ export default function AdminMatches() {
           (a.match_date ?? '').localeCompare(b.match_date ?? '')),
     }))
 
+  // Ζευγάρια προημιτελικών από τη βαθμολογία (1-8, 4-5, 2-7, 3-6) για γρήγορη δημιουργία
+  const QF_PAIRS: [number, number][] = [[1, 8], [4, 5], [2, 7], [3, 6]]
+  const qfPairings = (leagueId: string) => {
+    const seeds = standings.filter(s => s.league_id === leagueId).sort((a, b) => a.position - b.position)
+    if (seeds.length < 8) return [] as { home: any; away: any; label: string }[]
+    const byPos = (p: number) => seeds.find(s => s.position === p)
+    return QF_PAIRS
+      .map(([h, a]) => ({ home: byPos(h), away: byPos(a), label: `${h}ος–${a}ος` }))
+      .filter(x => x.home && x.away)
+  }
+  const openNew = (p: any = null) => { setEdit(null); setPreset(p); setOpen(true) }
+  const openEdit = (m: any) => { setEdit(m); setPreset(null); setOpen(true) }
+
   return (
     <div className="p-4 max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-3">
         <h1 className="text-lg font-extrabold text-chalk">Αγώνες</h1>
-        <button onClick={() => { setEdit(null); setOpen(true) }}
+        <button onClick={() => openNew()}
           className="px-4 py-2 rounded-lg bg-gradient-to-b from-lit to-brand
             text-white text-[12.5px] font-extrabold">+ Νέος</button>
       </div>
@@ -235,14 +252,14 @@ export default function AdminMatches() {
                               <div key={i} className="grid items-center gap-2
                                 [grid-template-columns:1fr_84px_1fr]">
                                 <AdminLeg m={r.leg1} teamId={team.team_id}
-                                  onEdit={() => { setEdit(r.leg1); setOpen(true) }} />
+                                  onEdit={() => openEdit(r.leg1)} />
                                 <div className="flex flex-col items-center gap-1 min-w-0">
                                   <Crest url={r.oppLogo} name={r.oppName} size={24} />
                                   <span className="text-[9.5px] font-semibold text-silver text-center
                                     leading-tight truncate max-w-[84px]">{r.oppName}</span>
                                 </div>
                                 <AdminLeg m={r.leg2} teamId={team.team_id}
-                                  onEdit={() => { setEdit(r.leg2); setOpen(true) }} />
+                                  onEdit={() => openEdit(r.leg2)} />
                               </div>
                             ))}
                           </div>
@@ -265,12 +282,12 @@ export default function AdminMatches() {
                     {g.playoff.length > 0 ? 'Δες bracket ›' : 'Δες bracket (θέσεις) ›'}</span>
                 </Link>
                 {g.playoff.length > 0 && (
-                  <div className="px-2.5 pb-3 pt-1 border-t flex flex-col gap-1.5"
+                  <div className="px-2.5 pb-2.5 pt-1 border-t flex flex-col gap-1.5"
                     style={{ borderColor: 'rgba(232,185,35,0.18)' }}>
                     {g.playoff.map((m: any) => {
                       const done = ['Played', 'Forfeit'].includes(m.match_status)
                       return (
-                        <button key={m.match_id} onClick={() => { setEdit(m); setOpen(true) }}
+                        <button key={m.match_id} onClick={() => openEdit(m)}
                           className="flex items-center gap-2 rounded-lg bg-chalk/[0.03] border border-chalk/[0.05]
                             px-2.5 py-2 text-left active:bg-[#1C1C22]">
                           <span className="text-[8.5px] font-black text-lit uppercase w-[62px] shrink-0">{STAGE_LBL[m.stage]}</span>
@@ -285,6 +302,28 @@ export default function AdminMatches() {
                     })}
                   </div>
                 )}
+
+                {/* Γρήγορη δημιουργία προημιτελικών με τα ζευγάρια της βαθμολογίας */}
+                {qfPairings(g.id).length > 0 && (
+                  <div className="px-2.5 pb-3 pt-2 border-t flex flex-col gap-1.5"
+                    style={{ borderColor: 'rgba(232,185,35,0.18)' }}>
+                    <span className="text-[8.5px] font-extrabold text-dim tracking-[0.1em] pl-0.5">
+                      ΓΡΗΓΟΡΗ ΔΗΜΙΟΥΡΓΙΑ · ΠΡΟΗΜΙΤΕΛΙΚΑ (θέσεις βαθμολογίας)
+                    </span>
+                    {qfPairings(g.id).map((pr, i) => (
+                      <button key={i}
+                        onClick={() => openNew({ league_id: g.id, team_a: pr.home.team_id, team_b: pr.away.team_id, stage: 'QF' })}
+                        className="flex items-center gap-2 rounded-lg bg-chalk/[0.03] border border-chalk/[0.05]
+                          px-2.5 py-2 text-left active:bg-[#1C1C22]">
+                        <span className="text-[8.5px] font-black text-dim w-[42px] shrink-0">{pr.label}</span>
+                        <Crest url={pr.home.logo_url} name={pr.home.team_name} size={20} />
+                        <span className="flex-1 text-[11.5px] font-bold text-chalk truncate">
+                          {pr.home.team_name} – {pr.away.team_name}</span>
+                        <span className="text-[11px] font-black shrink-0" style={{ color: '#E8B923' }}>+ Ημ/νία ›</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -292,25 +331,27 @@ export default function AdminMatches() {
       )}
 
       {open && (
-        <MatchForm row={edit} leagues={leagues} teams={teams} venues={venues} people={people} staff={staff}
-          onClose={() => setOpen(false)}
-          onSaved={() => { setOpen(false); fetchAll() }}
-          onDelete={edit ? () => { setOpen(false); remove(edit.match_id) } : undefined} />
+        <MatchForm row={edit} preset={preset} leagues={leagues} teams={teams} venues={venues} people={people} staff={staff}
+          onClose={() => { setOpen(false); setPreset(null) }}
+          onSaved={() => { setOpen(false); setPreset(null); fetchAll() }}
+          onDelete={edit ? () => { setOpen(false); setPreset(null); remove(edit.match_id) } : undefined} />
       )}
     </div>
   )
 }
 
-function MatchForm({ row, leagues, teams, venues, people, staff, onClose, onSaved, onDelete }: {
-  row: any; leagues: League[]; teams: Team[]; venues: Venue[]; people: Profile[]
+function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose, onSaved, onDelete }: {
+  row: any; preset?: any; leagues: League[]; teams: Team[]; venues: Venue[]; people: Profile[]
   staff: { id: string; name: string; kind: string }[]
   onClose: () => void; onSaved: () => void; onDelete?: () => void
 }) {
   const supabase = createClient()
-  const [league, setLeague]   = useState(row?.league_id ?? '')
+  // src = υπάρχων αγώνας (επεξεργασία) ή preset (γρήγορη δημιουργία με προ-επιλεγμένες ομάδες)
+  const src = row ?? preset ?? null
+  const [league, setLeague]   = useState(src?.league_id ?? '')
   const [round, setRound]     = useState(String(row?.round ?? 1))
-  const [teamA, setTeamA]     = useState(row?.team_a ?? '')
-  const [teamB, setTeamB]     = useState(row?.team_b ?? '')
+  const [teamA, setTeamA]     = useState(src?.team_a ?? '')
+  const [teamB, setTeamB]     = useState(src?.team_b ?? '')
   const [venue, setVenue]     = useState(row?.venue_id ?? '')
   const [field, setField]     = useState(row?.field ?? '')
   const [date, setDate]       = useState(toDatetimeLocal(row?.match_date))
@@ -328,7 +369,7 @@ function MatchForm({ row, leagues, teams, venues, people, staff, onClose, onSave
   const [scoreA, setScoreA] = useState(String(row?.goals_team_a ?? 0))
   const [scoreB, setScoreB] = useState(String(row?.goals_team_b ?? 0))
   // Φάση: regular = κανονική περίοδος (βαθμολογία) · QF/SF/Final = playoff (bracket)
-  const [stage, setStage] = useState<string>(row?.stage ?? 'regular')
+  const [stage, setStage] = useState<string>(src?.stage ?? 'regular')
   // Συντελεστές αγώνα — επιλογή χρήστη (profiles) ανά ρόλο
   const [speakerId, setSpeakerId]           = useState(row?.speaker_id ?? '')
   const [refereeId, setRefereeId]           = useState(row?.referee_id ?? '')
