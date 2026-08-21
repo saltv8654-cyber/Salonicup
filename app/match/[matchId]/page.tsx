@@ -169,9 +169,16 @@ export default function PublicMatch() {
                         )}
                       </div>
                     ) : (
-                      <span className="text-[9px] font-extrabold text-dim tracking-[0.14em]">
-                        ΤΕΛΙΚΟ
-                      </span>
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-[9px] font-extrabold text-dim tracking-[0.14em]">
+                          ΤΕΛΙΚΟ
+                        </span>
+                        {match.match_date && (
+                          <span className="text-[10px] font-bold text-silver tracking-[0.06em]">
+                            {fmtDay(match.match_date)} · {fmtTime(match.match_date)}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
                 </>

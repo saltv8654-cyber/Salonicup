@@ -46,9 +46,9 @@ export default async function TeamPage({
       return gf > ga ? 'W' : gf < ga ? 'L' : 'D'
     })
 
-  // Ζευγάρωμα ανά αντίπαλο: Α' γύρος (πρώτη συνάντηση) | Β' γύρος (δεύτερη)
+  // Ζευγάρωμα ανά αντίπαλο: Α' γύρος (πρώτη συνάντηση) | Β' γύρος (δεύτερη) — ΜΟΝΟ regular season
   const oppMap = new Map<string, { oppName: string; oppLogo: string | null; legs: any[] }>()
-  for (const m of matches ?? []) {
+  for (const m of (matches ?? []).filter((m: any) => !m.stage)) {
     const us = m.team_a === params.teamId
     const oppId = us ? m.team_b : m.team_a
     const oppData = us ? m.team_b_data : m.team_a_data
@@ -64,6 +64,14 @@ export default async function TeamPage({
         firstRound: legs[0]?.round ?? 999 }
     })
     .sort((a, b) => a.firstRound - b.firstRound)
+
+  // Playoff αγώνες της ομάδας (QF/SF/Final)
+  const STAGE_LBL: Record<string, string> = { QF: 'Προημιτελικός', SF: 'Ημιτελικός', Final: 'Τελικός' }
+  const STAGE_RANK: Record<string, number> = { QF: 0, SF: 1, Final: 2 }
+  const playoffMatches = (matches ?? [])
+    .filter((m: any) => m.stage && STAGE_RANK[m.stage] != null)
+    .sort((a: any, b: any) => (STAGE_RANK[a.stage] - STAGE_RANK[b.stage]) ||
+      (a.match_date ?? '').localeCompare(b.match_date ?? ''))
 
   // Επόμενος αγώνας (πλησιέστερος προγραμματισμένος)
   const now = Date.now()
@@ -183,33 +191,69 @@ export default async function TeamPage({
             </>
           )
         ) : (
-          !fixtureRows.length ? <Empty>Δεν υπάρχουν αγώνες.</Empty> : (
+          (!fixtureRows.length && !playoffMatches.length) ? <Empty>Δεν υπάρχουν αγώνες.</Empty> : (
             <div>
-              {/* Κεφαλίδα στηλών */}
-              <div className="grid items-center gap-2 px-1 pb-2
-                [grid-template-columns:1fr_92px_1fr]">
-                <span className="text-[8.5px] font-extrabold text-dim tracking-[0.1em] text-center">
-                  Α΄ ΓΥΡΟΣ
-                </span>
-                <span />
-                <span className="text-[8.5px] font-extrabold text-dim tracking-[0.1em] text-center">
-                  Β΄ ΓΥΡΟΣ
-                </span>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                {fixtureRows.map((r, i) => (
-                  <div key={i} className="grid items-center gap-2
+              {fixtureRows.length > 0 && (
+                <>
+                  {/* Κεφαλίδα στηλών */}
+                  <div className="grid items-center gap-2 px-1 pb-2
                     [grid-template-columns:1fr_92px_1fr]">
-                    <LegCell m={r.leg1} teamId={params.teamId} />
-                    <div className="flex flex-col items-center gap-1 min-w-0">
-                      <Crest url={r.oppLogo} name={r.oppName} size={26} />
-                      <span className="text-[10px] font-semibold text-silver text-center
-                        leading-tight truncate max-w-[90px]">{r.oppName}</span>
-                    </div>
-                    <LegCell m={r.leg2} teamId={params.teamId} />
+                    <span className="text-[8.5px] font-extrabold text-dim tracking-[0.1em] text-center">
+                      Α΄ ΓΥΡΟΣ
+                    </span>
+                    <span />
+                    <span className="text-[8.5px] font-extrabold text-dim tracking-[0.1em] text-center">
+                      Β΄ ΓΥΡΟΣ
+                    </span>
                   </div>
-                ))}
-              </div>
+                  <div className="flex flex-col gap-1.5">
+                    {fixtureRows.map((r, i) => (
+                      <div key={i} className="grid items-center gap-2
+                        [grid-template-columns:1fr_92px_1fr]">
+                        <LegCell m={r.leg1} teamId={params.teamId} />
+                        <div className="flex flex-col items-center gap-1 min-w-0">
+                          <Crest url={r.oppLogo} name={r.oppName} size={26} />
+                          <span className="text-[10px] font-semibold text-silver text-center
+                            leading-tight truncate max-w-[90px]">{r.oppName}</span>
+                        </div>
+                        <LegCell m={r.leg2} teamId={params.teamId} />
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Playoff */}
+              {playoffMatches.length > 0 && (
+                <div className={fixtureRows.length ? 'mt-5' : ''}>
+                  <div className="text-[8.5px] font-extrabold tracking-[0.14em] mb-2 px-1"
+                    style={{ color: '#E8B923' }}>
+                    🏆 PLAYOFF
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    {playoffMatches.map((m: any) => {
+                      const us = m.team_a === params.teamId
+                      const opp = us ? m.team_b_data : m.team_a_data
+                      const gf = us ? m.goals_team_a : m.goals_team_b
+                      const ga = us ? m.goals_team_b : m.goals_team_a
+                      const done = ['Played', 'Forfeit'].includes(m.match_status)
+                      return (
+                        <Link key={m.match_id} href={`/match/${m.match_id}`}
+                          className="flex items-center gap-2.5 bg-turf rounded-lg px-3 py-2.5
+                            border border-chalk/[0.05] active:bg-[#1C1C22]">
+                          <span className="text-[9px] font-black text-lit uppercase tracking-wide
+                            w-[88px] shrink-0 leading-tight">{STAGE_LBL[m.stage]}</span>
+                          <Crest url={opp?.logo_url} name={opp?.name} size={24} />
+                          <span className="flex-1 text-[12.5px] font-bold text-chalk truncate">{opp?.name}</span>
+                          <span className="text-[13px] font-black tnum text-silver shrink-0">
+                            {done ? `${gf}–${ga}` : (m.match_date ? fmtDay(m.match_date) : '—')}
+                          </span>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )
         )}
