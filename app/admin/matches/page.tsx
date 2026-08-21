@@ -303,24 +303,36 @@ export default function AdminMatches() {
                   </div>
                 )}
 
-                {/* Γρήγορη δημιουργία προημιτελικών με τα ζευγάρια της βαθμολογίας */}
+                {/* Γρήγορη δημιουργία προημιτελικών (2 αγώνες ανά ζευγάρι, εναλλάξ έδρα) */}
                 {qfPairings(g.id).length > 0 && (
-                  <div className="px-2.5 pb-3 pt-2 border-t flex flex-col gap-1.5"
+                  <div className="px-2.5 pb-3 pt-2 border-t flex flex-col gap-2"
                     style={{ borderColor: 'rgba(232,185,35,0.18)' }}>
                     <span className="text-[8.5px] font-extrabold text-dim tracking-[0.1em] pl-0.5">
-                      ΓΡΗΓΟΡΗ ΔΗΜΙΟΥΡΓΙΑ · ΠΡΟΗΜΙΤΕΛΙΚΑ (θέσεις βαθμολογίας)
+                      ΓΡΗΓΟΡΗ ΔΗΜΙΟΥΡΓΙΑ · ΠΡΟΗΜΙΤΕΛΙΚΑ (διπλά, εναλλάξ έδρα)
                     </span>
                     {qfPairings(g.id).map((pr, i) => (
-                      <button key={i}
-                        onClick={() => openNew({ league_id: g.id, team_a: pr.home.team_id, team_b: pr.away.team_id, stage: 'QF' })}
-                        className="flex items-center gap-2 rounded-lg bg-chalk/[0.03] border border-chalk/[0.05]
-                          px-2.5 py-2 text-left active:bg-[#1C1C22]">
-                        <span className="text-[8.5px] font-black text-dim w-[42px] shrink-0">{pr.label}</span>
-                        <Crest url={pr.home.logo_url} name={pr.home.team_name} size={20} />
-                        <span className="flex-1 text-[11.5px] font-bold text-chalk truncate">
-                          {pr.home.team_name} – {pr.away.team_name}</span>
-                        <span className="text-[11px] font-black shrink-0" style={{ color: '#E8B923' }}>+ Ημ/νία ›</span>
-                      </button>
+                      <div key={i} className="rounded-lg bg-chalk/[0.03] border border-chalk/[0.05] px-2.5 py-2 flex flex-col gap-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[8.5px] font-black text-dim w-[42px] shrink-0">{pr.label}</span>
+                          <Crest url={pr.home.logo_url} name={pr.home.team_name} size={18} />
+                          <span className="flex-1 text-[11.5px] font-bold text-chalk truncate">
+                            {pr.home.team_name} – {pr.away.team_name}</span>
+                        </div>
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => openNew({ league_id: g.id, team_a: pr.home.team_id, team_b: pr.away.team_id, stage: 'QF' })}
+                            className="flex-1 rounded-md bg-chalk/[0.04] border border-chalk/[0.06] px-2 py-1.5 text-left active:bg-[#1C1C22]">
+                            <span className="text-[8.5px] text-off font-bold">Α΄ ΑΓΩΝΑΣ · ΕΔΡΑ</span>
+                            <span className="block text-[10.5px] font-extrabold text-chalk truncate">🏟 {pr.home.team_name}</span>
+                          </button>
+                          <button
+                            onClick={() => openNew({ league_id: g.id, team_a: pr.away.team_id, team_b: pr.home.team_id, stage: 'QF' })}
+                            className="flex-1 rounded-md bg-chalk/[0.04] border border-chalk/[0.06] px-2 py-1.5 text-left active:bg-[#1C1C22]">
+                            <span className="text-[8.5px] text-off font-bold">Β΄ ΑΓΩΝΑΣ · ΕΔΡΑ</span>
+                            <span className="block text-[10.5px] font-extrabold text-chalk truncate">🏟 {pr.away.team_name}</span>
+                          </button>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -446,6 +458,16 @@ function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose
           { value: 'Final',   label: 'Playoff · Τελικός' },
         ]} />
 
+      {stage === 'Final' && (
+        <p className="text-[9.5px] text-off -mt-1 pl-0.5">
+          🏟 Στον τελικό γηπεδούχος τυπικά η ομάδα που τερμάτισε ψηλότερα στην κανονική περίοδο.
+        </p>
+      )}
+      {(stage === 'QF' || stage === 'SF') && (
+        <p className="text-[9.5px] text-off -mt-1 pl-0.5">
+          🏟 Διπλός αγώνας — φτιάξε 2 ματς εναλλάσσοντας γηπεδούχο/φιλοξενούμενο.
+        </p>
+      )}
       <Select label="ΓΗΠΕΔΟΥΧΟΣ" value={teamA} onChange={setTeamA}
         options={leagueTeams.map(t => ({ value: t.team_id, label: t.name }))} />
       <Select label="ΦΙΛΟΞΕΝΟΥΜΕΝΟΣ" value={teamB} onChange={setTeamB}
