@@ -253,17 +253,18 @@ export default function AdminMatches() {
                 })}
               </div>
 
-              {/* PLAYOFF — κάτω-κάτω, clickable προς το bracket */}
-              {g.playoff.length > 0 && (
-                <div className="mt-2 bg-turf rounded-xl border overflow-hidden"
-                  style={{ borderColor: 'rgba(232,185,35,0.35)' }}>
-                  <Link href={`/standings?league=${g.id}&view=playoff`}
-                    className="w-full flex items-center gap-2 px-3.5 py-2.5 active:bg-chalk/[0.03]">
-                    <span className="text-[14px]">🏆</span>
-                    <span className="flex-1 text-left text-[12.5px] font-extrabold tracking-wide"
-                      style={{ color: '#E8B923' }}>PLAYOFF</span>
-                    <span className="text-[10px] text-dim font-bold">Δες bracket ›</span>
-                  </Link>
+              {/* PLAYOFF — κάτω-κάτω, πάντα clickable προς το bracket */}
+              <div className="mt-2 bg-turf rounded-xl border overflow-hidden"
+                style={{ borderColor: 'rgba(232,185,35,0.35)' }}>
+                <Link href={`/standings?league=${g.id}&view=playoff`}
+                  className="w-full flex items-center gap-2 px-3.5 py-2.5 active:bg-chalk/[0.03]">
+                  <span className="text-[14px]">🏆</span>
+                  <span className="flex-1 text-left text-[12.5px] font-extrabold tracking-wide"
+                    style={{ color: '#E8B923' }}>PLAYOFF</span>
+                  <span className="text-[10px] text-dim font-bold">
+                    {g.playoff.length > 0 ? 'Δες bracket ›' : 'Δες bracket (θέσεις) ›'}</span>
+                </Link>
+                {g.playoff.length > 0 && (
                   <div className="px-2.5 pb-3 pt-1 border-t flex flex-col gap-1.5"
                     style={{ borderColor: 'rgba(232,185,35,0.18)' }}>
                     {g.playoff.map((m: any) => {
@@ -283,8 +284,8 @@ export default function AdminMatches() {
                       )
                     })}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           ))}
         </div>
