@@ -69,33 +69,35 @@ export async function GET(req: Request, { params }: { params: { leagueId: string
   const fin  = mkTie(sTop.winner, sBot.winner, 'Final', 'Ημιτελικός 1', 'Ημιτελικός 2')
   const champ = fin.winner
 
-  const CW = 322            // πλάτος κάρτας
+  const CW = 430            // πλάτος κάρτας
   const rowH = 66
 
   const Row = ({ s, gold }: { s: Side; gold?: boolean }) => {
     if (s.ph) return (
       <div style={{ display: 'flex', alignItems: 'center', height: rowH, padding: '0 16px' }}>
-        <div style={{ display: 'flex', width: 28 }} />
+        <div style={{ display: 'flex', width: 26 }} />
         <div style={{ display: 'flex', fontSize: 24, color: C.dim }}>{s.ph}</div>
       </div>
     )
     const scores = s.scores?.length ? s.scores : [null]
     const acc = gold ? GOLD2 : C.lit
+    const nm = s.name ?? '—'
+    const nameFs = nm.length > 16 ? 21 : nm.length > 12 ? 24 : 27
     return (
       <div style={{ display: 'flex', alignItems: 'center', height: rowH, padding: '0 16px',
         background: s.win ? (gold ? 'rgba(232,185,35,0.15)' : 'rgba(245,120,46,0.16)') : 'transparent' }}>
-        <div style={{ display: 'flex', width: 28, justifyContent: 'center', fontSize: 20, fontWeight: 700, color: C.dim }}>
+        <div style={{ display: 'flex', width: 26, justifyContent: 'center', fontSize: 20, fontWeight: 700, color: C.dim }}>
           {s.seed ?? ''}
         </div>
         {s.logo
-          ? <img src={s.logo} width={38} height={38} style={{ width: 38, height: 38, objectFit: 'contain', margin: '0 12px' }} />
-          : <div style={{ display: 'flex', width: 38, height: 38, margin: '0 12px' }} />}
-        <div style={{ display: 'flex', flex: 1, minWidth: 0, fontSize: 28, fontWeight: 700,
-          color: s.win ? acc : C.chalk, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-          {s.name ?? '—'}</div>
+          ? <img src={s.logo} width={34} height={34} style={{ width: 34, height: 34, objectFit: 'contain', margin: '0 10px' }} />
+          : <div style={{ display: 'flex', width: 34, height: 34, margin: '0 10px' }} />}
+        <div style={{ display: 'flex', flex: 1, minWidth: 0, fontSize: nameFs, fontWeight: 700,
+          lineHeight: 1.05, color: s.win ? acc : C.chalk }}>
+          {nm}</div>
         <div style={{ display: 'flex', flexShrink: 0, marginLeft: 8 }}>
           {scores.map((v, i) => (
-            <div key={i} style={{ display: 'flex', width: 40, justifyContent: 'center', fontSize: 28, fontWeight: 700,
+            <div key={i} style={{ display: 'flex', width: 36, justifyContent: 'center', fontSize: 28, fontWeight: 700,
               color: s.win ? acc : C.silver, borderLeft: i > 0 ? `1px solid ${C.line}` : 'none' }}>
               {v ?? '–'}
             </div>
