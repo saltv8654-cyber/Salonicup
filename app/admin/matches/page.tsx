@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Crest, Loading, Empty, FieldBadge } from '@/app/ui'
 import { Modal, Field, Select, SaveBtn } from '../ui'
@@ -20,6 +21,9 @@ const STATUS_DOT: Record<string, string> = {
   Postponed: '#c9a227', Forfeit: '#8a6d1f',
 }
 
+const STAGE_LBL: Record<string, string> = { QF: 'Προημ.', SF: 'Ημιτελ.', Final: 'Τελικός' }
+const STAGE_RANK: Record<string, number> = { QF: 0, SF: 1, Final: 2 }
+
 /** Ζευγάρωμα αγώνων ανά αντίπαλο: Α΄ γύρος (πρώτη συνάντηση) | Β΄ γύρος (δεύτερη). */
 function buildFixtureRows(teamId: string, matches: any[]) {
   const oppMap = new Map<string, { oppName: string; oppLogo: string | null; legs: any[] }>()
@@ -32,7 +36,7 @@ function buildFixtureRows(teamId: string, matches: any[]) {
   return [...oppMap.values()]
     .map(r => {
       const legs = r.legs.slice().sort((a, b) => (a.round ?? 0) - (b.round ?? 0))
-      return { ...r, leg1: legs[0] ?? null, leg2: legs[1] ?? null, firstRound: legs[0]?.round ?? 999 }
+      return { ...r, leg1: legs[0] ?? null, leg2: legs[1] ?? null, legsN: legs.length, firstRound: legs[0]?.round ?? 999 }
     })
     .sort((a, b) => a.firstRound - b.firstRound)
 }
@@ -160,6 +164,10 @@ export default function AdminMatches() {
       teams: [...leagueMap.get(id)!.entries()]
         .map(([team_id, v]) => ({ team_id, ...v }))
         .sort((a, b) => a.name.localeCompare(b.name, 'el')),
+      // Playoff αγώνες (QF/SF/Final) — κάτω-κάτω ανά πρωτάθλημα
+      playoff: filtered.filter((m: any) => m.league_id === id && m.stage && STAGE_RANK[m.stage] != null)
+        .sort((a: any, b: any) => (STAGE_RANK[a.stage] - STAGE_RANK[b.stage]) ||
+          (a.match_date ?? '').localeCompare(b.match_date ?? '')),
     }))
 
   return (
@@ -197,7 +205,8 @@ export default function AdminMatches() {
                 {g.teams.map(team => {
                   const key = `${g.id}:${team.team_id}`
                   const openT = expanded.has(key)
-                  const fixtures = buildFixtureRows(team.team_id, team.matches)
+                  const fixtures = buildFixtureRows(team.team_id, team.matches.filter((m: any) => !m.stage))
+                  const hasDup = fixtures.some(r => r.legsN > 2)
                   return (
                     <div key={key} className="bg-turf rounded-xl border border-chalk/[0.05] overflow-hidden">
                       {/* Κεφαλίδα ομάδας — μαζεμένη */}
@@ -207,6 +216,7 @@ export default function AdminMatches() {
                         <span className="flex-1 text-left text-[13.5px] font-extrabold text-chalk truncate">
                           {team.name}
                         </span>
+                        {hasDup && <span className="text-[9px] font-black text-[#e0563c] bg-[#e0563c]/15 px-1.5 py-0.5 rounded-full">⚠ ΔΙΠΛΟ</span>}
                         <span className="text-[10px] text-dim font-bold tnum">{team.matches.length}</span>
                         <span className="text-dim text-[11px]">{openT ? '▾' : '▸'}</span>
                       </button>
@@ -242,6 +252,39 @@ export default function AdminMatches() {
                   )
                 })}
               </div>
+
+              {/* PLAYOFF — κάτω-κάτω, clickable προς το bracket */}
+              {g.playoff.length > 0 && (
+                <div className="mt-2 bg-turf rounded-xl border overflow-hidden"
+                  style={{ borderColor: 'rgba(232,185,35,0.35)' }}>
+                  <Link href={`/standings?league=${g.id}&view=playoff`}
+                    className="w-full flex items-center gap-2 px-3.5 py-2.5 active:bg-chalk/[0.03]">
+                    <span className="text-[14px]">🏆</span>
+                    <span className="flex-1 text-left text-[12.5px] font-extrabold tracking-wide"
+                      style={{ color: '#E8B923' }}>PLAYOFF</span>
+                    <span className="text-[10px] text-dim font-bold">Δες bracket ›</span>
+                  </Link>
+                  <div className="px-2.5 pb-3 pt-1 border-t flex flex-col gap-1.5"
+                    style={{ borderColor: 'rgba(232,185,35,0.18)' }}>
+                    {g.playoff.map((m: any) => {
+                      const done = ['Played', 'Forfeit'].includes(m.match_status)
+                      return (
+                        <button key={m.match_id} onClick={() => { setEdit(m); setOpen(true) }}
+                          className="flex items-center gap-2 rounded-lg bg-chalk/[0.03] border border-chalk/[0.05]
+                            px-2.5 py-2 text-left active:bg-[#1C1C22]">
+                          <span className="text-[8.5px] font-black text-lit uppercase w-[62px] shrink-0">{STAGE_LBL[m.stage]}</span>
+                          <Crest url={m.team_a_data?.logo_url} name={m.team_a_data?.name} size={20} />
+                          <span className="flex-1 text-[11.5px] font-bold text-chalk truncate">
+                            {m.team_a_data?.name} – {m.team_b_data?.name}</span>
+                          <span className="text-[12px] font-black tnum shrink-0 text-silver">
+                            {done ? `${m.goals_team_a}-${m.goals_team_b}`
+                              : (m.match_date ? fmtDay(m.match_date) : '—')}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
