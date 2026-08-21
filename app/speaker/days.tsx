@@ -99,20 +99,29 @@ export default function SpeakerDays({ matches, isAdmin }: {
   )
 }
 
+const STAGE_LBL: Record<string, string> = { QF: 'Προημιτελικά', SF: 'Ημιτελικά', Final: 'Τελικός' }
+
 function Row({ m }: { m: any }) {
   const live = m.match_status === 'Live'
   const done = ['Played', 'Forfeit'].includes(m.match_status)
   const postponed = m.match_status === 'Postponed'
   const statusLabel = postponed ? 'ΑΝΑΒΛΗΘΗΚΕ' : done ? 'ΤΕΛΙΚΟ' : fmtDateTime(m.match_date)
   const place = [m.venue?.name, m.field].filter(Boolean).join(' · ')
+  const isPlayoff = !!m.stage && !!STAGE_LBL[m.stage]
 
   return (
     <Link href={`/speaker/${m.match_id}`}
       className={`block bg-turf rounded-xl px-3.5 py-3 border active:bg-[#1C1C22]
-        ${live ? 'border-live/35' : 'border-chalk/[0.05]'}`}>
+        ${live ? 'border-live/35' : isPlayoff ? 'border-[#E8B923]/35' : 'border-chalk/[0.05]'}`}>
       <div className="flex items-center justify-between mb-2.5">
-        <span className="text-[9.5px] text-dim font-bold">
-          {m.league?.name}{m.round != null ? ` · Αγ. ${m.round}` : ''}
+        <span className="text-[9.5px] text-dim font-bold flex items-center gap-1.5">
+          {isPlayoff && (
+            <span className="text-[8.5px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full"
+              style={{ color: '#E8B923', background: 'rgba(232,185,35,0.14)' }}>
+              🏆 PLAYOFF
+            </span>
+          )}
+          {m.league?.name}{isPlayoff ? ` · ${STAGE_LBL[m.stage]}` : m.round != null ? ` · Αγ. ${m.round}` : ''}
         </span>
         {live ? (
           <span className="flex items-center gap-1.5">
