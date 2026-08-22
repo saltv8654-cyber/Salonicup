@@ -154,32 +154,45 @@ export default function AdminPost() {
     })
   }, [league])
 
-  // Επιλογές «Ανά αγωνιστική»: κανονικές αγωνιστικές + playoff φάσεις που υπάρχουν
+  // Επιλογές «Ανά αγωνιστική»: κανονικές αγωνιστικές + playoff φάσεις (ανά σκέλος)
+  const STAGE_NAME: Record<string, string> = { QF: 'Quarter finals', SF: 'Semi finals', Final: 'Final' }
   const roundOptions = useMemo(() => {
     const nums = [...new Set(matches.filter(m => !m.stage).map(m => m.round))]
       .sort((a, b) => a - b)
       .map(r => ({ value: String(r), label: `Αγωνιστική ${r}` }))
-    const stages = ['QF', 'SF', 'Final'].filter(s => matches.some(m => m.stage === s))
-    const stageLbl: Record<string, string> = {
-      QF: '🏆 Playoff · Quarter finals', SF: '🏆 Playoff · Semi finals', Final: '🏆 Playoff · Final',
+    const out: { value: string; label: string }[] = [...nums]
+    for (const s of ['QF', 'SF'] as const) {
+      if (!matches.some(m => m.stage === s)) continue
+      out.push({ value: `${s}:1`, label: `🏆 Playoff · ${STAGE_NAME[s]} · 1ο ματς` })
+      out.push({ value: `${s}:2`, label: `🏆 Playoff · ${STAGE_NAME[s]} · 2ο ματς` })
     }
-    return [...nums, ...stages.map(s => ({ value: s, label: stageLbl[s] }))]
+    if (matches.some(m => m.stage === 'Final')) {
+      out.push({ value: 'Final', label: '🏆 Playoff · Final' })
+    }
+    return out
   }, [matches])
-  const isStageRound = (r: string) => r === 'QF' || r === 'SF' || r === 'Final'
+  const parseStageRound = (r: string): { stage: string; leg?: number } | null => {
+    const [stage, leg] = (r || '').split(':')
+    if (stage === 'QF' || stage === 'SF' || stage === 'Final') return { stage, leg: leg ? Number(leg) : undefined }
+    return null
+  }
   const leagueObj = leagues.find(l => l.league_id === league)
 
   function buildGroups(kind: 'schedule' | 'results'): DayGroup[] {
     const wanted = kind === 'schedule'
       ? ['Scheduled', 'Live']
       : ['Played', 'Forfeit']
+    const legMap = buildLegMap(matches)
+    const sr = parseStageRound(round)
     const list = matches
       .filter(m => wanted.includes(m.match_status) && (scope === 'day'
         ? (m.match_date && athensDateKey(m.match_date) === day)
-        : isStageRound(round) ? m.stage === round : (!m.stage && String(m.round) === round)))
+        : sr
+          ? (m.stage === sr.stage && (sr.leg ? legMap.get(m.match_id) === sr.leg : true))
+          : (!m.stage && String(m.round) === round)))
       .sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
       .slice(0, 6)
 
-    const legMap = buildLegMap(matches)
     const byDay = new Map<string, MatchRow[]>()
     for (const m of list) {
       const d = m.match_date ? new Date(m.match_date) : null
@@ -305,13 +318,14 @@ export default function AdminPost() {
         }
       }
 
-      const stageTitle: Record<string, string> = { QF: 'Playoff · Quarter Finals', SF: 'Playoff · Semi Finals', Final: 'Playoff · Final' }
+      const srTitle = parseStageRound(round)
+      const stageTitleName: Record<string, string> = { QF: 'Quarter Finals', SF: 'Semi Finals', Final: 'Final' }
       const sub = type === 'standings' || type === 'versus'
         ? season
         : scope === 'day'
         ? `${dayLabel} · ${season}`.trim()
-        : isStageRound(round)
-        ? `${stageTitle[round]} · ${season}`
+        : srTitle
+        ? `Playoff · ${stageTitleName[srTitle.stage]}${srTitle.leg ? ` · ${srTitle.leg}ο ματς` : ''} · ${season}`
         : `Αγωνιστική ${round} · ${season}`
 
       const data: PostData = {
