@@ -477,23 +477,25 @@ function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEl
       roundRect(ctx, PAD, y, cardW, cardH, 18)
       ctx.stroke()
 
-      const cy = y + cardH / 2
+      const showTag = !!m.tag && cardH >= 78
+      // Όταν υπάρχει σήμα playoff, κατεβάζουμε λίγο το περιεχόμενο ώστε να μη «κάθεται» πάνω στην ώρα
+      const cy = y + cardH / 2 + (showTag ? 14 : 0)
       // Χρυσό σήμα playoff (πάνω-κέντρο της κάρτας)
-      if (m.tag && cardH >= 84) {
-        ctx.font = font(700, 22)
+      if (showTag) {
+        ctx.font = font(700, 21)
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        const tw = ctx.measureText(m.tag).width
-        const pw = tw + 30, ph = 30, px = S / 2 - pw / 2, py = y + 8
+        const tw = ctx.measureText(m.tag!).width
+        const pw = tw + 28, ph = 28, px = S / 2 - pw / 2, py = y + 7
         ctx.fillStyle = 'rgba(232,185,35,0.18)'
-        roundRect(ctx, px, py, pw, ph, 15)
+        roundRect(ctx, px, py, pw, ph, 14)
         ctx.fill()
         ctx.strokeStyle = 'rgba(232,185,35,0.55)'
         ctx.lineWidth = 1.5
-        roundRect(ctx, px, py, pw, ph, 15)
+        roundRect(ctx, px, py, pw, ph, 14)
         ctx.stroke()
         ctx.fillStyle = '#E8B923'
-        ctx.fillText(m.tag, S / 2, py + ph / 2 + 1)
+        ctx.fillText(m.tag!, S / 2, py + ph / 2 + 1)
       }
       // Σήμα πρωταθλήματος (μόνο σε εβδομαδιαίο με πολλά πρωταθλήματα)
       const lead = m.leagueLogo ? 48 : 0

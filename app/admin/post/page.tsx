@@ -154,10 +154,18 @@ export default function AdminPost() {
     })
   }, [league])
 
-  const rounds = useMemo(
-    () => [...new Set(matches.map(m => m.round))].sort((a, b) => a - b),
-    [matches]
-  )
+  // Επιλογές «Ανά αγωνιστική»: κανονικές αγωνιστικές + playoff φάσεις που υπάρχουν
+  const roundOptions = useMemo(() => {
+    const nums = [...new Set(matches.filter(m => !m.stage).map(m => m.round))]
+      .sort((a, b) => a - b)
+      .map(r => ({ value: String(r), label: `Αγωνιστική ${r}` }))
+    const stages = ['QF', 'SF', 'Final'].filter(s => matches.some(m => m.stage === s))
+    const stageLbl: Record<string, string> = {
+      QF: '🏆 Playoff · Quarter finals', SF: '🏆 Playoff · Semi finals', Final: '🏆 Playoff · Final',
+    }
+    return [...nums, ...stages.map(s => ({ value: s, label: stageLbl[s] }))]
+  }, [matches])
+  const isStageRound = (r: string) => r === 'QF' || r === 'SF' || r === 'Final'
   const leagueObj = leagues.find(l => l.league_id === league)
 
   function buildGroups(kind: 'schedule' | 'results'): DayGroup[] {
@@ -167,7 +175,7 @@ export default function AdminPost() {
     const list = matches
       .filter(m => wanted.includes(m.match_status) && (scope === 'day'
         ? (m.match_date && athensDateKey(m.match_date) === day)
-        : String(m.round) === round))
+        : isStageRound(round) ? m.stage === round : (!m.stage && String(m.round) === round)))
       .sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
       .slice(0, 6)
 
@@ -297,10 +305,13 @@ export default function AdminPost() {
         }
       }
 
+      const stageTitle: Record<string, string> = { QF: 'Playoff · Quarter Finals', SF: 'Playoff · Semi Finals', Final: 'Playoff · Final' }
       const sub = type === 'standings' || type === 'versus'
         ? season
         : scope === 'day'
         ? `${dayLabel} · ${season}`.trim()
+        : isStageRound(round)
+        ? `${stageTitle[round]} · ${season}`
         : `Αγωνιστική ${round} · ${season}`
 
       const data: PostData = {
@@ -419,8 +430,8 @@ export default function AdminPost() {
             </div>
 
             {scope === 'round' ? (
-              <Select label="ΑΓΩΝΙΣΤΙΚΗ" value={round} onChange={setRound}
-                options={rounds.map(r => ({ value: String(r), label: `Αγωνιστική ${r}` }))} />
+              <Select label="ΑΓΩΝΙΣΤΙΚΗ / ΦΑΣΗ" value={round} onChange={setRound}
+                options={roundOptions} />
             ) : (
               <div>
                 <label className="block text-[8.5px] font-extrabold text-dim
