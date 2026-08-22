@@ -290,9 +290,14 @@ function LegCell({ m, teamId }: { m: any; teamId: string }) {
         Αγ.{m.round}
       </div>
       {live || done ? (
-        <div className={`text-[16px] font-extrabold tnum leading-none ${resColor}`}>
-          {gf}<span className="text-dim mx-0.5">-</span>{ga}
-        </div>
+        <>
+          <div className={`text-[16px] font-extrabold tnum leading-none ${resColor}`}>
+            {gf}<span className="text-dim mx-0.5">-</span>{ga}
+          </div>
+          {m.match_date && (
+            <div className="text-[8.5px] text-off tnum mt-0.5">{fmtDay(m.match_date)}</div>
+          )}
+        </>
       ) : m.match_date ? (
         <div className="leading-tight">
           <div className="text-[10.5px] font-bold text-silver">{fmtDay(m.match_date)}</div>
