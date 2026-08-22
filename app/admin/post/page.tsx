@@ -17,6 +17,35 @@ const TYPES: { id: PostType; label: string }[] = [
 
 const DAY_FMT: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'numeric' }
 
+const STAGE_SHORT: Record<string, string> = { QF: 'ΠΡΟΗΜ.', SF: 'ΗΜΙΤΕΛ.', Final: 'ΤΕΛΙΚΟΣ' }
+
+/** Χάρτης match_id → αριθμός σκέλους (1/2) για διπλά playoff (QF/SF). */
+function buildLegMap(list: any[]) {
+  const groups = new Map<string, any[]>()
+  for (const m of list) {
+    if (!m.stage || m.stage === 'Final') continue
+    const pair = [m.team_a, m.team_b].slice().sort().join('-')
+    const k = `${m.league_id}:${m.stage}:${pair}`
+    if (!groups.has(k)) groups.set(k, [])
+    groups.get(k)!.push(m)
+  }
+  const out = new Map<string, number>()
+  for (const arr of groups.values()) {
+    arr.sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
+    arr.forEach((m, i) => out.set(m.match_id, i + 1))
+  }
+  return out
+}
+
+/** Χρυσό σήμα playoff για μια κάρτα αγώνα, ή undefined αν είναι κανονικός. */
+function playoffTag(m: any, legMap: Map<string, number>): string | undefined {
+  const s = STAGE_SHORT[m.stage as string]
+  if (!s) return undefined
+  const leg = legMap.get(m.match_id)
+  const legLbl = m.stage === 'Final' ? '' : leg === 2 ? ' Β΄' : ' Α΄'
+  return `PLAYOFF · ${s}${legLbl}`
+}
+
 /** Οι 7 ημέρες (Δευτ→Κυρ) της εβδομάδας που περιέχει το dateKey, ως {key, label}. */
 function weekDays(dateKey: string): { key: string; label: string }[] {
   const base = new Date(`${dateKey}T12:00:00Z`)
@@ -142,6 +171,7 @@ export default function AdminPost() {
       .sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
       .slice(0, 6)
 
+    const legMap = buildLegMap(matches)
     const byDay = new Map<string, MatchRow[]>()
     for (const m of list) {
       const d = m.match_date ? new Date(m.match_date) : null
@@ -152,6 +182,8 @@ export default function AdminPost() {
         awayName: m.team_b_data?.name ?? '—',
         awayLogo: m.team_b_data?.logo_url ?? null,
       }
+      const tag = playoffTag(m, legMap)
+      if (tag) row.tag = tag
       if (m.field) row.field = m.field
       if (kind === 'results') {
         row.score = `${m.goals_team_a ?? 0}-${m.goals_team_b ?? 0}`
@@ -186,6 +218,7 @@ export default function AdminPost() {
           .select('*, team_a_data:team_a(name,logo_url), team_b_data:team_b(name,logo_url), league:league_id(name,logo_url)')
           .in('league_id', selIds)
           .not('match_date', 'is', null)
+        const wLegMap = buildLegMap(wm ?? [])
         const byKey = new Map<string, any[]>()
         for (const m of wm ?? []) {
           const k = athensDateKey(m.match_date)
@@ -206,6 +239,8 @@ export default function AdminPost() {
               if (weekMode === 'results') row.score = `${m.goals_team_a ?? 0}-${m.goals_team_b ?? 0}`
               else row.time = fmtTime(m.match_date)
               if (m.field) row.field = m.field
+              const wtag = playoffTag(m, wLegMap)
+              if (wtag) row.tag = wtag
               if (multi) { row.leagueName = m.league?.name; row.leagueLogo = m.league?.logo_url ?? null }
               return row
             }),

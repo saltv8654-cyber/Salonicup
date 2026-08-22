@@ -38,6 +38,7 @@ export interface MatchRow {
   awayName: string; awayLogo: string | null
   time?: string; score?: string; field?: string
   leagueName?: string; leagueLogo?: string | null
+  tag?: string   // π.χ. "PLAYOFF · ΠΡΟΗΜ. Α΄" — χρυσό σήμα playoff
 }
 export interface StandRow {
   position: number; name: string; logo: string | null
@@ -477,6 +478,23 @@ function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEl
       ctx.stroke()
 
       const cy = y + cardH / 2
+      // Χρυσό σήμα playoff (πάνω-κέντρο της κάρτας)
+      if (m.tag && cardH >= 84) {
+        ctx.font = font(700, 22)
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        const tw = ctx.measureText(m.tag).width
+        const pw = tw + 30, ph = 30, px = S / 2 - pw / 2, py = y + 8
+        ctx.fillStyle = 'rgba(232,185,35,0.18)'
+        roundRect(ctx, px, py, pw, ph, 15)
+        ctx.fill()
+        ctx.strokeStyle = 'rgba(232,185,35,0.55)'
+        ctx.lineWidth = 1.5
+        roundRect(ctx, px, py, pw, ph, 15)
+        ctx.stroke()
+        ctx.fillStyle = '#E8B923'
+        ctx.fillText(m.tag, S / 2, py + ph / 2 + 1)
+      }
       // Σήμα πρωταθλήματος (μόνο σε εβδομαδιαίο με πολλά πρωταθλήματα)
       const lead = m.leagueLogo ? 48 : 0
       if (m.leagueLogo) crest(ctx, L(m.leagueLogo), m.leagueName ?? '', PAD + 26, cy, 34)
