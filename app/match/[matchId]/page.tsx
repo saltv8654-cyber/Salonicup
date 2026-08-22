@@ -15,6 +15,8 @@ import { ytEmbed } from '@/lib/youtube'
 import toast from 'react-hot-toast'
 import type { Period } from '@/lib/types'
 
+const STAGE_LBL: Record<string, string> = { QF: 'Προημιτελικά', SF: 'Ημιτελικά', Final: 'Τελικός' }
+
 export default function PublicMatch() {
   const { matchId } = useParams()
   const router = useRouter()
@@ -48,6 +50,19 @@ export default function PublicMatch() {
       .order('match_date', { ascending: false })
       .then(({ data }) => setH2h((data ?? []).filter(m => m.match_id !== match?.match_id)))
   }, [a, b, match?.match_id])
+
+  // Playoff διπλός αγώνας: φέρνουμε και το άλλο σκέλος του ζευγαριού (ίδια φάση/ομάδες)
+  const [tieLegs, setTieLegs] = useState<any[]>([])
+  const stg = match?.stage
+  useEffect(() => {
+    if (!stg || stg === 'Final' || !a || !b) { setTieLegs([]); return }
+    supabase.from('matches')
+      .select('match_id, match_date, goals_team_a, goals_team_b, team_a, team_b, match_status, stage')
+      .eq('stage', stg)
+      .or(`and(team_a.eq.${a},team_b.eq.${b}),and(team_a.eq.${b},team_b.eq.${a})`)
+      .order('match_date', { ascending: true, nullsFirst: true })
+      .then(({ data }) => setTieLegs((data ?? []).length > 1 ? (data ?? []) : []))
+  }, [stg, a, b, match?.match_id])
 
   if (loading) return <Loading />
   if (!match) return <div className="min-h-screen bg-pitch" />
@@ -89,6 +104,18 @@ export default function PublicMatch() {
   const nameOf = (id: string) =>
     id === match.team_a ? match.team_a_data?.name : match.team_b_data?.name
 
+  // Playoff διπλός αγώνας — σκέλη, τρέχον σκέλος, συνολικό σκορ (από σκοπιά current)
+  const tie = tieLegs.length > 1 ? tieLegs : null
+  const legIdx = tie ? Math.max(0, tie.findIndex(l => l.match_id === match.match_id)) : 0
+  let aggA = 0, aggB = 0
+  if (tie) {
+    for (const l of tie) {
+      if (!['Played', 'Forfeit'].includes(l.match_status)) continue
+      aggA += l.team_a === match.team_a ? l.goals_team_a : l.goals_team_b
+      aggB += l.team_a === match.team_a ? l.goals_team_b : l.goals_team_a
+    }
+  }
+
   async function share() {
     const url = typeof window !== 'undefined' ? window.location.href : ''
     const score = (live || done) ? ` ${match.goals_team_a}-${match.goals_team_b} ` : ' – '
@@ -115,8 +142,17 @@ export default function PublicMatch() {
                 text-silver text-base">
               ‹
             </button>
-            <span className="text-[9.5px] text-dim font-bold">
-              {match.league?.name} · Αγ. {match.round}
+            <span className="text-[9.5px] text-dim font-bold flex items-center gap-1.5">
+              {stg && STAGE_LBL[stg] ? (
+                <>
+                  <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full"
+                    style={{ color: '#E8B923', background: 'rgba(232,185,35,0.14)' }}>🏆 PLAYOFF</span>
+                  {match.league?.name} · {STAGE_LBL[stg]}
+                  {tie && ` · ${legIdx === 0 ? 'Α΄' : 'Β΄'} αγώνας`}
+                </>
+              ) : (
+                <>{match.league?.name} · Αγ. {match.round}</>
+              )}
             </span>
             <button onClick={share} aria-label="Κοινοποίηση"
               className="w-[30px] h-[30px] rounded-lg bg-chalk/[0.06] grid place-items-center
@@ -192,6 +228,52 @@ export default function PublicMatch() {
           )}
         </div>
       </div>
+
+      {/* Playoff διπλός αγώνας — σκέλη & συνολικό σκορ */}
+      {tie && (
+        <div className="px-3.5 pt-3.5">
+          <div className="bg-turf rounded-xl border overflow-hidden"
+            style={{ borderColor: 'rgba(232,185,35,0.3)' }}>
+            <div className="flex items-center justify-between px-3.5 py-2"
+              style={{ background: 'rgba(232,185,35,0.08)' }}>
+              <span className="text-[10px] font-black tracking-wide" style={{ color: '#E8B923' }}>
+                🏆 {stg && STAGE_LBL[stg]} · Διπλός αγώνας
+              </span>
+              <span className="text-[9px] text-dim font-bold">περνά η καλύτερη συνολική διαφορά</span>
+            </div>
+            <div className="px-3.5 py-3 flex flex-col gap-2">
+              {tie.map((l, i) => {
+                const isCur = l.match_id === match.match_id
+                const dn = ['Played', 'Forfeit'].includes(l.match_status)
+                const ga = l.team_a === match.team_a ? l.goals_team_a : l.goals_team_b
+                const gb = l.team_a === match.team_a ? l.goals_team_b : l.goals_team_a
+                return (
+                  <div key={l.match_id} className="flex items-center gap-2 text-[12px]">
+                    <span className="w-[64px] shrink-0 text-[9px] font-black text-dim tracking-wide">
+                      {i === 0 ? 'Α΄ ΑΓΩΝΑΣ' : 'Β΄ ΑΓΩΝΑΣ'}
+                    </span>
+                    <span className={`flex-1 truncate ${isCur ? 'text-lit font-bold' : 'text-silver'}`}>
+                      {isCur ? '● Αυτός ο αγώνας' : (l.match_date ? fmtDay(l.match_date) : '—')}
+                    </span>
+                    <span className="font-extrabold tnum text-chalk shrink-0">
+                      {dn ? `${ga}-${gb}` : 'εκκρεμεί'}
+                    </span>
+                  </div>
+                )
+              })}
+              <div className="flex items-center justify-between border-t pt-2 mt-0.5"
+                style={{ borderColor: 'rgba(232,185,35,0.18)' }}>
+                <span className="text-[10px] font-black text-lit tracking-wide">ΣΥΝΟΛΙΚΟ</span>
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="text-[11px] text-silver truncate max-w-[86px] text-right">{match.team_a_data?.name}</span>
+                  <span className="text-[16px] font-extrabold tnum shrink-0" style={{ color: '#E8B923' }}>{aggA}-{aggB}</span>
+                  <span className="text-[11px] text-silver truncate max-w-[86px]">{match.team_b_data?.name}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Ζωντανή ροή YouTube */}
       {match.stream_url && (

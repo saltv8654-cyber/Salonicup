@@ -30,6 +30,25 @@ export default function SpeakerDays({ matches, isAdmin }: {
     return { byDay: map, undated: und }
   }, [matches])
 
+  // Αριθμός σκέλους (1ο/2ο) για διπλά playoff (QF/SF), ανά ζευγάρι+φάση+πρωτάθλημα
+  const legNoById = useMemo(() => {
+    const groups = new Map<string, any[]>()
+    for (const m of matches) {
+      if (!m.stage || m.stage === 'Final') continue
+      const pair = [m.team_a, m.team_b].slice().sort().join('-')
+      const k = `${m.league_id}:${m.stage}:${pair}`
+      if (!groups.has(k)) groups.set(k, [])
+      groups.get(k)!.push(m)
+    }
+    const out = new Map<string, number>()
+    for (const arr of groups.values()) {
+      if (arr.length < 2) continue
+      arr.sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
+      arr.forEach((m, i) => out.set(m.match_id, i + 1))
+    }
+    return out
+  }, [matches])
+
   // Το «Σήμερα» υπάρχει πάντα στη ροδέλα
   if (!byDay.has(todayKey)) byDay.set(todayKey, [])
   const days = [...byDay.keys()].sort()
@@ -86,7 +105,7 @@ export default function SpeakerDays({ matches, isAdmin }: {
       <div className="px-3.5 pt-4">
         {list.length ? (
           <div className="flex flex-col gap-1.5">
-            {list.map(m => <Row key={m.match_id} m={m} />)}
+            {list.map(m => <Row key={m.match_id} m={m} leg={legNoById.get(m.match_id)} />)}
           </div>
         ) : (
           <Empty>
@@ -101,13 +120,14 @@ export default function SpeakerDays({ matches, isAdmin }: {
 
 const STAGE_LBL: Record<string, string> = { QF: 'Προημιτελικά', SF: 'Ημιτελικά', Final: 'Τελικός' }
 
-function Row({ m }: { m: any }) {
+function Row({ m, leg }: { m: any; leg?: number }) {
   const live = m.match_status === 'Live'
   const done = ['Played', 'Forfeit'].includes(m.match_status)
   const postponed = m.match_status === 'Postponed'
   const statusLabel = postponed ? 'ΑΝΑΒΛΗΘΗΚΕ' : done ? 'ΤΕΛΙΚΟ' : fmtDateTime(m.match_date)
   const place = [m.venue?.name, m.field].filter(Boolean).join(' · ')
   const isPlayoff = !!m.stage && !!STAGE_LBL[m.stage]
+  const legLbl = leg ? (leg === 1 ? 'Α΄ αγώνας' : leg === 2 ? 'Β΄ αγώνας' : `${leg}ο σκέλος`) : ''
 
   return (
     <Link href={`/speaker/${m.match_id}`}
@@ -121,7 +141,7 @@ function Row({ m }: { m: any }) {
               🏆 PLAYOFF
             </span>
           )}
-          {m.league?.name}{isPlayoff ? ` · ${STAGE_LBL[m.stage]}` : m.round != null ? ` · Αγ. ${m.round}` : ''}
+          {m.league?.name}{isPlayoff ? ` · ${STAGE_LBL[m.stage]}${legLbl ? ` · ${legLbl}` : ''}` : m.round != null ? ` · Αγ. ${m.round}` : ''}
         </span>
         {live ? (
           <span className="flex items-center gap-1.5">

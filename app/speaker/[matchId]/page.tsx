@@ -15,6 +15,7 @@ import { FORMATIONS, validFormation, normalizeLine } from '@/lib/formations'
 import LineupPitch, { shortName } from '@/app/lineup-pitch'
 import ReportSheet from './report'
 import { notifyPush } from '@/lib/push'
+import { fmtDay } from '@/lib/time'
 import toast from 'react-hot-toast'
 import type { Period, EventType, Player } from '@/lib/types'
 import {
@@ -27,6 +28,8 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 
 type Side = 'a' | 'b'
+
+const STAGE_LBL: Record<string, string> = { QF: 'Προημιτελικά', SF: 'Ημιτελικά', Final: 'Τελικός' }
 
 /** URL για το OBS overlay, με τους χορηγούς (από localStorage) ως παράμετρο. */
 function overlayUrl(matchId: string, preview: boolean) {
@@ -204,6 +207,20 @@ export default function SpeakerPanel() {
     })
   }, [match?.match_id])
 
+  // Playoff διπλός αγώνας — το άλλο σκέλος (ίδια φάση/ομάδες)
+  const [tieLegs, setTieLegs] = useState<any[]>([])
+  const stg = match?.stage
+  const ta = match?.team_a, tb = match?.team_b
+  useEffect(() => {
+    if (!stg || stg === 'Final' || !ta || !tb) { setTieLegs([]); return }
+    supabase.from('matches')
+      .select('match_id, match_date, goals_team_a, goals_team_b, team_a, team_b, match_status, stage')
+      .eq('stage', stg)
+      .or(`and(team_a.eq.${ta},team_b.eq.${tb}),and(team_a.eq.${tb},team_b.eq.${ta})`)
+      .order('match_date', { ascending: true, nullsFirst: true })
+      .then(({ data }) => setTieLegs((data ?? []).length > 1 ? (data ?? []) : []))
+  }, [stg, ta, tb, match?.match_id])
+
   const score = useMemo(() => ({
     a: match?.goals_team_a ?? 0,
     b: match?.goals_team_b ?? 0,
@@ -221,6 +238,18 @@ export default function SpeakerPanel() {
   const activeA = rosterA.filter(p => inA.has(p.player_id))
   const activeB = rosterB.filter(p => inB.has(p.player_id))
   const done    = ['Played', 'Forfeit'].includes(match.match_status)
+
+  // Playoff διπλός: τρέχον σκέλος + συνολικό σκορ (σκοπιά current)
+  const tie = tieLegs.length > 1 ? tieLegs : null
+  const legIdx = tie ? Math.max(0, tie.findIndex(l => l.match_id === match.match_id)) : 0
+  let aggA = 0, aggB = 0
+  if (tie) {
+    for (const l of tie) {
+      if (!['Played', 'Forfeit'].includes(l.match_status)) continue
+      aggA += l.team_a === match.team_a ? l.goals_team_a : l.goals_team_b
+      aggB += l.team_a === match.team_a ? l.goals_team_b : l.goals_team_a
+    }
+  }
 
   // Γήπεδο (ζωντανά): θέσεις από τη διάταξη + πάγκος
   const byIdA: Record<string, Player> = Object.fromEntries(rosterA.map(p => [p.player_id, p]))
@@ -419,8 +448,10 @@ export default function SpeakerPanel() {
             <button onClick={() => router.push('/speaker')}
               className="w-[30px] h-[30px] rounded-lg bg-chalk/[0.06] grid place-items-center
                 text-silver text-base">‹</button>
-            <span className="text-[9.5px] text-dim font-bold">
-              {match.league?.name} · Αγ. {match.round}
+            <span className="text-[9.5px] text-dim font-bold text-center leading-tight">
+              {stg && STAGE_LBL[stg]
+                ? <>🏆 {match.league?.name} · {STAGE_LBL[stg]}{tie ? ` · ${legIdx === 0 ? 'Α΄' : 'Β΄'} αγώνας` : ''}</>
+                : <>{match.league?.name} · Αγ. {match.round}</>}
             </span>
             <button onClick={() => router.push('/')} aria-label="Αρχική"
               className="w-[30px] h-[30px] rounded-lg bg-chalk/[0.06] grid place-items-center
@@ -454,6 +485,38 @@ export default function SpeakerPanel() {
             <p className="text-[9px] text-off text-center mt-3">
               Καταχωρήθηκε από {match.setter.full_name}
             </p>
+          )}
+
+          {tie && (
+            <div className="mt-3 rounded-lg border overflow-hidden"
+              style={{ borderColor: 'rgba(232,185,35,0.3)', background: 'rgba(232,185,35,0.06)' }}>
+              <div className="px-3 py-2 flex flex-col gap-1.5">
+                {tie.map((l, i) => {
+                  const isCur = l.match_id === match.match_id
+                  const dn = ['Played', 'Forfeit'].includes(l.match_status)
+                  const ga = l.team_a === match.team_a ? l.goals_team_a : l.goals_team_b
+                  const gb = l.team_a === match.team_a ? l.goals_team_b : l.goals_team_a
+                  return (
+                    <div key={l.match_id} className="flex items-center gap-2 text-[11px]">
+                      <span className="w-[58px] shrink-0 text-[8.5px] font-black text-dim tracking-wide">
+                        {i === 0 ? 'Α΄ ΑΓΩΝΑΣ' : 'Β΄ ΑΓΩΝΑΣ'}
+                      </span>
+                      <span className={`flex-1 truncate ${isCur ? 'text-lit font-bold' : 'text-silver'}`}>
+                        {isCur ? '● τώρα' : (l.match_date ? fmtDay(l.match_date) : '—')}
+                      </span>
+                      <span className="font-extrabold tnum text-chalk shrink-0">
+                        {dn ? `${ga}-${gb}` : 'εκκρεμεί'}
+                      </span>
+                    </div>
+                  )
+                })}
+                <div className="flex items-center justify-between border-t pt-1.5"
+                  style={{ borderColor: 'rgba(232,185,35,0.18)' }}>
+                  <span className="text-[9px] font-black text-lit tracking-wide">ΣΥΝΟΛΙΚΟ</span>
+                  <span className="text-[14px] font-extrabold tnum" style={{ color: '#E8B923' }}>{aggA}-{aggB}</span>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>
