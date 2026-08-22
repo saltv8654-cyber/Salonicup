@@ -22,7 +22,8 @@ function buildLegMap(matches: any[]) {
   }
   const out = new Map<string, number>()
   for (const arr of groups.values()) {
-    if (arr.length < 2) continue
+    // Τα QF/SF είναι πάντα διπλά — ο πρώτος (κατά ημ/νία) είναι Α΄, ακόμη κι αν
+    // ο Β΄ δεν έχει καταχωρηθεί ακόμη.
     arr.sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
     arr.forEach((m, i) => out.set(m.match_id, i + 1))
   }
