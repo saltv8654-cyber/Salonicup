@@ -8,6 +8,27 @@ import ScrollActive from './scroll-active'
 import { athensDateKey, fmtDay, fmtTime } from '@/lib/time'
 import { ytWatch } from '@/lib/youtube'
 
+const STAGE_LBL: Record<string, string> = { QF: 'Προημιτελικά', SF: 'Ημιτελικά', Final: 'Τελικός' }
+
+/** Αριθμός σκέλους (1ο/2ο) για διπλά playoff (QF/SF), ανά ζευγάρι+φάση+πρωτάθλημα. */
+function buildLegMap(matches: any[]) {
+  const groups = new Map<string, any[]>()
+  for (const m of matches) {
+    if (!m.stage || m.stage === 'Final') continue
+    const pair = [m.team_a, m.team_b].slice().sort().join('-')
+    const k = `${m.league_id}:${m.stage}:${pair}`
+    if (!groups.has(k)) groups.set(k, [])
+    groups.get(k)!.push(m)
+  }
+  const out = new Map<string, number>()
+  for (const arr of groups.values()) {
+    if (arr.length < 2) continue
+    arr.sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
+    arr.forEach((m, i) => out.set(m.match_id, i + 1))
+  }
+  return out
+}
+
 export const revalidate = 15
 
 export default async function Home({
@@ -26,6 +47,7 @@ export default async function Home({
     .order('match_date', { ascending: true })
 
   const matches = rows ?? []
+  const legNoById = buildLegMap(matches)
 
   // Ομαδοποίηση ανά ημέρα (ζώνη Ελλάδας)
   const byDay = new Map<string, any[]>()
@@ -171,7 +193,7 @@ export default async function Home({
                 </Link>
                 <div className="bg-turf rounded-xl border border-chalk/[0.05] overflow-hidden">
                   {g.list.map((m, i) => (
-                    <MatchRow key={m.match_id} m={m} first={i === 0} />
+                    <MatchRow key={m.match_id} m={m} first={i === 0} leg={legNoById.get(m.match_id)} />
                   ))}
                 </div>
               </div>
@@ -185,15 +207,26 @@ export default async function Home({
   )
 }
 
-function MatchRow({ m, first }: { m: any; first: boolean }) {
+function MatchRow({ m, first, leg }: { m: any; first: boolean; leg?: number }) {
   const live = m.match_status === 'Live'
   const done = ['Played', 'Forfeit'].includes(m.match_status)
   const watch = ytWatch(m.stream_url)
+  const isPlayoff = !!m.stage && !!STAGE_LBL[m.stage]
+  const legLbl = leg ? (leg === 1 ? 'Α΄ αγώνας' : leg === 2 ? 'Β΄ αγώνας' : `${leg}ο σκέλος`) : ''
 
   return (
     <div className={first ? '' : 'border-t border-chalk/[0.05]'}>
     <Link href={`/match/${m.match_id}`}
       className={`block px-3 pt-3 ${watch ? 'pb-2' : 'pb-3'} active:bg-[#1C1C22]`}>
+      {isPlayoff && (
+        <div className="flex items-center justify-center gap-1.5 mb-2">
+          <span className="text-[8px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full"
+            style={{ color: '#E8B923', background: 'rgba(232,185,35,0.14)' }}>🏆 PLAYOFF</span>
+          <span className="text-[9px] font-bold text-dim">
+            {STAGE_LBL[m.stage]}{legLbl ? ` · ${legLbl}` : ''}
+          </span>
+        </div>
+      )}
       <div className="grid items-center gap-2 [grid-template-columns:1fr_54px_1fr]">
         {/* Γηπεδούχος */}
         <div className="flex items-center justify-end gap-2 min-w-0">
