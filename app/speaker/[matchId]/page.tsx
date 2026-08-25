@@ -16,6 +16,7 @@ import LineupPitch, { shortName } from '@/app/lineup-pitch'
 import ReportSheet from './report'
 import { notifyPush } from '@/lib/push'
 import { fmtDay } from '@/lib/time'
+import { downloadVersusCard, themeForLeague } from '@/app/admin/post/versus-card'
 import toast from 'react-hot-toast'
 import type { Period, EventType, Player } from '@/lib/types'
 import {
@@ -207,6 +208,8 @@ export default function SpeakerPanel() {
     })
   }, [match?.match_id])
 
+  const [ytBusy, setYtBusy] = useState(false)
+
   // Playoff διπλός αγώνας — το άλλο σκέλος (ίδια φάση/ομάδες)
   const [tieLegs, setTieLegs] = useState<any[]>([])
   const stg = match?.stage
@@ -238,6 +241,36 @@ export default function SpeakerPanel() {
   const activeA = rosterA.filter(p => inA.has(p.player_id))
   const activeB = rosterB.filter(p => inB.has(p.player_id))
   const done    = ['Played', 'Forfeit'].includes(match.match_status)
+
+  async function downloadYtCard() {
+    if (!match) return
+    setYtBusy(true)
+    try {
+      const [lg, sd, allM, sp] = await Promise.all([
+        supabase.from('leagues').select('name, logo_url, season').eq('league_id', match.league_id).maybeSingle(),
+        supabase.from('standings').select('team_id, position, points').eq('league_id', match.league_id),
+        supabase.from('matches').select('match_id, team_a, team_b, goals_team_a, goals_team_b, match_status, match_date')
+          .eq('league_id', match.league_id),
+        supabase.from('app_settings').select('sponsors').eq('id', 1).maybeSingle(),
+      ])
+      const ok = await downloadVersusCard({
+        match,
+        allMatches: allM.data ?? [],
+        standings: sd.data ?? [],
+        sponsors: (sp.data?.sponsors ?? []).filter(Boolean),
+        theme: themeForLeague(lg.data?.name),
+        leagueName: lg.data?.name ?? '',
+        leagueLogo: lg.data?.logo_url ?? null,
+        season: lg.data?.season ?? '',
+      })
+      if (ok) toast.success('Κατέβηκε η κάρτα YouTube')
+      else toast.error('Δεν δημιουργήθηκε')
+    } catch {
+      toast.error('Σφάλμα δημιουργίας')
+    } finally {
+      setYtBusy(false)
+    }
+  }
 
   // Playoff διπλός: τρέχον σκέλος + συνολικό σκορ (σκοπιά current)
   const tie = tieLegs.length > 1 ? tieLegs : null
@@ -522,7 +555,16 @@ export default function SpeakerPanel() {
       </div>
 
       {phase === 'squad' ? (
-        <LineupBuilder
+        <>
+          <div className="px-3.5 pt-3.5 shrink-0">
+            <button onClick={downloadYtCard} disabled={ytBusy}
+              className="w-full py-3 rounded-xl border text-[13px] font-extrabold
+                flex items-center justify-center gap-2 active:opacity-90 disabled:opacity-60"
+              style={{ borderColor: 'rgba(232,185,35,0.4)', background: 'rgba(232,185,35,0.10)', color: '#E8B923' }}>
+              {ytBusy ? '⏳ Δημιουργία…' : '▶ Κατέβασμα κάρτας YouTube (1920×1080)'}
+            </button>
+          </div>
+          <LineupBuilder
           teamA={match.team_a_data} teamB={match.team_b_data}
           teamIdA={match.team_a} teamIdB={match.team_b}
           rosterA={rosterA} rosterB={rosterB}
@@ -533,6 +575,7 @@ export default function SpeakerPanel() {
           notes={notes} saveNote={saveNote}
           onSave={saveSquad} saving={saving}
         />
+        </>
       ) : (
         <>
           <div className="px-3.5 pt-3.5 shrink-0">
