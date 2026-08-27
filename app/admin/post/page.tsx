@@ -6,7 +6,7 @@ import { Select, LogoUpload } from '../ui'
 import { athensDateKey, fmtDay, fmtTime } from '@/lib/time'
 import toast from 'react-hot-toast'
 import { drawPost, THEMES, type PostType, type PostData, type DayGroup, type MatchRow, type ThemeId } from './canvas'
-import { versusStageLabel, legOfMatch } from './versus-card'
+import { versusStageLabel, legOfMatch, saveImageBlob } from './versus-card'
 
 const TYPES: { id: PostType; label: string }[] = [
   { id: 'schedule',  label: 'Πρόγραμμα' },
@@ -361,14 +361,11 @@ export default function AdminPost() {
   function download() {
     const canvas = canvasRef.current
     if (!canvas) return
-    canvas.toBlob((blob) => {
+    canvas.toBlob(async (blob) => {
       if (!blob) return toast.error('Δεν κατέβηκε')
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `salonicup-${type}-${Date.now()}.png`
-      a.click()
-      URL.revokeObjectURL(url)
+      const res = await saveImageBlob(blob, `salonicup-${type}-${Date.now()}.png`)
+      if (res === 'shared') toast.success('Αποθήκευσέ το στις Φωτογραφίες')
+      else if (res === 'downloaded') toast.success('Κατέβηκε')
     }, 'image/png')
   }
 
@@ -612,7 +609,7 @@ export default function AdminPost() {
           <button onClick={download}
             className="w-full mt-3 py-3.5 rounded-xl bg-chalk/[0.06] text-chalk
               font-extrabold text-[14px] border border-chalk/[0.08]">
-            ⬇︎ Κατέβασμα PNG ({(type === 'versus' || type === 'week') ? `${size.w}×${size.h}` : '1080×1080'})
+            ⬇︎ Αποθήκευση εικόνας ({(type === 'versus' || type === 'week') ? `${size.w}×${size.h}` : '1080×1080'})
           </button>
         )}
         {!ready && (

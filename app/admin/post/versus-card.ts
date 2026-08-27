@@ -22,6 +22,35 @@ async function ensureOswald() {
 
 const YT = { w: 1920, h: 1080 }
 
+/**
+ * Αποθηκεύει μια εικόνα: σε iPhone/Android ανοίγει το share sheet ώστε ο χρήστης
+ * να πατήσει «Αποθήκευση εικόνας» (→ Φωτογραφίες)· αλλιώς κλασικό κατέβασμα (Αρχεία).
+ * Επιστρέφει 'shared' | 'downloaded' | 'cancelled'.
+ */
+export async function saveImageBlob(blob: Blob, filename: string): Promise<'shared' | 'downloaded' | 'cancelled'> {
+  const nav = navigator as any
+  try {
+    const file = new File([blob], filename, { type: 'image/png' })
+    if (nav.canShare && nav.canShare({ files: [file] })) {
+      try {
+        await nav.share({ files: [file] })
+        return 'shared'
+      } catch (e: any) {
+        if (e?.name === 'AbortError') return 'cancelled'
+        // αλλιώς πέφτουμε στο κατέβασμα
+      }
+    }
+  } catch { /* File/share μη διαθέσιμα → κατέβασμα */ }
+
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a); a.click(); a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+  return 'downloaded'
+}
+
 /** Miami στυλ για Summer League, αλλιώς πορτοκαλί. */
 export function themeForLeague(name: string | undefined): ThemeId {
   const u = (name || '').toUpperCase()
@@ -110,17 +139,11 @@ export async function buildVersusCard(opts: VersusCardOpts): Promise<Blob | null
   return await new Promise<Blob | null>(res => canvas.toBlob(b => res(b), 'image/png'))
 }
 
-/** Φτιάχνει και κατεβάζει το γραφικό αναμέτρησης (PNG). */
-export async function downloadVersusCard(opts: VersusCardOpts): Promise<boolean> {
+/** Φτιάχνει και αποθηκεύει το γραφικό αναμέτρησης (→ Φωτογραφίες σε iPhone/Android). */
+export async function downloadVersusCard(opts: VersusCardOpts): Promise<'shared' | 'downloaded' | 'cancelled' | false> {
   const blob = await buildVersusCard(opts)
   if (!blob) return false
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
   const nm = `${opts.match?.team_a_data?.name ?? 'A'}-${opts.match?.team_b_data?.name ?? 'B'}`
     .replace(/[^\p{L}\p{N}]+/gu, '_')
-  a.download = `salonicup-vs-${nm}.png`
-  document.body.appendChild(a); a.click(); a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
-  return true
+  return await saveImageBlob(blob, `salonicup-vs-${nm}.png`)
 }

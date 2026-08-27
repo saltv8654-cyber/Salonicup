@@ -253,7 +253,7 @@ export default function SpeakerPanel() {
           .eq('league_id', match.league_id),
         supabase.from('app_settings').select('sponsors').eq('id', 1).maybeSingle(),
       ])
-      const ok = await downloadVersusCard({
+      const res = await downloadVersusCard({
         match,
         allMatches: allM.data ?? [],
         standings: sd.data ?? [],
@@ -263,8 +263,9 @@ export default function SpeakerPanel() {
         leagueLogo: lg.data?.logo_url ?? null,
         season: lg.data?.season ?? '',
       })
-      if (ok) toast.success('Κατέβηκε η κάρτα YouTube')
-      else toast.error('Δεν δημιουργήθηκε')
+      if (res === 'shared') toast.success('Αποθήκευσέ το στις Φωτογραφίες')
+      else if (res === 'downloaded') toast.success('Κατέβηκε η κάρτα YouTube')
+      else if (res === false) toast.error('Δεν δημιουργήθηκε')
     } catch {
       toast.error('Σφάλμα δημιουργίας')
     } finally {
@@ -561,7 +562,7 @@ export default function SpeakerPanel() {
               className="w-full py-3 rounded-xl border text-[13px] font-extrabold
                 flex items-center justify-center gap-2 active:opacity-90 disabled:opacity-60"
               style={{ borderColor: 'rgba(232,185,35,0.4)', background: 'rgba(232,185,35,0.10)', color: '#E8B923' }}>
-              {ytBusy ? '⏳ Δημιουργία…' : '▶ Κατέβασμα κάρτας YouTube (1920×1080)'}
+              {ytBusy ? '⏳ Δημιουργία…' : '▶ Κάρτα YouTube → Φωτογραφίες (1920×1080)'}
             </button>
           </div>
           <LineupBuilder
