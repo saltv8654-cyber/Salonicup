@@ -31,6 +31,7 @@ export interface Versus {
   day?: string; time?: string; field?: string
   homePos?: number; homePts?: number; homeForm?: ('W' | 'D' | 'L')[]
   awayPos?: number; awayPts?: number; awayForm?: ('W' | 'D' | 'L')[]
+  tag?: string   // π.χ. "ΠΡΟΗΜΙΤΕΛΙΚΟΣ · Α΄ ΑΓΩΝΑΣ" (playoff)
 }
 
 export interface MatchRow {
@@ -358,6 +359,23 @@ function drawVersus(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEle
   const v = d.versus
   if (!v) return
   const cx = W / 2
+
+  // Χρυσό σήμα playoff (τι αγώνας είναι) — κάτω από την κεφαλίδα
+  if (v.tag) {
+    const tag = v.tag.toUpperCase()
+    ctx.font = font(700, 28)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    const tw = ctx.measureText(tag).width
+    const pw = tw + 52, ph = 48, px = cx - pw / 2, py = 214
+    ctx.fillStyle = 'rgba(232,185,35,0.16)'
+    roundRect(ctx, px, py, pw, ph, ph / 2); ctx.fill()
+    ctx.strokeStyle = 'rgba(232,185,35,0.6)'; ctx.lineWidth = 2
+    roundRect(ctx, px, py, pw, ph, ph / 2); ctx.stroke()
+    ctx.fillStyle = '#E8B923'
+    ctx.fillText(tag, cx, py + ph / 2 + 1)
+  }
+
   const box = Math.min(W, H) * 0.24
   const offset = Math.min(W * 0.26, box + 100)
   const leftX = cx - offset

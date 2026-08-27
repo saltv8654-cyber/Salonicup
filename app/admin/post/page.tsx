@@ -6,6 +6,7 @@ import { Select, LogoUpload } from '../ui'
 import { athensDateKey, fmtDay, fmtTime } from '@/lib/time'
 import toast from 'react-hot-toast'
 import { drawPost, THEMES, type PostType, type PostData, type DayGroup, type MatchRow, type ThemeId } from './canvas'
+import { versusStageLabel, legOfMatch } from './versus-card'
 
 const TYPES: { id: PostType; label: string }[] = [
   { id: 'schedule',  label: 'Πρόγραμμα' },
@@ -315,6 +316,7 @@ export default function AdminPost() {
           field: m.field ?? '',
           homePos: sa?.position, homePts: sa?.points, homeForm: formOf(m.team_a),
           awayPos: sb?.position, awayPts: sb?.points, awayForm: formOf(m.team_b),
+          tag: versusStageLabel(m.stage, legOfMatch(m, matches)) ?? undefined,
         }
       }
 

@@ -29,6 +29,27 @@ export function themeForLeague(name: string | undefined): ThemeId {
   return 'orange'
 }
 
+/** Αριθμός σκέλους (1/2) ενός playoff αγώνα, με βάση όλα τα ματς του πρωταθλήματος. */
+export function legOfMatch(m: any, allMatches: any[]): number | undefined {
+  if (!m.stage || m.stage === 'Final') return undefined
+  const legs = allMatches
+    .filter(x => x.stage === m.stage &&
+      ((x.team_a === m.team_a && x.team_b === m.team_b) ||
+       (x.team_a === m.team_b && x.team_b === m.team_a)))
+    .sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
+  const idx = legs.findIndex(x => x.match_id === m.match_id)
+  return idx >= 0 ? idx + 1 : 1
+}
+
+/** Ετικέτα φάσης/σκέλους για playoff (π.χ. "ΠΡΟΗΜΙΤΕΛΙΚΟΣ · Α΄ ΑΓΩΝΑΣ"), αλλιώς null. */
+export function versusStageLabel(stage: string | null | undefined, leg?: number): string | null {
+  const names: Record<string, string> = { QF: 'ΠΡΟΗΜΙΤΕΛΙΚΟΣ', SF: 'ΗΜΙΤΕΛΙΚΟΣ', Final: 'ΤΕΛΙΚΟΣ' }
+  const n = stage ? names[stage] : null
+  if (!n) return null
+  if (stage === 'Final') return n
+  return `${n} · ${leg === 2 ? 'Β΄' : 'Α΄'} ΑΓΩΝΑΣ`
+}
+
 export interface VersusCardOpts {
   match: any
   allMatches?: any[]      // αγώνες πρωταθλήματος (για φόρμα 5 τελευταίων)
@@ -78,6 +99,7 @@ export async function buildVersusCard(opts: VersusCardOpts): Promise<Blob | null
       field: m.field ?? '',
       homePos: sa?.position, homePts: sa?.points, homeForm: formOf(m.team_a),
       awayPos: sb?.position, awayPts: sb?.points, awayForm: formOf(m.team_b),
+      tag: versusStageLabel(m.stage, legOfMatch(m, allMatches)) ?? undefined,
     },
     sponsors,
     theme,
