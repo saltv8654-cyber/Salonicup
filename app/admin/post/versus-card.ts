@@ -41,13 +41,13 @@ export function legOfMatch(m: any, allMatches: any[]): number | undefined {
   return idx >= 0 ? idx + 1 : 1
 }
 
-/** Ετικέτα φάσης/σκέλους για playoff (π.χ. "ΠΡΟΗΜΙΤΕΛΙΚΟΣ · Α΄ ΑΓΩΝΑΣ"), αλλιώς null. */
+/** Ετικέτα φάσης/σκέλους για playoff (π.χ. "QUARTER-FINAL · 1ST LEG"), αλλιώς null. */
 export function versusStageLabel(stage: string | null | undefined, leg?: number): string | null {
-  const names: Record<string, string> = { QF: 'ΠΡΟΗΜΙΤΕΛΙΚΟΣ', SF: 'ΗΜΙΤΕΛΙΚΟΣ', Final: 'ΤΕΛΙΚΟΣ' }
+  const names: Record<string, string> = { QF: 'QUARTER-FINAL', SF: 'SEMI-FINAL', Final: 'FINAL' }
   const n = stage ? names[stage] : null
   if (!n) return null
   if (stage === 'Final') return n
-  return `${n} · ${leg === 2 ? 'Β΄' : 'Α΄'} ΑΓΩΝΑΣ`
+  return `${n} · ${leg === 2 ? '2ND LEG' : '1ST LEG'}`
 }
 
 export interface VersusCardOpts {
