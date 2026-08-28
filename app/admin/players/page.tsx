@@ -189,8 +189,15 @@ function PlayerForm({ row, teamId, teams, onClose, onSaved }: {
   onClose: () => void; onSaved: () => void
 }) {
   const supabase = createClient()
-  const [name, setName]   = useState(row?.full_name ?? '')
-  const [last, setLast]   = useState((row as any)?.last_name ?? '')
+  // Διαχωρισμός Επίθετο / Όνομα. Σε παλιές εγγραφές χωρίς last_name, σπάμε το full_name
+  // (σύμβαση «Επίθετο Όνομα»): 1η λέξη = επίθετο, υπόλοιπες = όνομα.
+  const _parts = (row?.full_name ?? '').trim().split(/\s+/).filter(Boolean)
+  const _initLast: string = (row as any)?.last_name ?? _parts[0] ?? ''
+  const _initFirst: string = (row as any)?.last_name
+    ? (row?.full_name ?? '').trim().replace(new RegExp(`^${_initLast}\\s*`, 'i'), '').trim() || _parts.slice(1).join(' ')
+    : _parts.slice(1).join(' ')
+  const [last, setLast]   = useState<string>(_initLast)
+  const [first, setFirst] = useState<string>(_initFirst)
   const [num, setNum]     = useState(row?.number != null ? String(row.number) : '')
   const [team, setTeam]   = useState(row?.team_id ?? teamId)
   const [photo, setPhoto] = useState(row?.photo_url ?? '')
@@ -216,10 +223,12 @@ function PlayerForm({ row, teamId, teams, onClose, onSaved }: {
   }
 
   async function save() {
-    if (!name.trim()) return toast.error('Χρειάζεται όνομα')
+    if (!last.trim() && !first.trim()) return toast.error('Χρειάζεται όνομα')
     setBusy(true)
+    // Ονοματεπώνυμο = «Επίθετο Όνομα» (ό,τι υπάρχει)
+    const fullName = [last.trim(), first.trim()].filter(Boolean).join(' ')
     const payload = {
-      full_name: name.trim(),
+      full_name: fullName,
       last_name: last.trim() || null,
       number: num ? parseInt(num) : null,
       team_id: team,
@@ -240,7 +249,7 @@ function PlayerForm({ row, teamId, teams, onClose, onSaved }: {
       {/* Φωτογραφία */}
       <div className="flex justify-center mb-1">
         <div className="relative">
-          <Avatar url={photo} name={name} size={80} ring />
+          <Avatar url={photo} name={[last, first].filter(Boolean).join(' ')} size={80} ring />
           {up && (
             <div className="absolute inset-0 rounded-full bg-black/60 grid place-items-center">
               <div className="spinner" />
@@ -254,10 +263,15 @@ function PlayerForm({ row, teamId, teams, onClose, onSaved }: {
         </div>
       </div>
 
-      <Field label="ΟΝΟΜΑΤΕΠΩΝΥΜΟ" value={name} onChange={setName}
-        placeholder="Παύλου Γιάννης" />
       <Field label="ΕΠΙΘΕΤΟ (εμφανίζεται σε εικόνες)" value={last} onChange={setLast}
         placeholder="Παύλου" />
+      <Field label="ΟΝΟΜΑ" value={first} onChange={setFirst}
+        placeholder="Γιάννης" />
+      {(last.trim() || first.trim()) && (
+        <p className="text-[10px] text-dim -mt-1 pl-0.5">
+          Θα αποθηκευτεί ως: <span className="text-silver font-bold">{[last.trim(), first.trim()].filter(Boolean).join(' ')}</span>
+        </p>
+      )}
       <Field label="ΝΟΥΜΕΡΟ" value={num} onChange={setNum} numeric placeholder="9" />
       <Select label="ΟΜΑΔΑ" value={team} onChange={setTeam}
         options={teams.map(t => ({ value: t.team_id, label: t.name }))} />
