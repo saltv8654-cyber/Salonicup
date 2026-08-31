@@ -110,24 +110,26 @@ export default function AdminPlayers() {
   )
 }
 
-/** Ανάλυση μιας γραμμής → { name, number } */
-function parseLine(line: string): { name: string; number: number | null } | null {
+/** Ανάλυση μιας γραμμής → { last, first, number }. Μορφή «Επίθετο Όνομα» (1η λέξη = επίθετο). */
+function parseLine(line: string): { last: string; first: string; number: number | null } | null {
   const raw = line.trim()
   if (!raw) return null
-  // Excel/CSV: tab, κόμμα ή 2+ κενά χωρίζουν όνομα/νούμερο
-  const parts = raw.split(/\t|,|\s{2,}/).map(s => s.trim()).filter(Boolean)
-  if (parts.length >= 2) {
-    const numPart = parts.find(p => /^\d{1,3}$/.test(p))
-    const namePart = parts.filter(p => !/^\d{1,3}$/.test(p)).join(' ')
-    if (namePart) return { name: namePart, number: numPart ? parseInt(numPart) : null }
+  // Χωρισμός πεδίων (Excel/CSV: tab, κόμμα ή 2+ κενά) — βρίσκουμε τυχόν νούμερο
+  let fields = raw.split(/\t|,|\s{2,}/).map(s => s.trim()).filter(Boolean)
+  let number: number | null = null
+  const numIdx = fields.findIndex(p => /^\d{1,3}$/.test(p))
+  if (numIdx >= 0) { number = parseInt(fields[numIdx]); fields.splice(numIdx, 1) }
+  let nameStr = fields.join(' ')
+  // Νούμερο κολλημένο στην αρχή/τέλος («10 Όνομα», «Όνομα 10»)
+  if (number == null) {
+    let m = nameStr.match(/^(\d{1,3})\s+(.+)$/)
+    if (m) { number = parseInt(m[1]); nameStr = m[2] }
+    else { m = nameStr.match(/^(.+?)\s+(\d{1,3})$/); if (m) { number = parseInt(m[2]); nameStr = m[1] } }
   }
-  // «10 Όνομα»
-  let m = raw.match(/^(\d{1,3})\s+(.+)$/)
-  if (m) return { name: m[2].trim(), number: parseInt(m[1]) }
-  // «Όνομα 10»
-  m = raw.match(/^(.+?)\s+(\d{1,3})$/)
-  if (m) return { name: m[1].trim(), number: parseInt(m[2]) }
-  return { name: raw, number: null }
+  nameStr = nameStr.trim()
+  if (!nameStr) return null
+  const words = nameStr.split(/\s+/)
+  return { last: words[0], first: words.slice(1).join(' '), number }
 }
 
 function BulkImport({ teamId, teamName, onClose, onSaved }: {
@@ -137,13 +139,16 @@ function BulkImport({ teamId, teamName, onClose, onSaved }: {
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const parsed = text.split('\n').map(parseLine).filter(Boolean) as { name: string; number: number | null }[]
+  const parsed = text.split('\n').map(parseLine).filter(Boolean) as { last: string; first: string; number: number | null }[]
 
   async function run() {
     if (!parsed.length) return toast.error('Δεν βρέθηκαν ονόματα')
     setBusy(true)
     const payload = parsed.map(p => ({
-      team_id: teamId, full_name: p.name, number: p.number, active: true,
+      team_id: teamId,
+      full_name: [p.last, p.first].filter(Boolean).join(' '),
+      last_name: p.last || null,
+      number: p.number, active: true,
     }))
     const { error } = await supabase.from('players').insert(payload)
     setBusy(false)
@@ -155,24 +160,32 @@ function BulkImport({ teamId, teamName, onClose, onSaved }: {
   return (
     <Modal title={`Μαζική εισαγωγή — ${teamName}`} onClose={onClose}>
       <p className="text-[11.5px] text-dim -mt-1 mb-1">
-        Επικόλλησε ονόματα, ένα ανά γραμμή. Προαιρετικά νούμερο («10 Όνομα», «Όνομα 10», ή από Excel).
+        Ένας παίκτης ανά γραμμή, μορφή <span className="text-silver font-bold">Επίθετο Όνομα</span>
+        {' '}(η 1η λέξη = επίθετο). Προαιρετικά νούμερο («10 Επίθετο Όνομα», «Επίθετο Όνομα 10», ή από Excel).
       </p>
       <textarea value={text} onChange={e => setText(e.target.value)}
         rows={9} autoFocus
-        placeholder={'Γιώργος Παπαδόπουλος\n10 Νίκος Ιωάννου\nΚώστας Δήμου, 7'}
+        placeholder={'Παπανικολάου Τάσος\nΘεοδωρίδης Γιώργος\nΨαρόπουλος Ιωάννης 10'}
         className="w-full bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-[13.5px]
           leading-relaxed outline-none border border-chalk/[0.07] focus:border-lit/50
           placeholder:text-off" />
 
       {parsed.length > 0 && (
         <div className="bg-turf rounded-xl border border-chalk/[0.05] max-h-40 overflow-y-auto mt-1">
+          <div className="flex items-center gap-2.5 px-3 py-1.5 border-b border-chalk/[0.06]
+            text-[8.5px] font-extrabold text-dim tracking-wide">
+            <span className="w-6 text-center">#</span>
+            <span className="flex-1">ΕΠΙΘΕΤΟ</span>
+            <span className="flex-1">ΟΝΟΜΑ</span>
+          </div>
           {parsed.map((p, i) => (
             <div key={i} className="flex items-center gap-2.5 px-3 py-2
               border-b border-chalk/[0.04] last:border-b-0">
               <span className="w-6 text-[11px] font-extrabold text-dim text-center tnum">
                 {p.number ?? '—'}
               </span>
-              <span className="flex-1 text-[13px] text-chalk truncate">{p.name}</span>
+              <span className="flex-1 text-[13px] font-bold text-chalk truncate">{p.last}</span>
+              <span className="flex-1 text-[13px] text-silver truncate">{p.first || '—'}</span>
             </div>
           ))}
         </div>
