@@ -15,15 +15,28 @@ export default function AdminTeams() {
   const [load, setLoad]       = useState(true)
   const [open, setOpen]       = useState(false)
   const [edit, setEdit]       = useState<Team | null>(null)
+  const [view, setView]       = useState<'list' | 'status'>('list')
+  const [counts, setCounts]   = useState<Record<string, number>>({})
 
   async function fetchRows() {
-    const [t, l] = await Promise.all([
+    const [t, l, p] = await Promise.all([
       supabase.from('teams').select('*, league:league_id(name)').order('name'),
       supabase.from('leagues').select('*').order('sort_order'),
+      supabase.from('players').select('team_id').eq('active', true),
     ])
     setRows(t.data ?? [])
     setLeagues(l.data ?? [])
+    const c: Record<string, number> = {}
+    for (const pl of p.data ?? []) c[pl.team_id] = (c[pl.team_id] ?? 0) + 1
+    setCounts(c)
     setLoad(false)
+  }
+
+  async function toggleFee(t: any) {
+    const { error } = await supabase.from('teams')
+      .update({ fee_paid: !t.fee_paid }).eq('team_id', t.team_id)
+    if (error) return toast.error('Λείπει η στήλη fee_paid; τρέξε το SQL')
+    fetchRows()
   }
 
   useEffect(() => { fetchRows() }, [])
@@ -58,6 +71,15 @@ export default function AdminTeams() {
             text-white text-[12.5px] font-extrabold">+ Νέα</button>
       </div>
 
+      {/* Λίστα / Κατάσταση ετοιμότητας */}
+      <div className="flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05] mb-3">
+        {([['list', 'Λίστα'], ['status', '📋 Κατάσταση']] as const).map(([v, lbl]) => (
+          <button key={v} onClick={() => setView(v)}
+            className={`flex-1 py-2 rounded-lg text-[12.5px] font-bold transition-colors
+              ${view === v ? 'bg-brand text-chalk' : 'text-dim'}`}>{lbl}</button>
+        ))}
+      </div>
+
       <div className="flex gap-2 mb-4 overflow-x-auto">
         <button onClick={() => setFilter('')}
           className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-bold
@@ -74,7 +96,9 @@ export default function AdminTeams() {
         ))}
       </div>
 
-      {!filtered.length ? <Empty>Δεν υπάρχουν ομάδες.</Empty> : (
+      {view === 'status' ? (
+        <StatusView teams={filtered} counts={counts} onToggleFee={toggleFee} />
+      ) : !filtered.length ? <Empty>Δεν υπάρχουν ομάδες.</Empty> : (
         <div className="flex flex-col gap-1.5">
           {filtered.map(t => (
             <div key={t.team_id}
@@ -113,6 +137,67 @@ export default function AdminTeams() {
           onClose={() => setOpen(false)}
           onSaved={() => { setOpen(false); fetchRows() }} />
       )}
+    </div>
+  )
+}
+
+/** Πίνακας ετοιμότητας: Λογότυπο · Ρόστερ · Κόστος συμμετοχής (ανά πρωτάθλημα). */
+function StatusView({ teams, counts, onToggleFee }: {
+  teams: any[]; counts: Record<string, number>; onToggleFee: (t: any) => void
+}) {
+  const MIN_ROSTER = 7
+  if (!teams.length) return <Empty>Δεν υπάρχουν ομάδες.</Empty>
+
+  // Ομαδοποίηση ανά πρωτάθλημα
+  const byLeague = new Map<string, { name: string; list: any[] }>()
+  for (const t of teams) {
+    const k = t.league_id
+    if (!byLeague.has(k)) byLeague.set(k, { name: t.league?.name ?? '—', list: [] })
+    byLeague.get(k)!.list.push(t)
+  }
+
+  const Chip = ({ ok, children, onClick }: { ok: boolean; children: React.ReactNode; onClick?: () => void }) => (
+    <button onClick={onClick} disabled={!onClick}
+      className="flex items-center gap-1 px-2 py-1 rounded-md text-[10.5px] font-extrabold shrink-0"
+      style={{
+        background: ok ? 'rgba(47,168,79,0.16)' : 'rgba(224,86,60,0.14)',
+        color: ok ? '#4FbF6a' : '#e0563c',
+      }}>
+      {ok ? '✓' : '✕'} {children}
+    </button>
+  )
+
+  return (
+    <div className="flex flex-col gap-4">
+      {[...byLeague.values()].map((g, gi) => {
+        const done = g.list.filter(t => t.logo_url && (counts[t.team_id] ?? 0) >= MIN_ROSTER && t.fee_paid).length
+        return (
+          <div key={gi}>
+            <div className="flex items-center gap-2 mb-2 px-0.5">
+              <span className="text-[13px] font-extrabold text-lit">{g.name}</span>
+              <span className="text-[10px] text-dim font-bold">{done}/{g.list.length} έτοιμες</span>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {g.list.map(t => {
+                const n = counts[t.team_id] ?? 0
+                return (
+                  <div key={t.team_id} className="bg-turf rounded-xl px-3 py-2.5 flex items-center gap-2.5
+                    border border-chalk/[0.05]">
+                    <Crest url={t.logo_url} name={t.name} size={28} />
+                    <span className="flex-1 min-w-0 text-[13px] font-bold text-chalk truncate">{t.name}</span>
+                    <Chip ok={!!t.logo_url}>Λογότυπο</Chip>
+                    <Chip ok={n >= MIN_ROSTER}>Ρόστερ {n}</Chip>
+                    <Chip ok={!!t.fee_paid} onClick={() => onToggleFee(t)}>Κόστος</Chip>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
+      <p className="text-[10px] text-off text-center">
+        Πάτησε «Κόστος» για να το σημειώσεις πληρωμένο. Ρόστερ πράσινο από {MIN_ROSTER}+ παίκτες.
+      </p>
     </div>
   )
 }
