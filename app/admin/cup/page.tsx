@@ -41,8 +41,8 @@ export default function AdminCup() {
   const [newOpen, setNewOpen] = useState(false)
   const [busy, setBusy]       = useState(false)
 
-  const cup = leagues.find(l => l.format === 'cup')
-  const sourceLeagues = leagues.filter(l => l.format !== 'cup')
+  const cup = leagues.find(l => l.is_cup)
+  const sourceLeagues = leagues.filter(l => !l.is_cup)
 
   async function fetchAll() {
     const [l, t] = await Promise.all([
@@ -51,7 +51,7 @@ export default function AdminCup() {
     ])
     setLeagues(l.data ?? [])
     setTeams(t.data ?? [])
-    const c = (l.data ?? []).find((x: any) => x.format === 'cup')
+    const c = (l.data ?? []).find((x: any) => x.is_cup)
     if (c) {
       const [ct, cm] = await Promise.all([
         supabase.from('cup_teams').select('*').eq('cup_id', c.league_id),
@@ -273,7 +273,7 @@ function CupForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => voi
     setBusy(true)
     const { error } = await supabase.from('leagues').insert({
       name: name.trim(), season: season.trim() || null, logo_url: logo.trim() || null,
-      format: 'cup', active: true, sort_order: 999,
+      is_cup: true, active: true, sort_order: 999,
     })
     setBusy(false)
     if (error) return toast.error('Δεν δημιουργήθηκε: ' + error.message)

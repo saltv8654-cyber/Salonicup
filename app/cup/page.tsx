@@ -16,7 +16,7 @@ export default async function CupPage() {
   const supabase = createClient()
 
   const { data: cup } = await supabase.from('leagues')
-    .select('league_id, name, season, logo_url').eq('format', 'cup').maybeSingle()
+    .select('league_id, name, season, logo_url').eq('is_cup', true).maybeSingle()
 
   if (!cup) {
     return (

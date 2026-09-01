@@ -2,7 +2,7 @@
 -- Το Κύπελλο μοντελοποιείται ως ειδικό «πρωτάθλημα» (leagues.format = 'cup'),
 -- ώστε οι αγώνες του να δουλεύουν αυτόματα με σπίκερ/overlay/σελίδες αγώνα.
 
-alter table leagues add column if not exists format text not null default 'league';   -- 'league' | 'cup'
+alter table leagues add column if not exists is_cup boolean not null default false;    -- true = Κύπελλο
 alter table matches add column if not exists cup_group text;                            -- 'A'..'L' (φάση ομίλων)
 
 -- Συμμετοχές ομάδων στο κύπελλο + όμιλος μετά την κλήρωση

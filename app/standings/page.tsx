@@ -19,10 +19,10 @@ export default async function StandingsPage({
     : searchParams.view === 'playoff' ? 'playoff' : 'table'
 
   const { data: leagues } = await supabase
-    .from('leagues').select('*').eq('active', true).neq('format', 'cup').order('sort_order')
+    .from('leagues').select('*').eq('active', true).eq('is_cup', false).order('sort_order')
 
   const { data: cupLeague } = await supabase
-    .from('leagues').select('league_id').eq('format', 'cup').maybeSingle()
+    .from('leagues').select('league_id').eq('is_cup', true).maybeSingle()
 
   const active: League | undefined =
     leagues?.find(l => l.league_id === searchParams.league) ?? leagues?.[0]
