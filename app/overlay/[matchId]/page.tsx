@@ -949,10 +949,10 @@ function Overlay() {
           </div>
           {tieAgg && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              gap: 2, minWidth: 96, padding: '0 16px', color: '#E8B923', fontVariantNumeric: 'tabular-nums',
+              gap: 1, minWidth: 66, padding: '0 11px', color: '#E8B923', fontVariantNumeric: 'tabular-nums',
               background: 'linear-gradient(180deg,#3a2f0a,#241d06)' }}>
-              <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: '.14em', opacity: .9 }}>ΣΥΝΟΛΟ</span>
-              <span style={{ fontSize: 24, fontWeight: 900, lineHeight: 1 }}>{tieAgg.a}<span style={{ opacity: .6, margin: '0 3px' }}>-</span>{tieAgg.b}</span>
+              <span style={{ fontSize: 8, fontWeight: 900, letterSpacing: '.12em', opacity: .9 }}>AGG</span>
+              <span style={{ fontSize: 17, fontWeight: 900, lineHeight: 1 }}>{tieAgg.a}<span style={{ opacity: .6, margin: '0 2px' }}>-</span>{tieAgg.b}</span>
             </div>
           )}
           {clkStop && (
