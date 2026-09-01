@@ -288,6 +288,18 @@ function Overlay() {
       .then(({ data }: any) => setStandRows(data ?? []))
   }, [match?.league_id, standingsOn])
 
+  // Playoff διπλός: το άλλο σκέλος (για συνολικό σκορ στο scoreboard)
+  const [otherLegs, setOtherLegs] = useState<any[]>([])
+  useEffect(() => {
+    const stg = match?.stage, a = match?.team_a, b = match?.team_b
+    if (!stg || stg === 'Final' || !a || !b) { setOtherLegs([]); return }
+    supa.current.from('matches')
+      .select('match_id, team_a, team_b, goals_team_a, goals_team_b, match_status, stage')
+      .eq('stage', stg)
+      .or(`and(team_a.eq.${a},team_b.eq.${b}),and(team_a.eq.${b},team_b.eq.${a})`)
+      .then(({ data }: any) => setOtherLegs((data ?? []).filter((x: any) => x.match_id !== match?.match_id)))
+  }, [match?.stage, match?.team_a, match?.team_b, match?.match_id])
+
   // Pre-match: παλαιότεροι αγώνες των δύο ομάδων (για φόρμα + ιστορικό H2H)
   useEffect(() => {
     const a = match?.team_a, b = match?.team_b
@@ -426,6 +438,20 @@ function Overlay() {
   const clk = clockLabel(match.clock_period, match.clock_started_at, now)
   const clkStop = clockStoppage(match.clock_period, match.clock_started_at, now)
   const PP: 'fixed' | 'absolute' = 'absolute'
+
+  // Συνολικό σκορ διπλού playoff (τρέχον ζωντανό + προηγούμενα σκέλη). Εμφανίζεται
+  // μόνο αν υπάρχει ολοκληρωμένο άλλο σκέλος (δηλ. στον 2ο αγώνα).
+  const tieAgg = (() => {
+    if (!match.stage || match.stage === 'Final') return null
+    if (!otherLegs.some(l => ['Played', 'Forfeit'].includes(l.match_status))) return null
+    let a = match.goals_team_a ?? 0, b = match.goals_team_b ?? 0
+    for (const l of otherLegs) {
+      if (!['Played', 'Forfeit'].includes(l.match_status)) continue
+      a += l.team_a === match.team_a ? (l.goals_team_a ?? 0) : (l.goals_team_b ?? 0)
+      b += l.team_a === match.team_a ? (l.goals_team_b ?? 0) : (l.goals_team_a ?? 0)
+    }
+    return { a, b }
+  })()
 
   // Παλέτα scoreboard/γραφικών — αλλάζει ανά πρωτάθλημα (accent + βαθύ τόνος)
   const PL = leagueTheme(match.league?.name)
@@ -921,6 +947,14 @@ function Overlay() {
             <span style={{ fontSize: 23, fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap',
               letterSpacing: '.01em' }}>{match.team_b_data?.name}</span>
           </div>
+          {tieAgg && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              gap: 2, minWidth: 96, padding: '0 16px', color: '#E8B923', fontVariantNumeric: 'tabular-nums',
+              background: 'linear-gradient(180deg,#3a2f0a,#241d06)' }}>
+              <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: '.14em', opacity: .9 }}>ΣΥΝΟΛΟ</span>
+              <span style={{ fontSize: 24, fontWeight: 900, lineHeight: 1 }}>{tieAgg.a}<span style={{ opacity: .6, margin: '0 3px' }}>-</span>{tieAgg.b}</span>
+            </div>
+          )}
           {clkStop && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
               gap: 2, minWidth: 92, padding: '0 16px', color: idealText(PL.pink), fontVariantNumeric: 'tabular-nums',
