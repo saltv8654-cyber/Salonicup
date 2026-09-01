@@ -19,7 +19,10 @@ export default async function StandingsPage({
     : searchParams.view === 'playoff' ? 'playoff' : 'table'
 
   const { data: leagues } = await supabase
-    .from('leagues').select('*').eq('active', true).order('sort_order')
+    .from('leagues').select('*').eq('active', true).neq('format', 'cup').order('sort_order')
+
+  const { data: cupLeague } = await supabase
+    .from('leagues').select('league_id').eq('format', 'cup').maybeSingle()
 
   const active: League | undefined =
     leagues?.find(l => l.league_id === searchParams.league) ?? leagues?.[0]
@@ -140,6 +143,14 @@ export default async function StandingsPage({
             </Link>
           )
         })}
+        {cupLeague && (
+          <Link href="/cup"
+            className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full
+              text-[11.5px] font-extrabold whitespace-nowrap border"
+            style={{ color: '#E8B923', borderColor: 'rgba(232,185,35,0.4)', background: 'rgba(232,185,35,0.10)' }}>
+            🏆 Κύπελλο
+          </Link>
+        )}
       </div>
 
       <div className="px-3.5 pb-6">
