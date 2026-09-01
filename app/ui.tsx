@@ -157,7 +157,8 @@ export function BottomNav() {
 }
 
 /* ── Χρωματιστό badge γηπέδου (σταθερό χρώμα ανά γήπεδο) ── */
-export function FieldBadge({ field, size = 'sm' }: { field: string; size?: 'sm' | 'xs' }) {
+export function FieldBadge({ field, size = 'sm' }: { field?: string | null; size?: 'sm' | 'xs' }) {
+  if (!field) return null
   let h = 0
   for (let i = 0; i < field.length; i++) h = (h * 31 + field.charCodeAt(i)) % 360
   const pad = size === 'xs' ? 'px-1.5 py-[2px] text-[8.5px]' : 'px-2 py-[3px] text-[9.5px]'

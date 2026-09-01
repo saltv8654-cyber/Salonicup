@@ -29,7 +29,7 @@ export default async function SchedulePage() {
   for (const m of matches ?? []) booked.add(key(m.field, m.match_date))
 
   // Στοιχεία προς εμφάνιση: όλα τα ματς + όσα slots δεν έχουν ματς εκείνη την ώρα/γήπεδο
-  type Item = { iso: string; field: string; match?: any; venue?: string }
+  type Item = { iso: string; field: string | null; match?: any; venue?: string }
   const items: Item[] = []
   for (const m of matches ?? []) items.push({ iso: m.match_date, field: m.field, match: m })
   for (const s of slots ?? []) {
@@ -49,7 +49,7 @@ export default async function SchedulePage() {
       key: k,
       label: fmtDay(list[0].iso),
       list: list.slice().sort((a, b) =>
-        a.iso.localeCompare(b.iso) || a.field.localeCompare(b.field)),
+        a.iso.localeCompare(b.iso) || (a.field ?? '').localeCompare(b.field ?? '')),
       free: list.filter(x => !x.match).length,
     }))
 
