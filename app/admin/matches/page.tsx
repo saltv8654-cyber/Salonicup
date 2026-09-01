@@ -448,10 +448,11 @@ function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose
     toast.success('Αποθηκεύτηκε'); onSaved()
   }
 
-  // Reset: σβήνει σκορ, φάσεις (γκολ/κάρτες), αλλαγές, ρολόι & MVP. Κρατά ομάδες/ημ-νία/συνθέσεις.
+  // Πλήρες reset: ο αγώνας γυρίζει σαν να μην ξεκίνησε ποτέ — ο σπίκερ ξαναπερνά
+  // από συνθέσεις και πρέπει να πατήσει «Έναρξη». Κρατά ομάδες/ημ-νία & τις συνθέσεις.
   async function reset() {
     if (!row) return
-    if (!confirm('Reset αγώνα;\nΘα μηδενιστεί το σκορ και θα σβηστούν φάσεις (γκολ/κάρτες), αλλαγές, ρολόι και MVP.\nΟι ομάδες, η ημερομηνία και οι συνθέσεις μένουν.')) return
+    if (!confirm('Πλήρες reset αγώνα;\nΘα μηδενιστεί το σκορ και θα σβηστούν φάσεις (γκολ/κάρτες), αλλαγές, ρολόι και MVP.\nΟ αγώνας γυρίζει στην αρχή: ο σπίκερ θα ξαναπεράσει από τις συνθέσεις και θα πρέπει να πατήσει «Έναρξη».\nΟι ομάδες και η ημερομηνία μένουν.')) return
     setBusy(true)
     await supabase.from('events').delete().eq('match_id', row.match_id)
     const { error } = await supabase.from('matches').update({
@@ -459,10 +460,11 @@ function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose
       goals_team_a: 0, goals_team_b: 0, pens_team_a: 0, pens_team_b: 0,
       clock_period: null, clock_started_at: null,
       subs: [], mvp_player_id: null, report: null,
+      squad_set_at: null, squad_set_by: null,
     }).eq('match_id', row.match_id)
     setBusy(false)
     if (error) return toast.error('Δεν έγινε reset: ' + error.message)
-    toast.success('Έγινε reset'); onSaved()
+    toast.success('Έγινε πλήρες reset'); onSaved()
   }
 
   return (
@@ -569,7 +571,7 @@ function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose
         <>
           <button onClick={reset} disabled={busy}
             className="w-full mt-2 py-2.5 rounded-xl bg-[#c9a227]/15 border border-[#c9a227]/35
-              text-[#e8b923] text-[12.5px] font-bold disabled:opacity-50">↺ Reset αγώνα</button>
+              text-[#e8b923] text-[12.5px] font-bold disabled:opacity-50">↺ Πλήρες reset (από την αρχή)</button>
           <div className="flex gap-2 mt-2">
             <a href={`/speaker/${row.match_id}`}
               className="flex-1 py-2.5 rounded-xl bg-chalk/[0.05] border border-chalk/[0.08]
