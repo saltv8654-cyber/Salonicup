@@ -448,6 +448,23 @@ function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose
     toast.success('Αποθηκεύτηκε'); onSaved()
   }
 
+  // Reset: σβήνει σκορ, φάσεις (γκολ/κάρτες), αλλαγές, ρολόι & MVP. Κρατά ομάδες/ημ-νία/συνθέσεις.
+  async function reset() {
+    if (!row) return
+    if (!confirm('Reset αγώνα;\nΘα μηδενιστεί το σκορ και θα σβηστούν φάσεις (γκολ/κάρτες), αλλαγές, ρολόι και MVP.\nΟι ομάδες, η ημερομηνία και οι συνθέσεις μένουν.')) return
+    setBusy(true)
+    await supabase.from('events').delete().eq('match_id', row.match_id)
+    const { error } = await supabase.from('matches').update({
+      match_status: 'Scheduled',
+      goals_team_a: 0, goals_team_b: 0, pens_team_a: 0, pens_team_b: 0,
+      clock_period: null, clock_started_at: null,
+      subs: [], mvp_player_id: null, report: null,
+    }).eq('match_id', row.match_id)
+    setBusy(false)
+    if (error) return toast.error('Δεν έγινε reset: ' + error.message)
+    toast.success('Έγινε reset'); onSaved()
+  }
+
   return (
     <Modal title={row ? 'Επεξεργασία αγώνα' : 'Νέος αγώνας'} onClose={onClose}>
       <Select label="ΠΡΩΤΑΘΛΗΜΑ" value={league}
@@ -549,14 +566,19 @@ function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose
       <SaveBtn busy={busy} onClick={save} />
 
       {row && (
-        <div className="flex gap-2 mt-2">
-          <a href={`/speaker/${row.match_id}`}
-            className="flex-1 py-2.5 rounded-xl bg-chalk/[0.05] border border-chalk/[0.08]
-              text-silver text-[12.5px] font-bold text-center">🎙 Panel</a>
-          <button onClick={onDelete}
-            className="flex-1 py-2.5 rounded-xl bg-danger/15 border border-danger/30
-              text-danger text-[12.5px] font-bold">Διαγραφή</button>
-        </div>
+        <>
+          <button onClick={reset} disabled={busy}
+            className="w-full mt-2 py-2.5 rounded-xl bg-[#c9a227]/15 border border-[#c9a227]/35
+              text-[#e8b923] text-[12.5px] font-bold disabled:opacity-50">↺ Reset αγώνα</button>
+          <div className="flex gap-2 mt-2">
+            <a href={`/speaker/${row.match_id}`}
+              className="flex-1 py-2.5 rounded-xl bg-chalk/[0.05] border border-chalk/[0.08]
+                text-silver text-[12.5px] font-bold text-center">🎙 Panel</a>
+            <button onClick={onDelete}
+              className="flex-1 py-2.5 rounded-xl bg-danger/15 border border-danger/30
+                text-danger text-[12.5px] font-bold">Διαγραφή</button>
+          </div>
+        </>
       )}
     </Modal>
   )
