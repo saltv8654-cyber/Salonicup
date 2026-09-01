@@ -249,7 +249,7 @@ export default function SpeakerPanel() {
       const [lg, sd, allM, sp] = await Promise.all([
         supabase.from('leagues').select('name, logo_url, season').eq('league_id', match.league_id).maybeSingle(),
         supabase.from('standings').select('team_id, position, points').eq('league_id', match.league_id),
-        supabase.from('matches').select('match_id, team_a, team_b, goals_team_a, goals_team_b, match_status, match_date')
+        supabase.from('matches').select('match_id, team_a, team_b, goals_team_a, goals_team_b, match_status, match_date, stage')
           .eq('league_id', match.league_id),
         supabase.from('app_settings').select('sponsors').eq('id', 1).maybeSingle(),
       ])
