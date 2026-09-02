@@ -31,7 +31,17 @@ function LoginForm() {
     setBusy(true)
     try {
       await signIn(email, pass)
-      router.push(params.get('next') ?? '/speaker')
+      const next = params.get('next')
+      if (next) router.push(next)
+      else {
+        // Προσγείωση ανά ρόλο: admin→πίνακας, speaker→panel, όλοι οι άλλοι (φωτογράφος/θεατής)→Αγώνες
+        const { data: { user } } = await supabase.auth.getUser()
+        const { data: prof } = user
+          ? await supabase.from('profiles').select('role').eq('id', user.id).single()
+          : { data: null as any }
+        const r = prof?.role
+        router.push(r === 'admin' ? '/admin' : r === 'speaker' ? '/speaker' : '/')
+      }
       router.refresh()
     } catch (err: any) {
       toast.error('Λάθος email ή κωδικός')
@@ -77,6 +87,7 @@ function LoginForm() {
     const roleLabel = isAdmin ? 'Διαχειριστής'
       : isSpeaker ? 'Speaker'
       : profile.role === 'captain' ? 'Αρχηγός'
+      : profile.role === 'photographer' ? 'Φωτογράφος'
       : 'Θεατής'
     return (
       <div className="min-h-screen bg-pitch flex flex-col justify-center px-6 relative
@@ -119,9 +130,16 @@ function LoginForm() {
                 🎙️ Πίνακας speaker
               </button>
             )}
+            {profile.role === 'photographer' && (
+              <p className="text-[11px] text-dim text-center px-2 -mb-0.5">
+                Άνοιξε τον αγώνα (π.χ. από «Χθες») → ενότητα <b className="text-silver">Φωτογραφίες</b> → <b className="text-lit">＋ Προσθήκη</b>
+              </p>
+            )}
             <button onClick={() => router.push('/')}
-              className="w-full py-3.5 rounded-xl bg-turf border border-chalk/[0.07]
-                text-silver font-bold text-[14px]">
+              className={`w-full py-3.5 rounded-xl font-extrabold text-[15px]
+                ${!isAdmin && !isSpeaker
+                  ? 'bg-gradient-to-b from-lit to-brand text-white shadow-[0_4px_16px_rgba(224,91,31,0.3)]'
+                  : 'bg-turf border border-chalk/[0.07] text-silver'}`}>
               ⚽ Στους αγώνες
             </button>
             <button
