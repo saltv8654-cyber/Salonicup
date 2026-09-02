@@ -12,6 +12,7 @@ import { clockLabel } from '@/lib/clock'
 import { useNow } from '@/lib/hooks/useNow'
 import LineupPitch from '@/app/lineup-pitch'
 import { ytEmbed } from '@/lib/youtube'
+import { saveImageBlob } from '@/app/admin/post/versus-card'
 import toast from 'react-hot-toast'
 import type { Period } from '@/lib/types'
 
@@ -530,7 +531,7 @@ export default function PublicMatch() {
 }
 
 // Σμίκρυνση + συμπίεση φωτο πριν το ανέβασμα (και HEIC→JPEG). Μειώνει ~10× το μέγεθος.
-async function compressImage(file: File, maxSide = 1920, quality = 0.82): Promise<{ blob: Blob; ext: string; type: string }> {
+async function compressImage(file: File, maxSide = 2560, quality = 0.85): Promise<{ blob: Blob; ext: string; type: string }> {
   if (!file.type.startsWith('image/')) return { blob: file, ext: file.name.split('.').pop() || 'jpg', type: file.type }
   const url = URL.createObjectURL(file)
   try {
@@ -552,6 +553,20 @@ function MatchPhotos({ matchId, canPhoto }: { matchId: string; canPhoto: boolean
   const [photos, setPhotos] = useState<any[]>([])
   const [busy, setBusy] = useState(false)
   const [lightbox, setLightbox] = useState<string | null>(null)
+  const [dl, setDl] = useState(false)
+
+  async function download(url: string) {
+    setDl(true)
+    try {
+      const res = await fetch(url)
+      const blob = await res.blob()
+      const name = (url.split('/').pop() || 'salonicup.jpg').split('?')[0]
+      const r = await saveImageBlob(blob, name)
+      if (r === 'shared') toast.success('Αποθήκευσέ τη στις Φωτογραφίες')
+      else if (r === 'downloaded') toast.success('Κατέβηκε')
+    } catch { toast.error('Δεν κατέβηκε') }
+    finally { setDl(false) }
+  }
 
   async function fetchPhotos() {
     const { data } = await supabase.from('match_photos')
@@ -632,8 +647,13 @@ function MatchPhotos({ matchId, canPhoto }: { matchId: string; canPhoto: boolean
 
       {lightbox && (
         <div onClick={() => setLightbox(null)}
-          className="fixed inset-0 z-50 bg-black/90 grid place-items-center p-4">
-          <img src={lightbox} alt="" className="max-w-full max-h-full object-contain rounded-lg" />
+          className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4 gap-3">
+          <img src={lightbox} alt="" className="max-w-full max-h-[82vh] object-contain rounded-lg" />
+          <button onClick={e => { e.stopPropagation(); download(lightbox) }} disabled={dl}
+            className="px-5 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white
+              text-[13px] font-extrabold active:opacity-80 disabled:opacity-50">
+            {dl ? '⏳ Αποθήκευση…' : '⬇︎ Αποθήκευση φωτο'}
+          </button>
         </div>
       )}
     </div>
