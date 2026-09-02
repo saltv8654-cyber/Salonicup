@@ -529,6 +529,24 @@ export default function PublicMatch() {
   )
 }
 
+// Σμίκρυνση + συμπίεση φωτο πριν το ανέβασμα (και HEIC→JPEG). Μειώνει ~10× το μέγεθος.
+async function compressImage(file: File, maxSide = 1920, quality = 0.82): Promise<{ blob: Blob; ext: string; type: string }> {
+  if (!file.type.startsWith('image/')) return { blob: file, ext: file.name.split('.').pop() || 'jpg', type: file.type }
+  const url = URL.createObjectURL(file)
+  try {
+    const img = document.createElement('img')
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url })
+    const scale = Math.min(1, maxSide / Math.max(img.width, img.height))
+    const w = Math.round(img.width * scale), h = Math.round(img.height * scale)
+    const canvas = document.createElement('canvas')
+    canvas.width = w; canvas.height = h
+    canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+    const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/jpeg', quality))
+    if (blob) return { blob, ext: 'jpg', type: 'image/jpeg' }
+  } catch { /* fallback στο πρωτότυπο */ } finally { URL.revokeObjectURL(url) }
+  return { blob: file, ext: file.name.split('.').pop() || 'jpg', type: file.type }
+}
+
 function MatchPhotos({ matchId, canPhoto }: { matchId: string; canPhoto: boolean }) {
   const supabase = createClient()
   const [photos, setPhotos] = useState<any[]>([])
@@ -548,10 +566,10 @@ function MatchPhotos({ matchId, canPhoto }: { matchId: string; canPhoto: boolean
     let ok = 0
     for (const file of Array.from(files)) {
       try {
-        const ext = file.name.split('.').pop() || 'jpg'
+        const { blob, ext, type } = await compressImage(file)
         const path = `${matchId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`
         const { error: upErr } = await supabase.storage.from('match-photos')
-          .upload(path, file, { upsert: false, contentType: file.type })
+          .upload(path, blob, { upsert: false, contentType: type })
         if (upErr) throw upErr
         const { data: { publicUrl } } = supabase.storage.from('match-photos').getPublicUrl(path)
         const { error: insErr } = await supabase.from('match_photos')
