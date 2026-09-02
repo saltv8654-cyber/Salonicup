@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { Crest } from './ui'
 
 export type BSide = {
@@ -8,7 +9,13 @@ export type BSide = {
   win?: boolean
   ph?: string                  // placeholder όταν ο νικητής δεν έχει κριθεί ακόμη
 }
-export type BTie = { a: BSide; b: BSide }
+export type BTie = { a: BSide; b: BSide; openId?: string }
+
+/** Τυλίγει την κάρτα σε σύνδεσμο προς το ματς, αν υπάρχει. */
+function Clickable({ href, children, className }: { href?: string; children: React.ReactNode; className: string }) {
+  if (href) return <Link href={href} className={`${className} active:opacity-80`}>{children}</Link>
+  return <div className={className}>{children}</div>
+}
 
 function Row({ s }: { s: BSide }) {
   if (s.ph) {
@@ -46,20 +53,22 @@ function Row({ s }: { s: BSide }) {
 
 function TieCard({ tie, title }: { tie: BTie; title: string }) {
   return (
-    <div className="w-[152px] bg-turf rounded-xl border border-chalk/[0.07] overflow-hidden shrink-0">
+    <Clickable href={tie.openId ? `/match/${tie.openId}` : undefined}
+      className="block w-[152px] bg-turf rounded-xl border border-chalk/[0.07] overflow-hidden shrink-0">
       <div className="text-[8px] font-extrabold text-dim tracking-[0.14em] text-center py-1 bg-chalk/[0.04]">
         {title}
       </div>
       <Row s={tie.a} />
       <div className="h-px bg-chalk/[0.06] mx-2" />
       <Row s={tie.b} />
-    </div>
+    </Clickable>
   )
 }
 
 function CupCenter({ tie, champion }: { tie: BTie; champion?: BSide }) {
   return (
-    <div className="w-[172px] rounded-2xl overflow-hidden shrink-0
+    <Clickable href={tie.openId ? `/match/${tie.openId}` : undefined}
+      className="block w-[172px] rounded-2xl overflow-hidden shrink-0
       border-2 border-[#e8b923]/45 bg-gradient-to-b from-[#2b2410] to-turf
       shadow-[0_10px_30px_rgba(232,185,35,0.12)]">
       <div className="flex flex-col items-center pt-3 pb-1.5">
@@ -74,7 +83,7 @@ function CupCenter({ tie, champion }: { tie: BTie; champion?: BSide }) {
           ? <span className="text-[11px] font-extrabold text-[#f0d264]">🏆 {champion.name}</span>
           : <span className="text-[9px] font-bold tracking-[0.14em] text-[#e8b923]/70">ΠΡΩΤΑΘΛΗΤΗΣ</span>}
       </div>
-    </div>
+    </Clickable>
   )
 }
 

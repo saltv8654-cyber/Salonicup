@@ -63,7 +63,7 @@ export default async function StandingsPage({
   // ── Playoff bracket: seeding auto από top-8 της Regular Season ──
   const { data: pmatches } = active && view === 'playoff'
     ? await supabase.from('matches')
-        .select('team_a, team_b, goals_team_a, goals_team_b, match_status, stage, match_date')
+        .select('match_id, team_a, team_b, goals_team_a, goals_team_b, match_status, stage, match_date')
         .eq('league_id', active.league_id).in('stage', ['QF', 'SF', 'Final'])
     : { data: [] as any[] }
 
@@ -92,13 +92,17 @@ export default async function StandingsPage({
     const g1 = s1.reduce((a: number, x) => a + (x ?? 0), 0)
     const g2 = s2.reduce((a: number, x) => a + (x ?? 0), 0)
     const decided = played === legN && g1 !== g2
-    return { s1, s2, winner: decided ? (g1 > g2 ? t1 : t2) : undefined }
+    // Ποιο ματς ανοίγει με πάτημα: live > τελευταίο (κατά ημ/νία) > πρώτο
+    const openId = ms.find((m: any) => m.match_status === 'Live')?.match_id
+      ?? ms[ms.length - 1]?.match_id ?? ms[0]?.match_id
+    return { s1, s2, winner: decided ? (g1 > g2 ? t1 : t2) : undefined, openId }
   }
   const mkTie = (t1: BT | undefined, t2: BT | undefined, stg: string, ph1: string, ph2: string)
     : { tie: BTie; winner?: BT } => {
     if (!t1 || !t2) return { tie: { a: t1 ? side(t1) : { ph: ph1 }, b: t2 ? side(t2) : { ph: ph2 } } }
     const r = tieData(t1, t2, stg)
     return { winner: r.winner, tie: {
+      openId: r.openId,
       a: { seed: t1.seed, name: t1.name, logo: t1.logo, scores: r.s1, win: r.winner?.id === t1.id },
       b: { seed: t2.seed, name: t2.name, logo: t2.logo, scores: r.s2, win: r.winner?.id === t2.id },
     } }
