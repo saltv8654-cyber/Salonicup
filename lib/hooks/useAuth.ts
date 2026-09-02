@@ -49,5 +49,7 @@ export function useAuth() {
     isSpeaker: profile?.role === 'admin' || profile?.role === 'speaker',
     // Captain: βλέπει τα κενά γήπεδα (και όποιος είναι πιο πάνω)
     isCaptain: profile?.role === 'admin' || profile?.role === 'speaker' || profile?.role === 'captain',
+    // Ανέβασμα φωτο αγώνα: φωτογράφος, σπίκερ, admin
+    canPhoto: ['admin', 'speaker', 'photographer'].includes(profile?.role ?? ''),
   }
 }

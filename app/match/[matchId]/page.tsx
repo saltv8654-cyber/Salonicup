@@ -20,7 +20,7 @@ const STAGE_LBL: Record<string, string> = { QF: 'Προημιτελικά', SF: 
 export default function PublicMatch() {
   const { matchId } = useParams()
   const router = useRouter()
-  const { isSpeaker, isAdmin } = useAuth()
+  const { isSpeaker, isAdmin, canPhoto } = useAuth()
   const { match, events, loading } = useLiveMatch(matchId as string)
   const supabase = createClient()
   const now = useNow(1000)
@@ -319,6 +319,9 @@ export default function PublicMatch() {
         </div>
       )}
 
+      {/* Φωτογραφίες αγώνα */}
+      <MatchPhotos matchId={matchId as string} canPhoto={canPhoto} />
+
       {/* Περιγραφή */}
       <div className="px-3.5 pt-4">
         <SectionLabel>Περιγραφή</SectionLabel>
@@ -520,6 +523,99 @@ export default function PublicMatch() {
               {match.report}
             </p>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MatchPhotos({ matchId, canPhoto }: { matchId: string; canPhoto: boolean }) {
+  const supabase = createClient()
+  const [photos, setPhotos] = useState<any[]>([])
+  const [busy, setBusy] = useState(false)
+  const [lightbox, setLightbox] = useState<string | null>(null)
+
+  async function fetchPhotos() {
+    const { data } = await supabase.from('match_photos')
+      .select('photo_id, url, sort, created_at').eq('match_id', matchId)
+      .order('sort').order('created_at')
+    setPhotos(data ?? [])
+  }
+  useEffect(() => { fetchPhotos() }, [matchId])
+
+  async function upload(files: FileList) {
+    setBusy(true)
+    let ok = 0
+    for (const file of Array.from(files)) {
+      try {
+        const ext = file.name.split('.').pop() || 'jpg'
+        const path = `${matchId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`
+        const { error: upErr } = await supabase.storage.from('match-photos')
+          .upload(path, file, { upsert: false, contentType: file.type })
+        if (upErr) throw upErr
+        const { data: { publicUrl } } = supabase.storage.from('match-photos').getPublicUrl(path)
+        const { error: insErr } = await supabase.from('match_photos')
+          .insert({ match_id: matchId, url: publicUrl, sort: ok })
+        if (insErr) throw insErr
+        ok++
+      } catch (e: any) {
+        toast.error('Σφάλμα: ' + (e.message ?? e))
+      }
+    }
+    setBusy(false)
+    if (ok) toast.success(`Ανέβηκαν ${ok} φωτο`)
+    fetchPhotos()
+  }
+
+  async function remove(p: any) {
+    if (!confirm('Διαγραφή φωτογραφίας;')) return
+    await supabase.from('match_photos').delete().eq('photo_id', p.photo_id)
+    // Διαγραφή και από το storage (best-effort)
+    try {
+      const path = p.url.split('/match-photos/')[1]
+      if (path) await supabase.storage.from('match-photos').remove([path])
+    } catch { /* αγνόησε */ }
+    fetchPhotos()
+  }
+
+  if (!photos.length && !canPhoto) return null
+
+  return (
+    <div className="px-3.5 pt-6">
+      <div className="flex items-center justify-between mb-2">
+        <SectionLabel>Φωτογραφίες</SectionLabel>
+        {canPhoto && (
+          <label className={`text-[11px] font-extrabold text-lit cursor-pointer ${busy ? 'opacity-50' : ''}`}>
+            {busy ? '⏳ Ανεβαίνει…' : '＋ Προσθήκη'}
+            <input type="file" accept="image/*" multiple hidden disabled={busy}
+              onChange={e => { if (e.target.files?.length) upload(e.target.files); e.currentTarget.value = '' }} />
+          </label>
+        )}
+      </div>
+
+      {!photos.length ? (
+        <p className="text-dim text-[12px] py-4 text-center">Δεν υπάρχουν φωτογραφίες ακόμα.</p>
+      ) : (
+        <div className="grid grid-cols-3 gap-1.5">
+          {photos.map(p => (
+            <div key={p.photo_id} className="relative aspect-square rounded-lg overflow-hidden bg-turf">
+              <img src={p.url} alt="" loading="lazy"
+                onClick={() => setLightbox(p.url)}
+                className="w-full h-full object-cover active:opacity-80" />
+              {canPhoto && (
+                <button onClick={() => remove(p)}
+                  className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white text-[11px]
+                    grid place-items-center">✕</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {lightbox && (
+        <div onClick={() => setLightbox(null)}
+          className="fixed inset-0 z-50 bg-black/90 grid place-items-center p-4">
+          <img src={lightbox} alt="" className="max-w-full max-h-full object-contain rounded-lg" />
         </div>
       )}
     </div>
