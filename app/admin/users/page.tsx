@@ -7,10 +7,11 @@ import toast from 'react-hot-toast'
 import type { Profile } from '@/lib/types'
 
 const ROLES = [
-  { value: 'admin',   label: 'Διαχειριστής' },
-  { value: 'speaker', label: 'Speaker' },
-  { value: 'captain', label: 'Αρχηγός' },
-  { value: 'viewer',  label: 'Θεατής' },
+  { value: 'admin',        label: 'Διαχειριστής' },
+  { value: 'speaker',      label: 'Speaker' },
+  { value: 'photographer', label: 'Φωτογράφος' },
+  { value: 'captain',      label: 'Αρχηγός' },
+  { value: 'viewer',       label: 'Θεατής' },
 ]
 
 export default function AdminUsers() {
