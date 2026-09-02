@@ -12,11 +12,12 @@ const GRID = 'grid items-center gap-0 [grid-template-columns:18px_24px_1fr_24px_
 
 export default async function StandingsPage({
   searchParams,
-}: { searchParams: { league?: string; view?: string } }) {
+}: { searchParams: { league?: string; view?: string; pv?: string } }) {
   const supabase = createClient()
   const view = searchParams.view === 'fixtures' ? 'fixtures'
     : searchParams.view === 'scorers' ? 'scorers'
     : searchParams.view === 'playoff' ? 'playoff' : 'table'
+  const pv = searchParams.pv === 'fixtures' ? 'fixtures' : 'bracket'  // υπο-καρτέλα playoff
 
   const { data: leagues } = await supabase
     .from('leagues').select('*').eq('active', true).eq('is_cup', false).order('sort_order')
@@ -63,7 +64,8 @@ export default async function StandingsPage({
   // ── Playoff bracket: seeding auto από top-8 της Regular Season ──
   const { data: pmatches } = active && view === 'playoff'
     ? await supabase.from('matches')
-        .select('match_id, team_a, team_b, goals_team_a, goals_team_b, match_status, stage, match_date')
+        .select(`match_id, team_a, team_b, goals_team_a, goals_team_b, match_status, stage, match_date, field,
+          team_a_data:team_a(name, logo_url), team_b_data:team_b(name, logo_url)`)
         .eq('league_id', active.league_id).in('stage', ['QF', 'SF', 'Final'])
     : { data: [] as any[] }
 
@@ -210,17 +212,56 @@ export default async function StandingsPage({
 
             {view === 'playoff' ? (
               <>
-                {/* Γραφικά Instagram — μόνο admin */}
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <GraphicLink href={`/api/og/playoff/${active.league_id}?format=post`}>📸 Post</GraphicLink>
-                  </div>
-                  <div className="flex-1">
-                    <GraphicLink href={`/api/og/playoff/${active.league_id}?format=story`}>📱 Story</GraphicLink>
-                  </div>
+                {/* Υπο-καρτέλες playoff: Δέντρο (bracket) | Αγωνιστικές */}
+                <div className="flex gap-1.5 mb-4">
+                  {([['bracket', '🏆 Δέντρο'], ['fixtures', 'Αγωνιστικές']] as const).map(([v, label]) => (
+                    <Link key={v} href={`/standings?league=${active.league_id}&view=playoff&pv=${v}`}
+                      className={`flex-1 text-center py-2 rounded-xl text-[12px] font-bold border
+                        ${pv === v ? 'bg-turf text-lit border-lit/40' : 'bg-turf/40 text-dim border-chalk/[0.05]'}`}>
+                      {label}
+                    </Link>
+                  ))}
                 </div>
-                <PlayoffBracket qf18={t18.tie} qf45={t45.tie} qf27={t27.tie} qf36={t36.tie}
-                  sfTop={sTop.tie} sfBot={sBot.tie} fin={fin.tie} champion={champion} />
+
+                {pv === 'fixtures' ? (
+                  (() => {
+                    const STG = [['QF', 'Προημιτελικά'], ['SF', 'Ημιτελικά'], ['Final', 'Τελικός']] as const
+                    const has = STG.some(([s]) => (pmatches ?? []).some((m: any) => m.stage === s))
+                    if (!has) return <Empty>Δεν έχουν οριστεί αγώνες playoff ακόμα.</Empty>
+                    return (
+                      <div className="flex flex-col gap-4">
+                        {STG.map(([s, label]) => {
+                          const ms = (pmatches ?? []).filter((m: any) => m.stage === s)
+                            .sort((a: any, b: any) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
+                          if (!ms.length) return null
+                          return (
+                            <div key={s}>
+                              <p className="text-[9.5px] font-extrabold uppercase tracking-[0.16em] text-dim mb-2 px-1">
+                                🏆 {label}</p>
+                              <div className="bg-turf rounded-xl border border-chalk/[0.05] overflow-hidden">
+                                {ms.map((m: any, i: number) => <FixtureRow key={m.match_id} m={m} first={i === 0} />)}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()
+                ) : (
+                  <>
+                    {/* Γραφικά Instagram — μόνο admin */}
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <GraphicLink href={`/api/og/playoff/${active.league_id}?format=post`}>📸 Post</GraphicLink>
+                      </div>
+                      <div className="flex-1">
+                        <GraphicLink href={`/api/og/playoff/${active.league_id}?format=story`}>📱 Story</GraphicLink>
+                      </div>
+                    </div>
+                    <PlayoffBracket qf18={t18.tie} qf45={t45.tie} qf27={t27.tie} qf36={t36.tie}
+                      sfTop={sTop.tie} sfBot={sBot.tie} fin={fin.tie} champion={champion} />
+                  </>
+                )}
               </>
             ) : view === 'scorers' ? (
               !srows.length ? <Empty>Δεν υπάρχουν στατιστικά.</Empty> : (
