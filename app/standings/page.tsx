@@ -228,6 +228,25 @@ export default async function StandingsPage({
                     const STG = [['QF', 'Προημιτελικά'], ['SF', 'Ημιτελικά'], ['Final', 'Τελικός']] as const
                     const has = STG.some(([s]) => (pmatches ?? []).some((m: any) => m.stage === s))
                     if (!has) return <Empty>Δεν έχουν οριστεί αγώνες playoff ακόμα.</Empty>
+                    // Αριθμός σκέλους (1/2) ανά ζευγάρι+φάση
+                    const legMap = new Map<string, number>()
+                    const grp = new Map<string, any[]>()
+                    for (const m of pmatches ?? []) {
+                      if (m.stage === 'Final') continue
+                      const pair = [m.team_a, m.team_b].slice().sort().join('-')
+                      const k = `${m.stage}:${pair}`
+                      if (!grp.has(k)) grp.set(k, [])
+                      grp.get(k)!.push(m)
+                    }
+                    for (const arr of grp.values()) {
+                      arr.sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
+                      arr.forEach((m, i) => legMap.set(m.match_id, i + 1))
+                    }
+                    const List = ({ ms }: { ms: any[] }) => (
+                      <div className="bg-turf rounded-xl border border-chalk/[0.05] overflow-hidden">
+                        {ms.map((m: any, i: number) => <FixtureRow key={m.match_id} m={m} first={i === 0} />)}
+                      </div>
+                    )
                     return (
                       <div className="flex flex-col gap-4">
                         {STG.map(([s, label]) => {
@@ -238,9 +257,23 @@ export default async function StandingsPage({
                             <div key={s}>
                               <p className="text-[9.5px] font-extrabold uppercase tracking-[0.16em] text-dim mb-2 px-1">
                                 🏆 {label}</p>
-                              <div className="bg-turf rounded-xl border border-chalk/[0.05] overflow-hidden">
-                                {ms.map((m: any, i: number) => <FixtureRow key={m.match_id} m={m} first={i === 0} />)}
-                              </div>
+                              {s === 'Final' ? (
+                                <List ms={ms} />
+                              ) : (
+                                <div className="flex flex-col gap-2.5">
+                                  {[['Α΄ αγώνας', 1], ['Β΄ αγώνας', 2]].map(([lbl, leg]) => {
+                                    const legMs = ms.filter((m: any) => (legMap.get(m.match_id) ?? 1) === leg)
+                                    if (!legMs.length) return null
+                                    return (
+                                      <div key={leg as number}>
+                                        <p className="text-[8.5px] font-extrabold text-lit/80 tracking-[0.12em] mb-1 px-1">
+                                          {lbl as string}</p>
+                                        <List ms={legMs} />
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
                             </div>
                           )
                         })}
