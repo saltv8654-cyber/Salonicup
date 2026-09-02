@@ -618,8 +618,10 @@ function MatchPhotos({ matchId, canPhoto }: { matchId: string; canPhoto: boolean
       <div className="flex items-center justify-between mb-2">
         <SectionLabel>Φωτογραφίες</SectionLabel>
         {canPhoto && (
-          <label className={`text-[11px] font-extrabold text-lit cursor-pointer ${busy ? 'opacity-50' : ''}`}>
-            {busy ? '⏳ Ανεβαίνει…' : '＋ Προσθήκη'}
+          <label className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-b from-lit to-brand
+            text-white text-[12.5px] font-extrabold cursor-pointer active:opacity-85
+            shadow-[0_3px_12px_rgba(224,91,31,0.3)] ${busy ? 'opacity-60' : ''}`}>
+            {busy ? '⏳ Ανεβαίνει…' : '📷 ＋ Ανέβασμα'}
             <input type="file" accept="image/*" multiple hidden disabled={busy}
               onChange={e => { if (e.target.files?.length) upload(e.target.files); e.currentTarget.value = '' }} />
           </label>
@@ -627,7 +629,19 @@ function MatchPhotos({ matchId, canPhoto }: { matchId: string; canPhoto: boolean
       </div>
 
       {!photos.length ? (
-        <p className="text-dim text-[12px] py-4 text-center">Δεν υπάρχουν φωτογραφίες ακόμα.</p>
+        canPhoto ? (
+          <label className={`flex flex-col items-center justify-center gap-2 py-9 rounded-2xl
+            border-2 border-dashed cursor-pointer active:bg-lit/[0.12] ${busy ? 'opacity-60' : ''}`}
+            style={{ borderColor: 'rgba(224,91,31,0.45)', background: 'rgba(224,91,31,0.06)' }}>
+            <span className="text-[34px] leading-none">📷</span>
+            <span className="text-[14px] font-extrabold text-lit">{busy ? 'Ανεβαίνει…' : '＋ Πρόσθεσε φωτογραφίες'}</span>
+            <span className="text-[11px] text-dim">Πάτησε εδώ — διάλεξε πολλές μαζί</span>
+            <input type="file" accept="image/*" multiple hidden disabled={busy}
+              onChange={e => { if (e.target.files?.length) upload(e.target.files); e.currentTarget.value = '' }} />
+          </label>
+        ) : (
+          <p className="text-dim text-[12px] py-4 text-center">Δεν υπάρχουν φωτογραφίες ακόμα.</p>
+        )
       ) : (
         <div className="grid grid-cols-3 gap-1.5">
           {photos.map(p => (
