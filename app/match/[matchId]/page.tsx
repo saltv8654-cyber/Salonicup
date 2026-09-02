@@ -554,6 +554,11 @@ function MatchPhotos({ matchId, canPhoto }: { matchId: string; canPhoto: boolean
   const [busy, setBusy] = useState(false)
   const [lightbox, setLightbox] = useState<string | null>(null)
   const [dl, setDl] = useState(false)
+  const [selMode, setSelMode] = useState(false)
+  const [sel, setSel] = useState<Set<string>>(new Set())
+  const toggleSel = (id: string) => setSel(prev => {
+    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n
+  })
 
   async function download(url: string) {
     setDl(true)
@@ -611,6 +616,20 @@ function MatchPhotos({ matchId, canPhoto }: { matchId: string; canPhoto: boolean
     fetchPhotos()
   }
 
+  // Μαζική διαγραφή επιλεγμένων
+  async function removeMany() {
+    const ids = [...sel]
+    if (!ids.length) return
+    if (!confirm(`Διαγραφή ${ids.length} φωτογραφιών;`)) return
+    const toDel = photos.filter(p => sel.has(p.photo_id))
+    await supabase.from('match_photos').delete().in('photo_id', ids)
+    const paths = toDel
+      .map(p => { try { return p.url.split('/match-photos/')[1] } catch { return null } })
+      .filter(Boolean) as string[]
+    if (paths.length) { try { await supabase.storage.from('match-photos').remove(paths) } catch { /* αγνόησε */ } }
+    setSel(new Set()); setSelMode(false); fetchPhotos()
+  }
+
   if (!photos.length && !canPhoto) return null
 
   return (
@@ -618,15 +637,38 @@ function MatchPhotos({ matchId, canPhoto }: { matchId: string; canPhoto: boolean
       <div className="flex items-center justify-between mb-2">
         <SectionLabel>Φωτογραφίες</SectionLabel>
         {canPhoto && (
-          <label className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-b from-lit to-brand
-            text-white text-[12.5px] font-extrabold cursor-pointer active:opacity-85
-            shadow-[0_3px_12px_rgba(224,91,31,0.3)] ${busy ? 'opacity-60' : ''}`}>
-            {busy ? '⏳ Ανεβαίνει…' : '📷 ＋ Ανέβασμα'}
-            <input type="file" accept="image/*" multiple hidden disabled={busy}
-              onChange={e => { if (e.target.files?.length) upload(e.target.files); e.currentTarget.value = '' }} />
-          </label>
+          <div className="flex items-center gap-2">
+            {photos.length > 0 && (
+              <button onClick={() => { setSelMode(m => !m); setSel(new Set()) }}
+                className="px-3 py-2 rounded-xl bg-chalk/[0.06] border border-chalk/[0.08] text-silver text-[12px] font-bold">
+                {selMode ? 'Ακύρωση' : 'Επιλογή'}
+              </button>
+            )}
+            {!selMode && (
+              <label className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-b from-lit to-brand
+                text-white text-[12.5px] font-extrabold cursor-pointer active:opacity-85
+                shadow-[0_3px_12px_rgba(224,91,31,0.3)] ${busy ? 'opacity-60' : ''}`}>
+                {busy ? '⏳ Ανεβαίνει…' : '📷 ＋ Ανέβασμα'}
+                <input type="file" accept="image/*" multiple hidden disabled={busy}
+                  onChange={e => { if (e.target.files?.length) upload(e.target.files); e.currentTarget.value = '' }} />
+              </label>
+            )}
+          </div>
         )}
       </div>
+
+      {canPhoto && selMode && photos.length > 0 && (
+        <div className="flex items-center gap-2 mb-2.5">
+          <button onClick={() => setSel(new Set(sel.size === photos.length ? [] : photos.map(p => p.photo_id)))}
+            className="flex-1 py-2.5 rounded-xl bg-chalk/[0.06] border border-chalk/[0.08] text-silver text-[12.5px] font-bold">
+            {sel.size === photos.length ? 'Καμία' : `Όλες (${photos.length})`}
+          </button>
+          <button onClick={removeMany} disabled={!sel.size}
+            className="flex-1 py-2.5 rounded-xl bg-danger/15 border border-danger/30 text-danger text-[12.5px] font-extrabold disabled:opacity-40">
+            🗑 Διαγραφή ({sel.size})
+          </button>
+        </div>
+      )}
 
       {!photos.length ? (
         canPhoto ? (
@@ -644,18 +686,26 @@ function MatchPhotos({ matchId, canPhoto }: { matchId: string; canPhoto: boolean
         )
       ) : (
         <div className="grid grid-cols-3 gap-1.5">
-          {photos.map(p => (
-            <div key={p.photo_id} className="relative aspect-square rounded-lg overflow-hidden bg-turf">
-              <img src={p.url} alt="" loading="lazy"
-                onClick={() => setLightbox(p.url)}
-                className="w-full h-full object-cover active:opacity-80" />
-              {canPhoto && (
-                <button onClick={() => remove(p)}
-                  className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white text-[11px]
-                    grid place-items-center">✕</button>
-              )}
-            </div>
-          ))}
+          {photos.map(p => {
+            const on = sel.has(p.photo_id)
+            return (
+              <div key={p.photo_id} className="relative aspect-square rounded-lg overflow-hidden bg-turf">
+                <img src={p.url} alt="" loading="lazy"
+                  onClick={() => selMode ? toggleSel(p.photo_id) : setLightbox(p.url)}
+                  className={`w-full h-full object-cover active:opacity-80 ${selMode && on ? 'opacity-55' : ''}`} />
+                {selMode ? (
+                  <div className="absolute top-1 right-1 w-6 h-6 rounded-full grid place-items-center text-[12px] font-black"
+                    style={{ background: on ? '#e0563c' : 'rgba(0,0,0,0.45)', color: '#fff', border: '2px solid rgba(255,255,255,0.75)' }}>
+                    {on ? '✓' : ''}
+                  </div>
+                ) : canPhoto ? (
+                  <button onClick={() => remove(p)}
+                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white text-[11px]
+                      grid place-items-center">✕</button>
+                ) : null}
+              </div>
+            )
+          })}
         </div>
       )}
 
