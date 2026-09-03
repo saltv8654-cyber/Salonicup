@@ -216,6 +216,11 @@ function TeamForm({ row, leagues, onClose, onSaved }: {
   // Διαθέσιμες μέρες (0=Κυ..6=Σα). Κενό/όλες = χωρίς περιορισμό.
   const [days, setDays] = useState<Set<number>>(
     new Set<number>((row as any)?.avail_days?.length ? (row as any).avail_days : [0, 1, 2, 3, 4, 5, 6]))
+  // «Όχι πριν από» ώρα (HH:MM). Κενό = καμία.
+  const nbInit = (row as any)?.not_before != null
+    ? `${String(Math.floor((row as any).not_before / 60)).padStart(2, '0')}:${String((row as any).not_before % 60).padStart(2, '0')}`
+    : ''
+  const [notBefore, setNotBefore] = useState<string>(nbInit)
   const [busy, setBusy]     = useState(false)
 
   const toggleDay = (d: number) => setDays(prev => {
@@ -229,6 +234,9 @@ function TeamForm({ row, leagues, onClose, onSaved }: {
 
     // Αν είναι επιλεγμένες όλες (ή καμία) → null = χωρίς περιορισμό
     const availDays = days.size === 0 || days.size === 7 ? null : [...days].sort((a, b) => a - b)
+    let nb: number | null = null
+    const nbm = notBefore.match(/^(\d{1,2}):(\d{2})$/)
+    if (nbm) nb = parseInt(nbm[1]) * 60 + parseInt(nbm[2])
     const payload = {
       name: name.trim(),
       league_id: league,
@@ -237,6 +245,7 @@ function TeamForm({ row, leagues, onClose, onSaved }: {
       kit_secondary: kitS,
       kit_pattern: kitPat,
       avail_days: availDays,
+      not_before: nb,
     }
     const { error } = row
       ? await supabase.from('teams').update(payload).eq('team_id', row.team_id)
@@ -306,6 +315,24 @@ function TeamForm({ row, leagues, onClose, onSaved }: {
         </div>
         <p className="text-[9.5px] text-off mt-1 pl-0.5">
           Όλες επιλεγμένες = χωρίς περιορισμό. Π.χ. «Καθημερινές» → η ομάδα παίζει μόνο Δευ–Παρ.
+        </p>
+      </div>
+
+      {/* Όχι πριν από ώρα */}
+      <div className="mt-1">
+        <label className="block text-[8.5px] font-extrabold text-dim tracking-[0.12em] mb-1.5 pl-0.5">
+          ΟΧΙ ΠΡΙΝ ΑΠΟ (ώρα)</label>
+        <div className="flex items-center gap-2">
+          <input type="time" value={notBefore} onChange={e => setNotBefore(e.target.value)}
+            className="flex-1 bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-sm
+              outline-none border border-chalk/[0.07] focus:border-lit/50" />
+          {notBefore && (
+            <button type="button" onClick={() => setNotBefore('')}
+              className="px-3 py-2.5 rounded-xl bg-chalk/[0.06] text-silver text-[11px] font-bold">Καθαρισμός</button>
+          )}
+        </div>
+        <p className="text-[9.5px] text-off mt-1 pl-0.5">
+          Κενό = καμία. Π.χ. 20:00 → η ομάδα δεν παίζει πριν τις 20:00.
         </p>
       </div>
 

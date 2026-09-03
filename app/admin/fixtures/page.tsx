@@ -172,6 +172,7 @@ export default function AdminFixtures() {
       // 1) Ποια πρωταθλήματα + ομάδες τους
       const targets: { id: string; teamIds: string[] }[] = []
       const availMap: Record<string, number[] | null> = {}  // team_id → διαθέσιμες μέρες (null = όλες)
+      const nbMap: Record<string, number | null> = {}       // team_id → όχι πριν από (λεπτά)· null = καμία
 
       if (mode === 'new') {
         const n = parseInt(count) || 0
@@ -193,9 +194,12 @@ export default function AdminFixtures() {
         if (!selected.size) throw new Error('Διάλεξε τουλάχιστον ένα πρωτάθλημα')
         for (const lid of selected) {
           const { data: ts } = await supabase.from('teams')
-            .select('team_id, name, avail_days').eq('league_id', lid).eq('active', true).order('name')
+            .select('team_id, name, avail_days, not_before').eq('league_id', lid).eq('active', true).order('name')
           const ids = (ts ?? []).map(t => t.team_id)
-          for (const t of ts ?? []) availMap[t.team_id] = (t as any).avail_days ?? null
+          for (const t of ts ?? []) {
+            availMap[t.team_id] = (t as any).avail_days ?? null
+            nbMap[t.team_id] = (t as any).not_before ?? null
+          }
           if (ids.length >= 2) targets.push({ id: lid, teamIds: ids })
         }
         if (!targets.length) throw new Error('Τα επιλεγμένα πρωταθλήματα δεν έχουν αρκετές ομάδες')
@@ -247,6 +251,20 @@ export default function AdminFixtures() {
         const av = availMap[teamId]
         return !av || av.length === 0 || av.includes(dow)
       }
+      // Ώρα ΟΚ: όχι πριν από το κατώφλι της ομάδας (ισχύει και για τους δύο)
+      const timeOk = (teamId: string, tmin: number) => {
+        const nb = nbMap[teamId]
+        return nb == null || tmin >= nb
+      }
+      // Συμβατές μέρες; (κάποια χωρίς περιορισμό = συμβατές· αλλιώς πρέπει να τέμνονται)
+      const compatibleDays = (a: string, b: string) => {
+        const av = availMap[a], bv = availMap[b]
+        if (!av || av.length === 0 || !bv || bv.length === 0) return true
+        return av.some(d => bv.includes(d))
+      }
+      // Fallback: αν είναι ασύμβατες, ισχύει μόνο ο περιορισμός του γηπεδούχου (team_a του γύρου).
+      const pairDayOk = (a: string, b: string, dow: number) =>
+        compatibleDays(a, b) ? (dayOk(a, dow) && dayOk(b, dow)) : dayOk(a, dow)
 
       for (const c of cands) {
         if (allDone()) break
@@ -268,7 +286,8 @@ export default function AdminFixtures() {
               if (L.roundWeek === -1 && week < L.weekLock) continue
             }
             const idx = L.remaining.findIndex(([a, b]) =>
-              !used.has(a) && !used.has(b) && dayOk(a, dow) && dayOk(b, dow))
+              !used.has(a) && !used.has(b) &&
+              pairDayOk(a, b, dow) && timeOk(a, c.tmin) && timeOk(b, c.tmin))
             if (idx < 0) continue
             const [a, b] = L.remaining.splice(idx, 1)[0]
             if (oneWeek && L.roundWeek === -1) L.roundWeek = week
