@@ -19,6 +19,7 @@ export default function AdminUsers() {
   const [rows, setRows] = useState<Profile[]>([])
   const [load, setLoad] = useState(true)
   const [open, setOpen] = useState(false)
+  const [filter, setFilter] = useState<string>('all')  // φίλτρο ρόλου
   // Επεξεργασία εμφανιζόμενου ονόματος (inline)
   const [editId, setEditId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
@@ -50,18 +51,38 @@ export default function AdminUsers() {
 
   if (load) return <Loading />
 
+  const count = (v: string) => rows.filter(u => u.role === v).length
+  const tabs = [{ value: 'all', label: 'Όλοι' }, ...ROLES]
+  const shown = filter === 'all' ? rows : rows.filter(u => u.role === filter)
+
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <h1 className="text-lg font-extrabold text-chalk">Χρήστες</h1>
         <button onClick={() => setOpen(true)}
           className="px-4 py-2 rounded-lg bg-gradient-to-b from-lit to-brand
             text-white text-[12.5px] font-extrabold">+ Speaker</button>
       </div>
 
-      {!rows.length ? <Empty>Δεν υπάρχουν χρήστες.</Empty> : (
+      {/* Φίλτρο ανά ρόλο */}
+      <div className="flex gap-2 mb-4 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {tabs.map(t => {
+          const n = t.value === 'all' ? rows.length : count(t.value)
+          const on = filter === t.value
+          return (
+            <button key={t.value} onClick={() => setFilter(t.value)}
+              className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold
+                whitespace-nowrap ${on ? 'bg-brand text-chalk' : 'bg-turf text-dim'}`}>
+              {t.label}
+              <span className={`text-[10px] font-extrabold tnum ${on ? 'text-chalk/70' : 'text-off'}`}>{n}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {!shown.length ? <Empty>Δεν υπάρχουν χρήστες.</Empty> : (
         <div className="flex flex-col gap-1.5">
-          {rows.map(u => (
+          {shown.map(u => (
             <div key={u.id}
               className="bg-turf rounded-xl px-3.5 py-3 flex items-center gap-3
                 border border-chalk/[0.05]">
@@ -84,6 +105,9 @@ export default function AdminUsers() {
                     <span className="text-[13px] font-bold text-chalk truncate">
                       {u.full_name || u.email}
                     </span>
+                    {(u as any).created_at && Date.now() - new Date((u as any).created_at).getTime() < 86400000 && (
+                      <span className="text-[8px] font-black text-lit bg-lit/15 px-1.5 py-0.5 rounded-full shrink-0">ΝΕΟ</span>
+                    )}
                     <span className="text-dim text-[10px] shrink-0">✎</span>
                   </button>
                 )}
