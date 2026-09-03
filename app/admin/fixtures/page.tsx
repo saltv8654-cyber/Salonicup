@@ -171,6 +171,7 @@ export default function AdminFixtures() {
     try {
       // 1) Ποια πρωταθλήματα + ομάδες τους
       const targets: { id: string; teamIds: string[] }[] = []
+      const availMap: Record<string, number[] | null> = {}  // team_id → διαθέσιμες μέρες (null = όλες)
 
       if (mode === 'new') {
         const n = parseInt(count) || 0
@@ -192,8 +193,9 @@ export default function AdminFixtures() {
         if (!selected.size) throw new Error('Διάλεξε τουλάχιστον ένα πρωτάθλημα')
         for (const lid of selected) {
           const { data: ts } = await supabase.from('teams')
-            .select('team_id, name').eq('league_id', lid).eq('active', true).order('name')
+            .select('team_id, name, avail_days').eq('league_id', lid).eq('active', true).order('name')
           const ids = (ts ?? []).map(t => t.team_id)
+          for (const t of ts ?? []) availMap[t.team_id] = (t as any).avail_days ?? null
           if (ids.length >= 2) targets.push({ id: lid, teamIds: ids })
         }
         if (!targets.length) throw new Error('Τα επιλεγμένα πρωταθλήματα δεν έχουν αρκετές ομάδες')
@@ -240,9 +242,16 @@ export default function AdminFixtures() {
       }
       cands.sort((a, b) => a.week - b.week || a.rank - b.rank || a.tmin - b.tmin)
 
+      // Επιτρέπεται η ομάδα αυτή τη μέρα; (null/κενό = όλες οι μέρες)
+      const dayOk = (teamId: string, dow: number) => {
+        const av = availMap[teamId]
+        return !av || av.length === 0 || av.includes(dow)
+      }
+
       for (const c of cands) {
         if (allDone()) break
         const week = c.week
+        const dow = c.date.getDay()
         const used = new Set<string>()
         // Κάθε γήπεδο αυτής της ώρας γίνεται slot (ελεύθερο ή με αγώνα)
         for (const f of fieldList) slotEntries.push({ iso: c.iso, field: f })
@@ -258,7 +267,8 @@ export default function AdminFixtures() {
               if (L.roundWeek !== -1 && week !== L.roundWeek) continue
               if (L.roundWeek === -1 && week < L.weekLock) continue
             }
-            const idx = L.remaining.findIndex(([a, b]) => !used.has(a) && !used.has(b))
+            const idx = L.remaining.findIndex(([a, b]) =>
+              !used.has(a) && !used.has(b) && dayOk(a, dow) && dayOk(b, dow))
             if (idx < 0) continue
             const [a, b] = L.remaining.splice(idx, 1)[0]
             if (oneWeek && L.roundWeek === -1) L.roundWeek = week

@@ -213,13 +213,22 @@ function TeamForm({ row, leagues, onClose, onSaved }: {
   const [kitP, setKitP]     = useState((row as any)?.kit_primary ?? '#E05B1F')
   const [kitS, setKitS]     = useState((row as any)?.kit_secondary ?? '#111318')
   const [kitPat, setKitPat] = useState((row as any)?.kit_pattern ?? 'solid')
+  // Διαθέσιμες μέρες (0=Κυ..6=Σα). Κενό/όλες = χωρίς περιορισμό.
+  const [days, setDays] = useState<Set<number>>(
+    new Set<number>((row as any)?.avail_days?.length ? (row as any).avail_days : [0, 1, 2, 3, 4, 5, 6]))
   const [busy, setBusy]     = useState(false)
+
+  const toggleDay = (d: number) => setDays(prev => {
+    const n = new Set(prev); n.has(d) ? n.delete(d) : n.add(d); return n
+  })
 
   async function save() {
     if (!name.trim())  return toast.error('Χρειάζεται όνομα')
     if (!league)       return toast.error('Διάλεξε πρωτάθλημα')
     setBusy(true)
 
+    // Αν είναι επιλεγμένες όλες (ή καμία) → null = χωρίς περιορισμό
+    const availDays = days.size === 0 || days.size === 7 ? null : [...days].sort((a, b) => a - b)
     const payload = {
       name: name.trim(),
       league_id: league,
@@ -227,6 +236,7 @@ function TeamForm({ row, leagues, onClose, onSaved }: {
       kit_primary: kitP,
       kit_secondary: kitS,
       kit_pattern: kitPat,
+      avail_days: availDays,
     }
     const { error } = row
       ? await supabase.from('teams').update(payload).eq('team_id', row.team_id)
@@ -269,6 +279,34 @@ function TeamForm({ row, leagues, onClose, onSaved }: {
             </select>
           </div>
         </div>
+      </div>
+
+      {/* Διαθέσιμες μέρες (η Γεννήτρια θα βάζει αγώνες μόνο αυτές τις μέρες) */}
+      <div className="mt-1">
+        <div className="flex items-center justify-between mb-1.5 pl-0.5">
+          <label className="text-[8.5px] font-extrabold text-dim tracking-[0.12em]">ΔΙΑΘΕΣΙΜΕΣ ΜΕΡΕΣ</label>
+          <div className="flex gap-1.5">
+            <button type="button" onClick={() => setDays(new Set([1, 2, 3, 4, 5]))}
+              className="text-[10px] font-bold text-lit">Καθημερινές</button>
+            <button type="button" onClick={() => setDays(new Set([0, 1, 2, 3, 4, 5, 6]))}
+              className="text-[10px] font-bold text-dim">Όλες</button>
+          </div>
+        </div>
+        <div className="flex gap-1">
+          {[['Δε', 1], ['Τρ', 2], ['Τε', 3], ['Πε', 4], ['Πα', 5], ['Σα', 6], ['Κυ', 0]].map(([lbl, d]) => {
+            const on = days.has(d as number)
+            return (
+              <button key={d as number} type="button" onClick={() => toggleDay(d as number)}
+                className={`flex-1 py-2 rounded-lg text-[11px] font-extrabold border
+                  ${on ? 'bg-lit/[0.15] border-lit/40 text-lit' : 'bg-chalk/[0.03] border-chalk/[0.06] text-off'}`}>
+                {lbl}
+              </button>
+            )
+          })}
+        </div>
+        <p className="text-[9.5px] text-off mt-1 pl-0.5">
+          Όλες επιλεγμένες = χωρίς περιορισμό. Π.χ. «Καθημερινές» → η ομάδα παίζει μόνο Δευ–Παρ.
+        </p>
       </div>
 
       <SaveBtn busy={busy} onClick={save} />
