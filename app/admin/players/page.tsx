@@ -15,6 +15,11 @@ export default function AdminPlayers() {
   const [open, setOpen]   = useState(false)
   const [bulk, setBulk]   = useState(false)
   const [edit, setEdit]   = useState<Player | null>(null)
+  const [selMode, setSelMode] = useState(false)
+  const [sel, setSel] = useState<Set<string>>(new Set())
+  const toggleSel = (id: string) => setSel(prev => {
+    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n
+  })
 
   async function fetchTeams() {
     const { data } = await supabase.from('teams').select('*').order('name')
@@ -40,6 +45,16 @@ export default function AdminPlayers() {
     toast.success('Διαγράφηκε'); fetchPlayers(team)
   }
 
+  async function removeMany() {
+    const ids = [...sel]
+    if (!ids.length) return
+    if (!confirm(`Διαγραφή ${ids.length} παικτών;`)) return
+    const { error } = await supabase.from('players').delete().in('player_id', ids)
+    if (error) return toast.error('Δεν διαγράφηκαν: ' + error.message)
+    toast.success(`Διαγράφηκαν ${ids.length}`)
+    setSel(new Set()); setSelMode(false); fetchPlayers(team)
+  }
+
   if (load) return <Loading />
 
   return (
@@ -47,17 +62,28 @@ export default function AdminPlayers() {
       <div className="flex items-center justify-between mb-3">
         <h1 className="text-lg font-extrabold text-chalk">Παίκτες</h1>
         <div className="flex gap-2">
-          <button onClick={() => setBulk(true)} disabled={!team}
-            className="px-3.5 py-2 rounded-lg bg-turf border border-lit/25 text-lit
-              text-[12.5px] font-extrabold disabled:opacity-40">
-            Μαζική
-          </button>
-          <button onClick={() => { setEdit(null); setOpen(true) }}
-            disabled={!team}
-            className="px-4 py-2 rounded-lg bg-gradient-to-b from-lit to-brand
-              text-white text-[12.5px] font-extrabold disabled:opacity-40">
-            + Νέος
-          </button>
+          {rows.length > 0 && (
+            <button onClick={() => { setSelMode(m => !m); setSel(new Set()) }}
+              className="px-3.5 py-2 rounded-lg bg-turf border border-chalk/[0.1] text-silver
+                text-[12.5px] font-extrabold">
+              {selMode ? 'Ακύρωση' : 'Επιλογή'}
+            </button>
+          )}
+          {!selMode && (
+            <>
+              <button onClick={() => setBulk(true)} disabled={!team}
+                className="px-3.5 py-2 rounded-lg bg-turf border border-lit/25 text-lit
+                  text-[12.5px] font-extrabold disabled:opacity-40">
+                Μαζική
+              </button>
+              <button onClick={() => { setEdit(null); setOpen(true) }}
+                disabled={!team}
+                className="px-4 py-2 rounded-lg bg-gradient-to-b from-lit to-brand
+                  text-white text-[12.5px] font-extrabold disabled:opacity-40">
+                + Νέος
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -69,28 +95,54 @@ export default function AdminPlayers() {
         </select>
       </div>
 
+      {selMode && rows.length > 0 && (
+        <div className="flex items-center gap-2 mb-3">
+          <button onClick={() => setSel(new Set(sel.size === rows.length ? [] : rows.map(p => p.player_id)))}
+            className="flex-1 py-2.5 rounded-xl bg-chalk/[0.06] border border-chalk/[0.08] text-silver text-[12.5px] font-bold">
+            {sel.size === rows.length ? 'Καμία' : `Όλες (${rows.length})`}
+          </button>
+          <button onClick={removeMany} disabled={!sel.size}
+            className="flex-1 py-2.5 rounded-xl bg-danger/15 border border-danger/30 text-danger text-[12.5px] font-extrabold disabled:opacity-40">
+            🗑 Διαγραφή ({sel.size})
+          </button>
+        </div>
+      )}
+
       {!rows.length ? <Empty>Δεν υπάρχουν παίκτες σε αυτή την ομάδα.</Empty> : (
         <div className="flex flex-col gap-1.5">
-          {rows.map(p => (
-            <div key={p.player_id}
-              className="bg-turf rounded-xl px-3.5 py-2.5 flex items-center gap-3
-                border border-chalk/[0.05]">
-              <span className="w-6 text-xs font-extrabold text-dim text-center tnum">
-                {p.number ?? '—'}
-              </span>
-              <Avatar url={p.photo_url} name={p.full_name} size={32} />
-              <span className="flex-1 text-sm font-semibold text-chalk truncate">
-                {p.full_name}
-                {!p.active && <span className="text-dim text-[11px] ml-2">ανενεργός</span>}
-              </span>
-              <button onClick={() => { setEdit(p); setOpen(true) }}
-                className="px-3 py-2 rounded-lg bg-chalk/[0.05] text-silver
-                  text-[11px] font-bold">Επεξ.</button>
-              <button onClick={() => remove(p.player_id)}
-                className="px-2.5 py-2 rounded-lg bg-danger/15 text-danger
-                  text-[11px] font-bold">✕</button>
-            </div>
-          ))}
+          {rows.map(p => {
+            const on = sel.has(p.player_id)
+            return (
+              <div key={p.player_id}
+                onClick={selMode ? () => toggleSel(p.player_id) : undefined}
+                className={`bg-turf rounded-xl px-3.5 py-2.5 flex items-center gap-3
+                  border ${selMode && on ? 'border-lit/50 bg-lit/[0.06]' : 'border-chalk/[0.05]'} ${selMode ? 'active:opacity-80' : ''}`}>
+                {selMode ? (
+                  <span className={`w-6 h-6 rounded-md grid place-items-center text-[13px] font-extrabold shrink-0 border
+                    ${on ? 'bg-lit border-lit text-[#1a1508]' : 'border-chalk/20 text-transparent'}`}>✓</span>
+                ) : (
+                  <span className="w-6 text-xs font-extrabold text-dim text-center tnum">
+                    {p.number ?? '—'}
+                  </span>
+                )}
+                <Avatar url={p.photo_url} name={p.full_name} size={32} />
+                <span className="flex-1 text-sm font-semibold text-chalk truncate">
+                  {p.full_name}
+                  {!p.active && <span className="text-dim text-[11px] ml-2">ανενεργός</span>}
+                </span>
+                {!selMode && (
+                  <>
+                    <button onClick={() => { setEdit(p); setOpen(true) }}
+                      className="px-3 py-2 rounded-lg bg-chalk/[0.05] text-silver
+                        text-[11px] font-bold">Επεξ.</button>
+                    <button onClick={() => remove(p.player_id)}
+                      className="px-2.5 py-2 rounded-lg bg-danger/15 text-danger
+                        text-[11px] font-bold">✕</button>
+                  </>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
