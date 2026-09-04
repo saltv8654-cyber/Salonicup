@@ -6,7 +6,8 @@ import { athensDateKey } from '@/lib/time'
 import toast from 'react-hot-toast'
 
 type Rate = { id: string; effective_from: string; fee_8x8: number; fee_7x7: number; field_cost: number }
-type Expense = { id: string; day: string; label: string; amount: number }
+type Expense = { id: string; day: string; label: string; amount: number; note?: string | null }
+type Income = { id: string; day: string; kind: string; label: string; amount: number; note?: string | null }
 type Lg = { league_id: string; name: string; format: string }
 
 const monthStart = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01` }
@@ -24,6 +25,7 @@ export default function AdminFinance() {
   const [matches, setMatches] = useState<{ match_date: string; league_id: string }[]>([])
   const [pays, setPays] = useState<{ day: string; amount: number }[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
+  const [incomes, setIncomes] = useState<Income[]>([])
   const [showSettings, setShowSettings] = useState(false)
   // Συμμετοχές ομάδων
   const [teams, setTeams] = useState<{ team_id: string; name: string; league_id: string; fee_paid: boolean }[]>([])
@@ -31,7 +33,7 @@ export default function AdminFinance() {
   const [showFees, setShowFees] = useState(true)
 
   async function fetchAll() {
-    const [r, l, m, p, e, t, s] = await Promise.all([
+    const [r, l, m, p, e, t, s, inc] = await Promise.all([
       supabase.from('finance_rates').select('*').order('effective_from', { ascending: true }),
       supabase.from('leagues').select('league_id, name, format').order('sort_order'),
       supabase.from('matches').select('match_date, league_id')
@@ -40,12 +42,14 @@ export default function AdminFinance() {
       supabase.from('expenses').select('*').order('day', { ascending: false }),
       supabase.from('teams').select('team_id, name, league_id, fee_paid').eq('active', true).order('name'),
       supabase.from('app_settings').select('participation_fee').eq('id', 1).maybeSingle(),
+      supabase.from('incomes').select('*').order('day', { ascending: false }),
     ])
     setRates(r.data ?? [])
     setLeagues(l.data ?? [])
     setMatches(m.data ?? [])
     setPays(p.data ?? [])
     setExpenses(e.data ?? [])
+    setIncomes(inc.data ?? [])
     setTeams(t.data ?? [])
     if (s.data?.participation_fee != null) setPartFee(String(s.data.participation_fee))
     setLoad(false)
@@ -93,9 +97,15 @@ export default function AdminFinance() {
       .reduce((s, p) => s + Number(p.amount), 0)
     const other = expenses.filter(x => x.day >= from && x.day <= to)
       .reduce((s, x) => s + Number(x.amount), 0)
+    const inPeriod = (x: Income) => x.day >= from && x.day <= to
+    const otherInc = incomes.filter(x => inPeriod(x) && x.kind !== 'sponsor')
+      .reduce((s, x) => s + Number(x.amount), 0)
+    const sponsors = incomes.filter(x => inPeriod(x) && x.kind === 'sponsor')
+      .reduce((s, x) => s + Number(x.amount), 0)
     const exp = field + salaries + other
-    return { inc, field, salaries, other, exp, net: inc - exp, n8, n7, fee8sum, fee7sum, hosted }
-  }, [matches, pays, expenses, rates, fmtMap, from, to])
+    const incTotal = inc + otherInc + sponsors
+    return { inc, matchInc: inc, otherInc, sponsors, incTotal, field, salaries, other, exp, net: incTotal - exp, n8, n7, fee8sum, fee7sum, hosted }
+  }, [matches, pays, expenses, incomes, rates, fmtMap, from, to])
 
   // ── Ενέργειες ──
   async function saveRate(id: string, patch: Partial<Rate>) {
@@ -125,9 +135,9 @@ export default function AdminFinance() {
     if (error) return toast.error('Δεν άλλαξε')
     setLeagues(prev => prev.map(l => l.league_id === id ? { ...l, format } : l))
   }
-  async function addExpense(day: string, label: string, amount: number) {
+  async function addExpense(day: string, label: string, amount: number, note?: string) {
     const { data, error } = await supabase.from('expenses')
-      .insert({ day, label, amount }).select().single()
+      .insert({ day, label, amount, note: note || null }).select().single()
     if (error) return toast.error(error.message)
     setExpenses(prev => [data as Expense, ...prev])
   }
@@ -135,6 +145,17 @@ export default function AdminFinance() {
     const { error } = await supabase.from('expenses').delete().eq('id', id)
     if (error) return toast.error('Απέτυχε')
     setExpenses(prev => prev.filter(x => x.id !== id))
+  }
+  async function addIncome(kind: string, day: string, label: string, amount: number, note?: string) {
+    const { data, error } = await supabase.from('incomes')
+      .insert({ kind, day, label, amount, note: note || null }).select().single()
+    if (error) return toast.error(error.message)
+    setIncomes(prev => [data as Income, ...prev])
+  }
+  async function delIncome(id: string) {
+    const { error } = await supabase.from('incomes').delete().eq('id', id)
+    if (error) return toast.error('Απέτυχε')
+    setIncomes(prev => prev.filter(x => x.id !== id))
   }
 
   if (load) return <Loading />
@@ -165,7 +186,7 @@ export default function AdminFinance() {
       <div className="grid grid-cols-3 gap-2">
         <div className="bg-turf rounded-xl border border-chalk/[0.05] p-3 text-center">
           <p className="text-[9.5px] font-extrabold text-dim tracking-[0.1em] mb-1">ΕΣΟΔΑ</p>
-          <p className="text-[18px] font-extrabold text-[#2FA84F] tnum leading-none">{eur(calc.inc)}</p>
+          <p className="text-[18px] font-extrabold text-[#2FA84F] tnum leading-none">{eur(calc.incTotal)}</p>
         </div>
         <div className="bg-turf rounded-xl border border-chalk/[0.05] p-3 text-center">
           <p className="text-[9.5px] font-extrabold text-dim tracking-[0.1em] mb-1">ΕΞΟΔΑ</p>
@@ -183,8 +204,10 @@ export default function AdminFinance() {
         <p className="text-[12.5px] font-extrabold text-chalk mb-2.5">📈 Έσοδα · {calc.hosted} αγώνες</p>
         <Line label={`8×8 — ${calc.n8} αγ. (×2 ομάδες)`} value={eur(calc.fee8sum)} />
         <Line label={`7×7 — ${calc.n7} αγ. (×2 ομάδες)`} value={eur(calc.fee7sum)} />
+        {calc.otherInc > 0 && <Line label="Λοιπά έσοδα" value={eur(calc.otherInc)} />}
+        {calc.sponsors > 0 && <Line label="Χορηγίες" value={eur(calc.sponsors)} />}
         <div className="h-px bg-chalk/[0.06] my-2" />
-        <Line label="Σύνολο εσόδων" value={eur(calc.inc)} bold color="#2FA84F" />
+        <Line label="Σύνολο εσόδων" value={eur(calc.incTotal)} bold color="#2FA84F" />
       </div>
 
       {/* Ανάλυση εξόδων */}
@@ -197,9 +220,20 @@ export default function AdminFinance() {
         <Line label="Σύνολο εξόδων" value={eur(calc.exp)} bold color="#D8483C" />
       </div>
 
+      {/* Λοιπά έσοδα */}
+      <LedgerList title="💶 Λοιπά έσοδα" income
+        list={incomes.filter(x => x.kind !== 'sponsor' && x.day >= from && x.day <= to)}
+        onAdd={(d, l, a, n) => addIncome('other', d, l, a, n)} onDel={delIncome} />
+
+      {/* Χορηγίες */}
+      <LedgerList title="🤝 Χορηγίες" income labelPlaceholder="Χορηγός"
+        list={incomes.filter(x => x.kind === 'sponsor' && x.day >= from && x.day <= to)}
+        onAdd={(d, l, a, n) => addIncome('sponsor', d, l, a, n)} onDel={delIncome} />
+
       {/* Λοιπά έξοδα — καταχώρηση */}
-      <OtherExpenses list={expenses.filter(x => x.day >= from && x.day <= to)}
-        onAdd={addExpense} onDel={delExpense} />
+      <LedgerList title="🧾 Λοιπά έξοδα"
+        list={expenses.filter(x => x.day >= from && x.day <= to)}
+        onAdd={(d, l, a, n) => addExpense(d, l, a, n)} onDel={delExpense} />
 
       {/* Συμμετοχές ομάδων (ανά πρωτάθλημα) */}
       {(() => {
@@ -361,30 +395,40 @@ function RateInput({ label, def, onSave }: { label: string; def: string; onSave:
   )
 }
 
-function OtherExpenses({ list, onAdd, onDel }: {
-  list: Expense[]
-  onAdd: (day: string, label: string, amount: number) => void
+/** Γενική λίστα εσόδων/εξόδων με ημερομηνία, περιγραφή, ποσό & σχόλιο. */
+function LedgerList({ title, list, onAdd, onDel, income, labelPlaceholder = 'Περιγραφή' }: {
+  title: string
+  list: { id: string; day: string; label: string; amount: number; note?: string | null }[]
+  onAdd: (day: string, label: string, amount: number, note?: string) => void
   onDel: (id: string) => void
+  income?: boolean
+  labelPlaceholder?: string
 }) {
   const [day, setDay] = useState(todayKey())
   const [label, setLabel] = useState('')
   const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+  const color = income ? '#2FA84F' : '#D8483C'
+  const total = list.reduce((s, x) => s + Number(x.amount), 0)
 
   function add() {
     const n = parseFloat(amount.replace(',', '.'))
     if (!label.trim() || isNaN(n)) return toast.error('Συμπλήρωσε περιγραφή & ποσό')
-    onAdd(day, label.trim(), n)
-    setLabel(''); setAmount('')
+    onAdd(day, label.trim(), n, note.trim() || undefined)
+    setLabel(''); setAmount(''); setNote('')
   }
 
   return (
     <div className="bg-turf rounded-xl border border-chalk/[0.05] p-3.5">
-      <p className="text-[12.5px] font-extrabold text-chalk mb-2.5">🧾 Λοιπά έξοδα</p>
-      <div className="flex items-center gap-2 mb-2 flex-wrap">
+      <div className="flex items-center justify-between mb-2.5">
+        <p className="text-[12.5px] font-extrabold text-chalk">{title}</p>
+        {total > 0 && <p className="text-[12.5px] font-extrabold tnum" style={{ color }}>{eur(total)}</p>}
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
         <input type="date" value={day} onChange={e => setDay(e.target.value)}
           className="bg-chalk/[0.04] rounded-lg px-2.5 py-2 text-chalk text-[12px]
             outline-none border border-chalk/[0.07]" />
-        <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Περιγραφή"
+        <input value={label} onChange={e => setLabel(e.target.value)} placeholder={labelPlaceholder}
           className="flex-1 min-w-[110px] bg-chalk/[0.04] rounded-lg px-3 py-2 text-chalk text-[13px]
             outline-none border border-chalk/[0.07] placeholder:text-off" />
         <div className="flex items-center bg-chalk/[0.04] rounded-lg border border-chalk/[0.07] px-2 w-[84px]">
@@ -392,17 +436,25 @@ function OtherExpenses({ list, onAdd, onDel }: {
             className="w-full bg-transparent py-2 text-chalk text-[13px] font-bold tnum outline-none" />
           <span className="text-dim text-[11px]">€</span>
         </div>
+      </div>
+      <div className="flex items-center gap-2 mt-2">
+        <input value={note} onChange={e => setNote(e.target.value)} placeholder="Σχόλιο (προαιρετικό)"
+          className="flex-1 bg-chalk/[0.04] rounded-lg px-3 py-2 text-chalk text-[12.5px]
+            outline-none border border-chalk/[0.07] placeholder:text-off" />
         <button onClick={add}
-          className="px-3.5 py-2 rounded-lg bg-brand text-white text-[12.5px] font-extrabold">+</button>
+          className="px-4 py-2 rounded-lg bg-brand text-white text-[12.5px] font-extrabold shrink-0">+</button>
       </div>
       {list.length > 0 && (
-        <div className="flex flex-col gap-1 mt-1">
+        <div className="flex flex-col gap-1 mt-2">
           {list.map(x => (
-            <div key={x.id} className="flex items-center gap-2 py-1.5 border-t border-chalk/[0.05]">
-              <span className="text-[10px] text-dim tnum shrink-0 w-[74px]">{x.day}</span>
-              <span className="flex-1 min-w-0 text-[12px] text-chalk truncate">{x.label}</span>
-              <span className="text-[12.5px] font-bold text-[#D8483C] tnum shrink-0">{eur(Number(x.amount))}</span>
-              <button onClick={() => onDel(x.id)} className="text-danger text-[12px] px-1 shrink-0">✕</button>
+            <div key={x.id} className="flex items-start gap-2 py-1.5 border-t border-chalk/[0.05]">
+              <span className="text-[10px] text-dim tnum shrink-0 w-[74px] pt-0.5">{x.day}</span>
+              <div className="flex-1 min-w-0">
+                <span className="block text-[12px] text-chalk truncate">{x.label}</span>
+                {x.note && <span className="block text-[10.5px] text-dim truncate">💬 {x.note}</span>}
+              </div>
+              <span className="text-[12.5px] font-bold tnum shrink-0 pt-0.5" style={{ color }}>{eur(Number(x.amount))}</span>
+              <button onClick={() => onDel(x.id)} className="text-danger text-[12px] px-1 shrink-0 pt-0.5">✕</button>
             </div>
           ))}
         </div>
