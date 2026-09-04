@@ -1,5 +1,5 @@
 import { ImageResponse } from 'next/og'
-import { db, loadFonts, C } from '../../shared'
+import { dbAdmin, loadFonts, C } from '../../shared'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -14,7 +14,7 @@ export async function GET(req: Request, { params }: { params: { leagueId: string
   const url = new URL(req.url)
   const origin = url.origin
   const story = url.searchParams.get('format') === 'story'
-  const supabase = db()
+  const supabase = dbAdmin()
 
   const [{ data: league }, { data: rows }, { data: pmatches }] = await Promise.all([
     supabase.from('leagues').select('name, season, logo_url').eq('league_id', params.leagueId).single(),
