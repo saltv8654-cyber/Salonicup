@@ -189,6 +189,35 @@ export default function AdminMatches() {
       .map(([h, a]) => ({ home: byPos(h), away: byPos(a), label: `${h}ος–${a}ος` }))
       .filter(x => x.home && x.away)
   }
+  // Νικητής ζευγαριού (συνολική διαφορά) — null αν δεν έχουν παιχτεί όλα τα σκέλη ή ισοπαλία
+  const tieWinnerId = (leagueId: string, aId: string, bId: string, stage: string): string | null => {
+    const legN = stage === 'Final' ? 1 : 2
+    const ms = rows.filter((m: any) => m.league_id === leagueId && m.stage === stage &&
+      ['Played', 'Forfeit'].includes(m.match_status) &&
+      ((m.team_a === aId && m.team_b === bId) || (m.team_a === bId && m.team_b === aId)))
+    if (ms.length < legN) return null
+    let ga = 0, gb = 0
+    for (const m of ms) {
+      ga += m.team_a === aId ? (m.goals_team_a ?? 0) : (m.goals_team_b ?? 0)
+      gb += m.team_a === aId ? (m.goals_team_b ?? 0) : (m.goals_team_a ?? 0)
+    }
+    return ga === gb ? null : (ga > gb ? aId : bId)
+  }
+  // Ζευγάρια ημιτελικών από τους νικητές των QF (κενό = δεν έχει κριθεί ακόμη)
+  const sfPairings = (leagueId: string) => {
+    const seeds = standings.filter(s => s.league_id === leagueId).sort((a, b) => a.position - b.position)
+    if (seeds.length < 8) return [] as any[]
+    const byPos = (p: number) => seeds.find(s => s.position === p)
+    const info = (id: string | null) => id ? seeds.find(s => s.team_id === id) : null
+    const win = (h: number, a: number) => {
+      const H = byPos(h), A = byPos(a)
+      return (H && A) ? tieWinnerId(leagueId, H.team_id, A.team_id, 'QF') : null
+    }
+    return [
+      { label: 'Ημιτελικός 1', home: info(win(1, 8)), away: info(win(4, 5)), homeLbl: 'Νικ. 1ος-8ος', awayLbl: 'Νικ. 4ος-5ος' },
+      { label: 'Ημιτελικός 2', home: info(win(2, 7)), away: info(win(3, 6)), homeLbl: 'Νικ. 2ος-7ος', awayLbl: 'Νικ. 3ος-6ος' },
+    ]
+  }
   const openNew = (p: any = null) => { setEdit(null); setPreset(p); setOpen(true) }
   const openEdit = (m: any) => { setEdit(m); setPreset(null); setOpen(true) }
 
@@ -339,6 +368,50 @@ export default function AdminMatches() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {/* Γρήγορη δημιουργία ημιτελικών (νικητές QF· «διάλεξε» αν δεν κρίθηκαν) */}
+                {qfPairings(g.id).length > 0 && (
+                  <div className="px-2.5 pb-3 pt-2 border-t flex flex-col gap-2"
+                    style={{ borderColor: 'rgba(232,185,35,0.18)' }}>
+                    <span className="text-[8.5px] font-extrabold text-dim tracking-[0.1em] pl-0.5">
+                      ΓΡΗΓΟΡΗ ΔΗΜΙΟΥΡΓΙΑ · ΗΜΙΤΕΛΙΚΑ (διπλά, εναλλάξ έδρα)
+                    </span>
+                    {sfPairings(g.id).map((pr: any, i: number) => {
+                      const hName = pr.home?.team_name ?? pr.homeLbl
+                      const aName = pr.away?.team_name ?? pr.awayLbl
+                      return (
+                        <div key={i} className="rounded-lg bg-chalk/[0.03] border border-chalk/[0.05] px-2.5 py-2 flex flex-col gap-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[8.5px] font-black text-dim w-[62px] shrink-0">{pr.label}</span>
+                            <span className="flex-1 text-[11.5px] font-bold text-chalk truncate">
+                              {hName} – {aName}</span>
+                          </div>
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={() => openNew({ league_id: g.id, stage: 'SF',
+                                team_a: pr.home?.team_id, team_b: pr.away?.team_id })}
+                              className="flex-1 rounded-md bg-chalk/[0.04] border border-chalk/[0.06] px-2 py-1.5 text-left active:bg-[#1C1C22]">
+                              <span className="text-[8.5px] text-off font-bold">Α΄ ΑΓΩΝΑΣ · ΕΔΡΑ</span>
+                              <span className="block text-[10.5px] font-extrabold text-chalk truncate">🏟 {hName}</span>
+                            </button>
+                            <button
+                              onClick={() => openNew({ league_id: g.id, stage: 'SF',
+                                team_a: pr.away?.team_id, team_b: pr.home?.team_id })}
+                              className="flex-1 rounded-md bg-chalk/[0.04] border border-chalk/[0.06] px-2 py-1.5 text-left active:bg-[#1C1C22]">
+                              <span className="text-[8.5px] text-off font-bold">Β΄ ΑΓΩΝΑΣ · ΕΔΡΑ</span>
+                              <span className="block text-[10.5px] font-extrabold text-chalk truncate">🏟 {aName}</span>
+                            </button>
+                          </div>
+                          {(!pr.home || !pr.away) && (
+                            <span className="text-[8.5px] text-off pl-0.5">
+                              Οι κενές ομάδες συμπληρώνονται μετά — άνοιξε κ διάλεξε αντίπαλο.
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
