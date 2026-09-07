@@ -41,10 +41,13 @@ export default function DrawOverlay() {
     return () => { ch.unsubscribe() }
   }, [leagueId])
 
-  const entries = Object.entries(slots)
-    .filter(([, v]) => v)
-    .map(([s, v]) => ({ slot: Number(s), team: teams[v as string] }))
-    .sort((a, b) => a.slot - b.slot)
+  // Ζευγάρια: slot 2p+1 vs 2p+2
+  const maxSlot = Object.keys(slots).reduce((m, k) => Math.max(m, Number(k)), 0)
+  const pairs = Array.from({ length: Math.ceil(maxSlot / 2) }, (_, p) => ({
+    n: p + 1,
+    a: slots[2 * p + 1] ? teams[slots[2 * p + 1] as string] : null,
+    b: slots[2 * p + 2] ? teams[slots[2 * p + 2] as string] : null,
+  })).filter(x => x.a || x.b)
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'transparent', overflow: 'hidden',
@@ -65,21 +68,26 @@ export default function DrawOverlay() {
           </div>
         </div>
 
-        {/* Λίστα θέση → ομάδα */}
+        {/* Ζευγάρια */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
-          {entries.length === 0 ? (
+          {pairs.length === 0 ? (
             <div style={{ fontSize: 24, color: '#8a8a93' }}>Αναμονή κλήρωσης…</div>
-          ) : entries.map(e => (
-            <div key={e.slot} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '10px 16px',
+          ) : pairs.map(pr => (
+            <div key={pr.n} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
               borderRadius: 14, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
               borderLeft: '4px solid #F5782E', animation: 'drIn .4s cubic-bezier(.2,.9,.25,1)' }}>
-              <span style={{ width: 46, height: 46, borderRadius: 10, background: 'rgba(245,120,46,0.16)',
-                display: 'grid', placeItems: 'center', fontSize: 22, fontWeight: 900, color: '#F5782E', flex: 'none' }}>
-                {e.slot}
-              </span>
-              <Crest url={e.team?.logo_url} name={e.team?.name} size={44} />
-              <span style={{ fontSize: 30, fontWeight: 800, color: '#fff', whiteSpace: 'nowrap',
-                overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.team?.name ?? '—'}</span>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-end',
+                minWidth: 0 }}>
+                <span style={{ fontSize: 27, fontWeight: 800, color: '#fff', whiteSpace: 'nowrap',
+                  overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right' }}>{pr.a?.name ?? '—'}</span>
+                <Crest url={pr.a?.logo_url} name={pr.a?.name} size={44} />
+              </div>
+              <span style={{ fontSize: 18, fontWeight: 900, color: '#F5782E', flex: 'none' }}>VS</span>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                <Crest url={pr.b?.logo_url} name={pr.b?.name} size={44} />
+                <span style={{ fontSize: 27, fontWeight: 800, color: '#fff', whiteSpace: 'nowrap',
+                  overflow: 'hidden', textOverflow: 'ellipsis' }}>{pr.b?.name ?? '—'}</span>
+              </div>
             </div>
           ))}
         </div>

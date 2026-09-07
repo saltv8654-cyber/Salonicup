@@ -69,10 +69,12 @@ export default function AdminDraw() {
   const assignedIds = new Set(Object.values(slots).filter(Boolean) as string[])
   const remaining = leagueTeams.filter(t => !assignedIds.has(t.team_id))
   const leagueObj = leagues.find(l => l.league_id === league)
-  const previewEntries = Object.entries(slots)
-    .filter(([, v]) => v)
-    .map(([s, v]) => ({ slot: Number(s), team: teamById[v as string] }))
-    .sort((a, b) => a.slot - b.slot)
+  // Ζευγάρια: slot 2p+1 (αριστερά) vs 2p+2 (δεξιά). Εμφανίζεται όσα έχουν έστω μία ομάδα.
+  const previewPairs = Array.from({ length: Math.ceil(N / 2) }, (_, p) => ({
+    n: p + 1,
+    a: slots[2 * p + 1] ? teamById[slots[2 * p + 1] as string] : null,
+    b: slots[2 * p + 2] ? teamById[slots[2 * p + 2] as string] : null,
+  })).filter(x => x.a || x.b)
 
   function copyOverlay() {
     const url = `${window.location.origin}/overlay/draw/${league}`
@@ -127,48 +129,56 @@ export default function AdminDraw() {
               </div>
             </div>
             <div className="flex flex-col gap-[3px] overflow-hidden">
-              {previewEntries.length === 0 ? (
+              {previewPairs.length === 0 ? (
                 <div className="text-[8px] text-dim">Αναμονή κλήρωσης…</div>
-              ) : previewEntries.slice(0, 8).map(e => (
-                <div key={e.slot} className="flex items-center gap-1.5 px-1.5 py-[3px] rounded-md"
+              ) : previewPairs.slice(0, 6).map(pr => (
+                <div key={pr.n} className="flex items-center gap-1 px-1.5 py-[3px] rounded-md"
                   style={{ background: 'rgba(255,255,255,0.05)', borderLeft: '2px solid #F5782E' }}>
-                  <span className="w-3.5 h-3.5 rounded grid place-items-center text-[7px] font-black shrink-0"
-                    style={{ background: 'rgba(245,120,46,0.18)', color: '#F5782E' }}>{e.slot}</span>
-                  <Crest url={e.team?.logo_url} name={e.team?.name} size={13} />
-                  <span className="text-[8.5px] font-extrabold text-chalk truncate">{e.team?.name ?? '—'}</span>
+                  <Crest url={pr.a?.logo_url} name={pr.a?.name} size={12} />
+                  <span className="flex-1 text-[8px] font-extrabold text-chalk truncate text-right">{pr.a?.name ?? '—'}</span>
+                  <span className="text-[6.5px] font-black text-lit shrink-0">VS</span>
+                  <span className="flex-1 text-[8px] font-extrabold text-chalk truncate">{pr.b?.name ?? '—'}</span>
+                  <Crest url={pr.b?.logo_url} name={pr.b?.name} size={12} />
                 </div>
               ))}
-              {previewEntries.length > 8 && (
-                <div className="text-[7px] text-dim pl-1">+{previewEntries.length - 8} ακόμη…</div>
+              {previewPairs.length > 6 && (
+                <div className="text-[7px] text-dim pl-1">+{previewPairs.length - 6} ζευγάρια…</div>
               )}
             </div>
           </div>
         </div>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        {Array.from({ length: N }, (_, i) => i + 1).map(slot => {
-          const tid = slots[slot] ?? null
-          const t = tid ? teamById[tid] : null
+      <div className="flex flex-col gap-2">
+        {Array.from({ length: Math.ceil(N / 2) }, (_, p) => {
+          const slotA = 2 * p + 1, slotB = 2 * p + 2
+          const SlotPick = ({ slot }: { slot: number }) => {
+            if (slot > N) return <div className="flex-1" />
+            const tid = slots[slot] ?? null
+            const t = tid ? teamById[tid] : null
+            return t ? (
+              <button onClick={() => assign(slot, null)}
+                className="flex-1 flex items-center gap-2 rounded-lg bg-chalk/[0.04] border border-chalk/[0.06] px-2.5 py-2 text-left active:bg-[#1C1C22]">
+                <Crest url={t.logo_url} name={t.name} size={20} />
+                <span className="flex-1 text-[12px] font-bold text-chalk truncate">{t.name}</span>
+                <span className="text-[9px] text-off">↺</span>
+              </button>
+            ) : (
+              <select value="" onChange={e => e.target.value && assign(slot, e.target.value)}
+                className="flex-1 bg-chalk/[0.04] rounded-lg px-2.5 py-2 text-chalk text-[12px] outline-none border border-chalk/[0.07]">
+                <option value="">— διάλεξε —</option>
+                {remaining.map(rt => <option key={rt.team_id} value={rt.team_id}>{rt.name}</option>)}
+              </select>
+            )
+          }
           return (
-            <div key={slot} className="bg-turf rounded-xl border border-chalk/[0.05] px-3 py-2.5 flex items-center gap-3">
-              <span className="w-7 h-7 rounded-lg bg-lit/[0.14] grid place-items-center text-[13px] font-black text-lit shrink-0">
-                {slot}
-              </span>
-              {t ? (
-                <>
-                  <Crest url={t.logo_url} name={t.name} size={26} />
-                  <span className="flex-1 text-[13.5px] font-bold text-chalk truncate">{t.name}</span>
-                  <button onClick={() => assign(slot, null)}
-                    className="px-2.5 py-1.5 rounded-lg bg-chalk/[0.06] text-silver text-[11px] font-bold">Αλλαγή</button>
-                </>
-              ) : (
-                <select value="" onChange={e => e.target.value && assign(slot, e.target.value)}
-                  className="flex-1 bg-chalk/[0.04] rounded-lg px-3 py-2 text-chalk text-[13px] outline-none border border-chalk/[0.07]">
-                  <option value="">— διάλεξε ομάδα —</option>
-                  {remaining.map(rt => <option key={rt.team_id} value={rt.team_id}>{rt.name}</option>)}
-                </select>
-              )}
+            <div key={p} className="bg-turf rounded-xl border border-chalk/[0.05] px-3 py-2.5">
+              <div className="text-[8.5px] font-black text-lit tracking-wide mb-1.5">ΖΕΥΓΑΡΙ {p + 1}</div>
+              <div className="flex items-center gap-2">
+                <SlotPick slot={slotA} />
+                <span className="text-[10px] font-black text-dim shrink-0">VS</span>
+                <SlotPick slot={slotB} />
+              </div>
             </div>
           )
         })}
