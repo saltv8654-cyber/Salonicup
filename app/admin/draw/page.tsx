@@ -68,6 +68,11 @@ export default function AdminDraw() {
 
   const assignedIds = new Set(Object.values(slots).filter(Boolean) as string[])
   const remaining = leagueTeams.filter(t => !assignedIds.has(t.team_id))
+  const leagueObj = leagues.find(l => l.league_id === league)
+  const previewEntries = Object.entries(slots)
+    .filter(([, v]) => v)
+    .map(([s, v]) => ({ slot: Number(s), team: teamById[v as string] }))
+    .sort((a, b) => a.slot - b.slot)
 
   function copyOverlay() {
     const url = `${window.location.origin}/overlay/draw/${league}`
@@ -101,6 +106,45 @@ export default function AdminDraw() {
         Άνοιξε το overlay ως Browser Source (1920×1080). Τράβα μπαλάκι → διάλεξε την ομάδα στη θέση.
         Εμφανίζεται ζωντανά δεξιά· η αριστερή μισή οθόνη μένει διάφανη για την κάμερα.
       </p>
+
+      {/* Ζωντανή προεπισκόπηση overlay (16:9) */}
+      <div>
+        <p className="text-[8.5px] font-extrabold text-dim tracking-[0.12em] mb-1.5 pl-0.5">ΠΡΟΕΠΙΣΚΟΠΗΣΗ OVERLAY</p>
+        <div className="relative rounded-xl overflow-hidden border border-chalk/[0.08]"
+          style={{ aspectRatio: '16 / 9', background: 'radial-gradient(120% 90% at 30% 55%, #2a3340 0%, #10151c 60%, #0a0d12 100%)' }}>
+          {/* placeholder «κάμερα» αριστερά */}
+          <div className="absolute left-[6%] bottom-2 text-[9px] text-silver/70 font-bold">🎥 κάμερα εδώ</div>
+          {/* δεξιά μισή = το overlay */}
+          <div className="absolute top-0 right-0 h-full flex flex-col p-3"
+            style={{ width: '50%', background: 'linear-gradient(90deg, rgba(11,11,14,0) 0%, rgba(11,11,14,0.8) 14%, rgba(11,11,14,0.94) 100%)' }}>
+            <div className="flex items-center gap-2 mb-2">
+              {leagueObj?.logo_url
+                ? <img src={leagueObj.logo_url} alt="" className="w-5 h-5 object-contain" />
+                : <span className="text-[13px]">🏆</span>}
+              <div className="leading-none">
+                <div className="text-[5.5px] font-extrabold tracking-[0.14em] text-lit">SALONICUP · ΚΛΗΡΩΣΗ</div>
+                <div className="text-[11px] font-extrabold text-chalk truncate">{leagueObj?.name ?? ''}</div>
+              </div>
+            </div>
+            <div className="flex flex-col gap-[3px] overflow-hidden">
+              {previewEntries.length === 0 ? (
+                <div className="text-[8px] text-dim">Αναμονή κλήρωσης…</div>
+              ) : previewEntries.slice(0, 8).map(e => (
+                <div key={e.slot} className="flex items-center gap-1.5 px-1.5 py-[3px] rounded-md"
+                  style={{ background: 'rgba(255,255,255,0.05)', borderLeft: '2px solid #F5782E' }}>
+                  <span className="w-3.5 h-3.5 rounded grid place-items-center text-[7px] font-black shrink-0"
+                    style={{ background: 'rgba(245,120,46,0.18)', color: '#F5782E' }}>{e.slot}</span>
+                  <Crest url={e.team?.logo_url} name={e.team?.name} size={13} />
+                  <span className="text-[8.5px] font-extrabold text-chalk truncate">{e.team?.name ?? '—'}</span>
+                </div>
+              ))}
+              {previewEntries.length > 8 && (
+                <div className="text-[7px] text-dim pl-1">+{previewEntries.length - 8} ακόμη…</div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="flex flex-col gap-1.5">
         {Array.from({ length: N }, (_, i) => i + 1).map(slot => {
