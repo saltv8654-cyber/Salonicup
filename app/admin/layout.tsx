@@ -20,6 +20,8 @@ const NAV = [
   { href: '/admin/toteam',   label: 'Ομάδα αγων.',   icon: '🏅' },
   { href: '/admin/staff',    label: 'Προσωπικό',     icon: '🎬' },
   { href: '/admin/finance',  label: 'Οικονομικά',    icon: '💰' },
+  { href: '/admin/sponsors', label: 'Χορηγοί',       icon: '🏢' },
+  { href: '/admin/news',     label: 'Νέα',           icon: '📰' },
   { href: '/admin/bet',      label: 'Bet',           icon: '🎲' },
   { href: '/admin/users',    label: 'Χρήστες',       icon: '🔑' },
 ]
