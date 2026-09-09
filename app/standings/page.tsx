@@ -65,6 +65,7 @@ export default async function StandingsPage({
   const { data: pmatches } = active && view === 'playoff'
     ? await supabase.from('matches')
         .select(`match_id, team_a, team_b, goals_team_a, goals_team_b, match_status, stage, match_date, field,
+          placeholder_a, placeholder_b,
           team_a_data:team_a(name, logo_url), team_b_data:team_b(name, logo_url)`)
         .eq('league_id', active.league_id).in('stage', ['QF', 'SF', 'Final'])
     : { data: [] as any[] }
@@ -450,9 +451,9 @@ function FixtureRow({ m, first }: { m: any; first: boolean }) {
       <div className="grid items-center gap-2 [grid-template-columns:1fr_54px_1fr]">
         <div className="flex items-center justify-end gap-2 min-w-0">
           <span className="text-[13px] font-semibold text-chalk truncate text-right">
-            {m.team_a_data?.name}
+            {m.team_a_data?.name ?? m.placeholder_a ?? 'Εκκρεμεί'}
           </span>
-          <Crest url={m.team_a_data?.logo_url} name={m.team_a_data?.name} size={22} />
+          <Crest url={m.team_a_data?.logo_url} name={m.team_a_data?.name ?? m.placeholder_a ?? '?'} size={22} />
         </div>
         <div className="flex flex-col items-center justify-center">
           {live || done ? (
@@ -471,9 +472,9 @@ function FixtureRow({ m, first }: { m: any; first: boolean }) {
             : null}
         </div>
         <div className="flex items-center justify-start gap-2 min-w-0">
-          <Crest url={m.team_b_data?.logo_url} name={m.team_b_data?.name} size={22} />
+          <Crest url={m.team_b_data?.logo_url} name={m.team_b_data?.name ?? m.placeholder_b ?? '?'} size={22} />
           <span className="text-[13px] font-semibold text-chalk truncate">
-            {m.team_b_data?.name}
+            {m.team_b_data?.name ?? m.placeholder_b ?? 'Εκκρεμεί'}
           </span>
         </div>
       </div>

@@ -161,7 +161,7 @@ export default function PublicMatch() {
           </div>
 
           <div className="flex items-start gap-2.5">
-            <Side team={match.team_a_data} />
+            <Side team={match.team_a_data} ph={match.placeholder_a} />
             <div className="shrink-0 text-center pt-1.5">
               {notStarted ? (
                 <>
@@ -766,12 +766,13 @@ function SquadCol({ team, players, goalsBy, align }: {
   )
 }
 
-function Side({ team }: { team: any }) {
+function Side({ team, ph }: { team: any; ph?: string | null }) {
+  const nm = team?.name ?? ph ?? 'Εκκρεμεί'
   const inner = (
     <>
-      <Crest url={team?.logo_url} name={team?.name} size={52} />
+      <Crest url={team?.logo_url} name={team?.name ?? ph ?? '?'} size={52} />
       <span className="text-xs font-bold text-chalk text-center leading-tight">
-        {team?.name}
+        {nm}
       </span>
     </>
   )

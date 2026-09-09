@@ -325,9 +325,9 @@ export default function AdminMatches() {
                           className="flex items-center gap-2 rounded-lg bg-chalk/[0.03] border border-chalk/[0.05]
                             px-2.5 py-2 text-left active:bg-[#1C1C22]">
                           <span className="text-[8.5px] font-black text-lit uppercase w-[62px] shrink-0">{STAGE_LBL[m.stage]}</span>
-                          <Crest url={m.team_a_data?.logo_url} name={m.team_a_data?.name} size={20} />
+                          <Crest url={m.team_a_data?.logo_url} name={m.team_a_data?.name ?? m.placeholder_a ?? '?'} size={20} />
                           <span className="flex-1 text-[11.5px] font-bold text-chalk truncate">
-                            {m.team_a_data?.name} – {m.team_b_data?.name}</span>
+                            {m.team_a_data?.name ?? m.placeholder_a ?? '—'} – {m.team_b_data?.name ?? m.placeholder_b ?? '—'}</span>
                           <span className="text-[12px] font-black tnum shrink-0 text-silver">
                             {done ? `${m.goals_team_a}-${m.goals_team_b}`
                               : (m.match_date ? fmtDay(m.match_date) : '—')}</span>
@@ -391,14 +391,16 @@ export default function AdminMatches() {
                           <div className="flex gap-1.5">
                             <button
                               onClick={() => openNew({ league_id: g.id, stage: 'SF',
-                                team_a: pr.home?.team_id, team_b: pr.away?.team_id })}
+                                team_a: pr.home?.team_id, team_b: pr.away?.team_id,
+                                placeholder_a: pr.home ? null : pr.homeLbl, placeholder_b: pr.away ? null : pr.awayLbl })}
                               className="flex-1 rounded-md bg-chalk/[0.04] border border-chalk/[0.06] px-2 py-1.5 text-left active:bg-[#1C1C22]">
                               <span className="text-[8.5px] text-off font-bold">Α΄ ΑΓΩΝΑΣ · ΕΔΡΑ</span>
                               <span className="block text-[10.5px] font-extrabold text-chalk truncate">🏟 {hName}</span>
                             </button>
                             <button
                               onClick={() => openNew({ league_id: g.id, stage: 'SF',
-                                team_a: pr.away?.team_id, team_b: pr.home?.team_id })}
+                                team_a: pr.away?.team_id, team_b: pr.home?.team_id,
+                                placeholder_a: pr.away ? null : pr.awayLbl, placeholder_b: pr.home ? null : pr.homeLbl })}
                               className="flex-1 rounded-md bg-chalk/[0.04] border border-chalk/[0.06] px-2 py-1.5 text-left active:bg-[#1C1C22]">
                               <span className="text-[8.5px] text-off font-bold">Β΄ ΑΓΩΝΑΣ · ΕΔΡΑ</span>
                               <span className="block text-[10.5px] font-extrabold text-chalk truncate">🏟 {aName}</span>
@@ -406,7 +408,7 @@ export default function AdminMatches() {
                           </div>
                           {(!pr.home || !pr.away) && (
                             <span className="text-[8.5px] text-off pl-0.5">
-                              Οι κενές ομάδες συμπληρώνονται μετά — άνοιξε κ διάλεξε αντίπαλο.
+                              Ο άγνωστος αντίπαλος μπαίνει ως «εκκρεμεί» — όρισε ημερομηνία τώρα, συμπλήρωσε ομάδα μετά.
                             </span>
                           )}
                         </div>
@@ -442,6 +444,11 @@ function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose
   const [round, setRound]     = useState(String(row?.round ?? 1))
   const [teamA, setTeamA]     = useState(src?.team_a ?? '')
   const [teamB, setTeamB]     = useState(src?.team_b ?? '')
+  // «Εκκρεμεί» πλευρά: placeholder κείμενο αντί για ομάδα (playoff πριν κριθούν οι αντίπαλοι)
+  const [phA, setPhA] = useState(src?.placeholder_a ?? '')
+  const [phB, setPhB] = useState(src?.placeholder_b ?? '')
+  const [modeA, setModeA] = useState<'team' | 'tbd'>(src?.placeholder_a && !src?.team_a ? 'tbd' : 'team')
+  const [modeB, setModeB] = useState<'team' | 'tbd'>(src?.placeholder_b && !src?.team_b ? 'tbd' : 'team')
   const [venue, setVenue]     = useState(row?.venue_id ?? '')
   const [field, setField]     = useState(row?.field ?? '')
   const [date, setDate]       = useState(toDatetimeLocal(row?.match_date))
@@ -477,17 +484,25 @@ function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose
   const photographerOpts = staff.filter(s => s.kind === 'photographer')
     .map(s => ({ value: s.id, label: s.name }))
 
+  // Πλευρά «εκκρεμεί» επιτρέπεται μόνο σε playoff φάση
+  const tbdA = stage !== 'regular' && modeA === 'tbd'
+  const tbdB = stage !== 'regular' && modeB === 'tbd'
+
   async function save() {
-    if (!league)          return toast.error('Διάλεξε πρωτάθλημα')
-    if (!teamA || !teamB) return toast.error('Διάλεξε ομάδες')
-    if (teamA === teamB)  return toast.error('Ίδια ομάδα δύο φορές')
+    if (!league) return toast.error('Διάλεξε πρωτάθλημα')
+    const aOk = tbdA ? phA.trim() : teamA
+    const bOk = tbdB ? phB.trim() : teamB
+    if (!aOk || !bOk)  return toast.error('Συμπλήρωσε ομάδες (ή «εκκρεμεί» στα playoff)')
+    if (!tbdA && !tbdB && teamA === teamB) return toast.error('Ίδια ομάδα δύο φορές')
     setBusy(true)
 
     const payload: any = {
       league_id: league,
       round: parseInt(round) || 1,
-      team_a: teamA,
-      team_b: teamB,
+      team_a: tbdA ? null : teamA,
+      team_b: tbdB ? null : teamB,
+      placeholder_a: tbdA ? phA.trim() : null,
+      placeholder_b: tbdB ? phB.trim() : null,
       venue_id: venue || null,
       field: field || null,
       match_date: date ? new Date(date).toISOString() : null,
@@ -565,10 +580,10 @@ function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose
           🏟 Διπλός αγώνας — φτιάξε 2 ματς εναλλάσσοντας γηπεδούχο/φιλοξενούμενο.
         </p>
       )}
-      <Select label="ΓΗΠΕΔΟΥΧΟΣ" value={teamA} onChange={setTeamA}
-        options={leagueTeams.map(t => ({ value: t.team_id, label: t.name }))} />
-      <Select label="ΦΙΛΟΞΕΝΟΥΜΕΝΟΣ" value={teamB} onChange={setTeamB}
-        options={leagueTeams.map(t => ({ value: t.team_id, label: t.name }))} />
+      <SideField label="ΓΗΠΕΔΟΥΧΟΣ" stage={stage} teams={leagueTeams}
+        team={teamA} setTeam={setTeamA} ph={phA} setPh={setPhA} mode={modeA} setMode={setModeA} />
+      <SideField label="ΦΙΛΟΞΕΝΟΥΜΕΝΟΣ" stage={stage} teams={leagueTeams}
+        team={teamB} setTeam={setTeamB} ph={phB} setPh={setPhB} mode={modeB} setMode={setModeB} />
 
       <Select label="ΓΗΠΕΔΟ" value={venue}
         onChange={v => { setVenue(v); setField('') }}
@@ -656,5 +671,60 @@ function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose
         </>
       )}
     </Modal>
+  )
+}
+
+// Πλευρά αγώνα: επιλογή ομάδας ή «εκκρεμεί» placeholder (μόνο σε playoff).
+function SideField({ label, stage, teams, team, setTeam, ph, setPh, mode, setMode }: {
+  label: string; stage: string; teams: Team[]
+  team: string; setTeam: (v: string) => void
+  ph: string; setPh: (v: string) => void
+  mode: 'team' | 'tbd'; setMode: (v: 'team' | 'tbd') => void
+}) {
+  const presets = stage === 'Final'
+    ? ['Νικητής Ημιτελικού Α', 'Νικητής Ημιτελικού Β']
+    : stage === 'SF'
+    ? ['Νικητής Προημ. 1', 'Νικητής Προημ. 2', 'Νικητής Προημ. 3', 'Νικητής Προημ. 4']
+    : stage === 'QF'
+    ? ['1ος καν. περιόδου', '2ος', '3ος', '4ος', '5ος', '6ος', '7ος', '8ος']
+    : []
+  const cls = 'w-full bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-sm outline-none border border-chalk/[0.07] focus:border-lit/50'
+  const isPreset = presets.includes(ph)
+  const isTbd = stage !== 'regular' && mode === 'tbd'
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5 pl-0.5">
+        <label className="text-[8.5px] font-extrabold text-dim tracking-[0.12em]">{label}</label>
+        {stage !== 'regular' && (
+          <div className="flex bg-turf rounded-lg p-[2px] border border-chalk/[0.06]">
+            {(['team', 'tbd'] as const).map(mv => (
+              <button key={mv} type="button" onClick={() => setMode(mv)}
+                className={`px-2.5 py-1 rounded-md text-[9.5px] font-bold ${mode === mv ? 'bg-brand text-chalk' : 'text-dim'}`}>
+                {mv === 'team' ? 'Ομάδα' : 'Εκκρεμεί'}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {!isTbd ? (
+        <select value={team} onChange={e => setTeam(e.target.value)} className={cls}>
+          <option value="">— Επίλεξε —</option>
+          {teams.map(t => <option key={t.team_id} value={t.team_id}>{t.name}</option>)}
+        </select>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          <select value={isPreset ? ph : '__custom'} className={cls}
+            onChange={e => setPh(e.target.value === '__custom' ? '' : e.target.value)}>
+            {presets.map(p => <option key={p} value={p}>{p}</option>)}
+            <option value="__custom">Άλλο (γράψε)…</option>
+          </select>
+          {!isPreset && (
+            <input value={ph} onChange={e => setPh(e.target.value)}
+              placeholder="π.χ. Νικητής Ημιτελικού Α" className={cls} />
+          )}
+        </div>
+      )}
+    </div>
   )
 }

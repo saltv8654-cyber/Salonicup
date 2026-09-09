@@ -232,9 +232,9 @@ function MatchRow({ m, first, leg }: { m: any; first: boolean; leg?: number }) {
         {/* Γηπεδούχος */}
         <div className="flex items-center justify-end gap-2 min-w-0">
           <span className="text-[13px] font-semibold text-chalk truncate text-right">
-            {m.team_a_data?.name}
+            {m.team_a_data?.name ?? m.placeholder_a ?? 'Εκκρεμεί'}
           </span>
-          <Crest url={m.team_a_data?.logo_url} name={m.team_a_data?.name} size={22} />
+          <Crest url={m.team_a_data?.logo_url} name={m.team_a_data?.name ?? m.placeholder_a ?? '?'} size={22} />
         </div>
 
         {/* Κέντρο: σκορ ή ώρα */}
@@ -261,9 +261,9 @@ function MatchRow({ m, first, leg }: { m: any; first: boolean; leg?: number }) {
 
         {/* Φιλοξενούμενος */}
         <div className="flex items-center justify-start gap-2 min-w-0">
-          <Crest url={m.team_b_data?.logo_url} name={m.team_b_data?.name} size={22} />
+          <Crest url={m.team_b_data?.logo_url} name={m.team_b_data?.name ?? m.placeholder_b ?? '?'} size={22} />
           <span className="text-[13px] font-semibold text-chalk truncate">
-            {m.team_b_data?.name}
+            {m.team_b_data?.name ?? m.placeholder_b ?? 'Εκκρεμεί'}
           </span>
         </div>
       </div>

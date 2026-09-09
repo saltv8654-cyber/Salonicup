@@ -156,9 +156,9 @@ function Row({ m, leg }: { m: any; leg?: number }) {
 
       <div className="grid items-center gap-2 [grid-template-columns:1fr_52px_1fr]">
         <div className="flex items-center gap-2.5 min-w-0">
-          <Crest url={m.team_a_data?.logo_url} name={m.team_a_data?.name} size={26} />
+          <Crest url={m.team_a_data?.logo_url} name={m.team_a_data?.name ?? m.placeholder_a ?? '?'} size={26} />
           <span className="text-sm font-semibold text-chalk truncate">
-            {m.team_a_data?.name}
+            {m.team_a_data?.name ?? m.placeholder_a ?? 'Εκκρεμεί'}
           </span>
         </div>
 
@@ -176,9 +176,9 @@ function Row({ m, leg }: { m: any; leg?: number }) {
 
         <div className="flex items-center gap-2.5 min-w-0 justify-end">
           <span className="text-sm font-semibold text-chalk truncate text-right">
-            {m.team_b_data?.name}
+            {m.team_b_data?.name ?? m.placeholder_b ?? 'Εκκρεμεί'}
           </span>
-          <Crest url={m.team_b_data?.logo_url} name={m.team_b_data?.name} size={26} />
+          <Crest url={m.team_b_data?.logo_url} name={m.team_b_data?.name ?? m.placeholder_b ?? '?'} size={26} />
         </div>
       </div>
 

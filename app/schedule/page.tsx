@@ -17,7 +17,7 @@ export default async function SchedulePage() {
       .select('slot_id, field, starts_at, venue:venue_id(name)')
       .gte('starts_at', since()).order('starts_at'),
     supabase.from('matches')
-      .select(`match_id, match_date, field, match_status,
+      .select(`match_id, match_date, field, match_status, placeholder_a, placeholder_b,
         league:league_id(name), team_a_data:team_a(name), team_b_data:team_b(name)`)
       .not('match_date', 'is', null)
       .gte('match_date', since()).order('match_date'),
@@ -98,7 +98,7 @@ export default async function SchedulePage() {
                         {m ? (
                           <>
                             <p className="text-[12.5px] font-semibold text-chalk truncate">
-                              {m.team_a_data?.name} <span className="text-dim">–</span> {m.team_b_data?.name}
+                              {m.team_a_data?.name ?? m.placeholder_a ?? 'Εκκρεμεί'} <span className="text-dim">–</span> {m.team_b_data?.name ?? m.placeholder_b ?? 'Εκκρεμεί'}
                             </p>
                             <p className="text-[9.5px] text-dim truncate">{m.league?.name}</p>
                           </>
