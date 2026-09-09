@@ -14,9 +14,12 @@ const ROLES = [
   { value: 'viewer',       label: 'Θεατής' },
 ]
 
+type TeamOpt = { value: string; label: string }
+
 export default function AdminUsers() {
   const supabase = createClient()
   const [rows, setRows] = useState<Profile[]>([])
+  const [teamOpts, setTeamOpts] = useState<TeamOpt[]>([])
   const [load, setLoad] = useState(true)
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState<string>('all')  // φίλτρο ρόλου
@@ -25,19 +28,34 @@ export default function AdminUsers() {
   const [editName, setEditName] = useState('')
 
   async function fetchRows() {
-    const { data } = await supabase.from('profiles')
-      .select('*').order('role')
+    const [{ data }, { data: ts }] = await Promise.all([
+      supabase.from('profiles').select('*').order('role'),
+      supabase.from('teams').select('team_id, name, league:league_id(name)').order('name'),
+    ])
     setRows(data ?? [])
+    setTeamOpts((ts ?? []).map((t: any) => ({
+      value: t.team_id, label: `${(t.league as any)?.name ? (t.league as any).name + ' · ' : ''}${t.name}`,
+    })).sort((a, b) => a.label.localeCompare(b.label, 'el')))
     setLoad(false)
   }
 
   useEffect(() => { fetchRows() }, [])
 
   async function changeRole(id: string, role: string) {
-    const { error } = await supabase.from('profiles')
-      .update({ role }).eq('id', id)
+    // Καθαρίζουμε την ομάδα αν ο ρόλος δεν είναι πλέον αρχηγός
+    const patch: any = { role }
+    if (role !== 'captain') patch.team_id = null
+    const { error } = await supabase.from('profiles').update(patch).eq('id', id)
     if (error) return toast.error('Δεν άλλαξε')
     toast.success('Ενημερώθηκε'); fetchRows()
+  }
+
+  async function changeTeam(id: string, team_id: string) {
+    const { error } = await supabase.from('profiles')
+      .update({ team_id: team_id || null }).eq('id', id)
+    if (error) return toast.error('Δεν αποθηκεύτηκε')
+    setRows(prev => prev.map(u => u.id === id ? { ...u, team_id: team_id || null } : u))
+    toast.success('Η ομάδα ορίστηκε')
   }
 
   async function saveName(id: string) {
@@ -112,11 +130,20 @@ export default function AdminUsers() {
                   </button>
                 )}
                 <p className="text-[10.5px] text-dim truncate">{u.email}</p>
+                {u.role === 'captain' && (
+                  <select value={(u as any).team_id ?? ''}
+                    onChange={e => changeTeam(u.id, e.target.value)}
+                    className={`mt-1.5 w-full bg-chalk/[0.05] rounded-lg px-2 py-1.5 text-[11px] font-bold
+                      outline-none border ${(u as any).team_id ? 'text-silver border-chalk/[0.06]' : 'text-lit border-lit/40'}`}>
+                    <option value="">⚠ Διάλεξε ομάδα…</option>
+                    {teamOpts.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                )}
               </div>
               <select value={u.role}
                 onChange={e => changeRole(u.id, e.target.value)}
                 className="bg-chalk/[0.05] rounded-lg px-2.5 py-2 text-silver
-                  text-[11px] font-bold outline-none border border-chalk/[0.06]">
+                  text-[11px] font-bold outline-none border border-chalk/[0.06] shrink-0">
                 {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
             </div>

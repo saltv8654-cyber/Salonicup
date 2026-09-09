@@ -117,6 +117,7 @@ export default function AdminMatches() {
   const [preset, setPreset]   = useState<any>(null)
   const [standings, setStandings] = useState<any[]>([])
   const [resp, setResp] = useState<Record<string, { a?: string; b?: string }>>({})
+  const [respRows, setRespRows] = useState<any[]>([])
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   const toggleTeam = (key: string) => setExpanded(prev => {
@@ -137,7 +138,7 @@ export default function AdminMatches() {
       supabase.from('profiles').select('id, full_name, email, role, team_id').order('full_name'),
       supabase.from('staff').select('id, name, kind').order('name'),
       supabase.from('standings').select('league_id, team_id, team_name, logo_url, position').order('position'),
-      supabase.from('match_responses').select('match_id, team_id, status'),
+      supabase.from('match_responses').select('match_id, team_id, status, note, updated_at'),
     ])
     setRows(m.data ?? [])
     setLeagues(l.data ?? [])
@@ -157,6 +158,7 @@ export default function AdminMatches() {
       ;(rmap[r.match_id] ??= {})[side] = r.status
     }
     setResp(rmap)
+    setRespRows(mr.data ?? [])
     setLoad(false)
   }
 
@@ -280,6 +282,52 @@ export default function AdminMatches() {
                 ? 'bg-brand text-chalk' : 'bg-turf text-dim'}`}>{l.name}</button>
         ))}
       </div>
+
+      {/* Αιτήματα captains (αλλαγή ώρας / αναβολή) — πάτα για επεξεργασία του αγώνα */}
+      {(() => {
+        const pend = respRows.filter(r => r.status !== 'ok')
+        if (!pend.length) return null
+        const mById = new Map(rows.map((m: any) => [m.match_id, m]))
+        const tName = new Map(teams.map((t: any) => [t.team_id, t.name]))
+        const items = pend.map((r: any) => ({ ...r, m: mById.get(r.match_id), team: tName.get(r.team_id) ?? '—' }))
+          .filter((x: any) => x.m)
+          .sort((a: any, b: any) => String(b.updated_at ?? '').localeCompare(String(a.updated_at ?? '')))
+        if (!items.length) return null
+        return (
+          <div className="mb-4 rounded-xl border overflow-hidden"
+            style={{ borderColor: 'rgba(201,162,39,0.35)', background: 'rgba(201,162,39,0.06)' }}>
+            <div className="px-3.5 py-2.5 flex items-center gap-2 border-b" style={{ borderColor: 'rgba(201,162,39,0.2)' }}>
+              <span>📣</span>
+              <span className="flex-1 text-[12px] font-extrabold" style={{ color: '#e8b923' }}>Αιτήματα captains</span>
+              <span className="text-[10px] text-dim font-bold">{items.length}</span>
+            </div>
+            <div className="flex flex-col">
+              {items.map((x: any, i: number) => (
+                <button key={`${x.match_id}|${x.team_id}`} onClick={() => openEdit(x.m)}
+                  className={`text-left px-3.5 py-2.5 active:bg-chalk/[0.03] ${i ? 'border-t border-chalk/[0.05]' : ''}`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full shrink-0"
+                      style={{
+                        background: x.status === 'postpone' ? 'rgba(216,72,60,0.15)' : 'rgba(201,162,39,0.18)',
+                        color: x.status === 'postpone' ? '#D8483C' : '#e8b923',
+                      }}>
+                      {x.status === 'postpone' ? 'ΑΝΑΒΟΛΗ' : 'ΑΛΛΑΓΗ ΩΡΑΣ'}
+                    </span>
+                    <span className="text-[12px] font-bold text-chalk truncate shrink-0 max-w-[40%]">{x.team}</span>
+                    <span className="text-[10.5px] text-dim truncate">
+                      {x.m.team_a_data?.name ?? x.m.placeholder_a ?? '—'} – {x.m.team_b_data?.name ?? x.m.placeholder_b ?? '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {x.m.match_date && <span className="text-[9.5px] text-off tnum shrink-0">{fmtDay(x.m.match_date)} · {fmtTime(x.m.match_date)}</span>}
+                    {x.note && <span className="text-[10px] text-silver truncate">«{x.note}»</span>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
 
       {!filtered.length ? <Empty>Δεν υπάρχουν αγώνες.</Empty> : (
         <div className="flex flex-col gap-4">
