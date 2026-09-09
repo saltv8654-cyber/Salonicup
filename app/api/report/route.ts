@@ -29,7 +29,13 @@ const SYSTEM = `Είσαι ο αρθρογράφος του Salonicup, ερασ�
 - Ανάφερε τα λεπτά όπως δίνονται (π.χ. 30+2', 47'). Ξεχώρισε καθαρά τα ημίχρονα· αν υπήρξε παράταση ή πέναλτι, δώσε τους ιδιαίτερο βάρος και δραματικότητα.
 - Ανάδειξε τους πρωταγωνιστές (πολλαπλά γκολ/ασίστ, ανατροπές, κόκκινες, αυτογκόλ) μέσα στη ροή, χωρίς ξερή απαρίθμηση.
 - Μην γράψεις τίτλο, ούτε λίστες σκόρερ/ασίστ/MVP — μπαίνουν αυτόματα.
-- Καθαρό κείμενο. Χωρίς markdown, χωρίς bullet points.`
+- Καθαρό κείμενο. Χωρίς markdown, χωρίς bullet points.
+
+ΑΞΙΟΠΟΙΗΣΕ ΤΟ ΠΛΑΙΣΙΟ (όταν δίνεται)
+- ΚΑΤΑΤΑΞΗ/ΒΑΘΜΟΛΟΓΙΑ: πλαισίωσε τη σημασία του αγώνα με βάση τις θέσεις (π.χ. «μάχη κορυφής», «ντέρμπι μεσαίας ζώνης», «κρίσιμο για την παραμονή», ανέβασμα/πτώση θέσεων) — μόνο αν προκύπτει από τα νούμερα, χωρίς υπερβολές που δεν στηρίζονται.
+- ΣΤΑΤΙΣΤΙΚΑ ΣΕΖΟΝ: ανάδειξε ορόσημα σκόρερ/ασίστ όπου ταιριάζει (π.χ. «έφτασε τα Χ γκολ στο πρωτάθλημα», «κορυφαίος σκόρερ»). Χρησιμοποίησε ΜΟΝΟ τα νούμερα που δίνονται.
+- PLAYOFF: αν είναι φάση playoff, δώσε ανάλογο βάρος (νοκ-άουτ, πρόκριση, τίτλος). Σε 2ο ματς διπλής αναμέτρησης, ΑΝΑΦΕΡΕ το προηγούμενο σκέλος και το ΣΥΝΟΛΙΚΟ σκορ (aggregate) και τι σημαίνει για την πρόκριση.
+- Πλέξε αυτά τα στοιχεία ΦΥΣΙΚΑ μέσα στην αφήγηση — όχι ξερή παράθεση αριθμών. Κανένα εφευρετικό στοιχείο.`
 
 export async function POST(req: Request) {
   try {
@@ -116,6 +122,63 @@ export async function POST(req: Request) {
 
     const hasPens = match.pens_team_a > 0 || match.pens_team_b > 0
 
+    /* ── ΠΛΑΙΣΙΟ: Βαθμολογία (regular), στατιστικά παικτών, φάση playoff ── */
+    const [{ data: standings }, { data: pstats }] = await Promise.all([
+      db.from('standings')
+        .select('team_id, team_name, position, points, played, wins, draws, losses, goals_for, goals_against')
+        .eq('league_id', match.league_id).order('position'),
+      db.from('player_stats')
+        .select('player_id, full_name, goals, assists').eq('league_id', match.league_id),
+    ])
+    const N = standings?.length ?? 0
+    const sLine = (tid: string) => {
+      const s = standings?.find((x: any) => x.team_id === tid)
+      return s ? `${s.position}η/${N} θέση, ${s.points} βαθ. (${s.wins}Ν-${s.draws}Ι-${s.losses}Η, γκολ ${s.goals_for}-${s.goals_against})` : '—'
+    }
+    const tableStr = (standings ?? [])
+      .map((s: any) => `${s.position}. ${s.team_name} — ${s.points}β (${s.wins}-${s.draws}-${s.losses}, ${s.goals_for}:${s.goals_against})`)
+      .join('\n')
+
+    // Στατιστικά σεζόν όσων σκόραραν/έδωσαν ασίστ σε αυτόν τον αγώνα (τρέχοντα σύνολα)
+    const involved = new Set<string>(
+      list.filter(e => ['GOAL', 'ASSIST'].includes(e.event_type) && e.player_id).map(e => e.player_id as string))
+    const pstatStr = [...involved]
+      .map(id => {
+        const p = pstats?.find((x: any) => x.player_id === id)
+        return p ? `${p.full_name}: ${p.goals} γκολ, ${p.assists} ασίστ φέτος (στο πρωτάθλημα)` : null
+      })
+      .filter(Boolean).join('\n')
+
+    // Playoff: φάση, σκέλος (1ο/2ο), προηγούμενο σκέλος + συνολικό σκορ (aggregate)
+    let playoffStr = ''
+    if (match.stage && ['QF', 'SF', 'Final'].includes(match.stage)) {
+      const stageLabel: Record<string, string> = { QF: 'Προημιτελικός', SF: 'Ημιτελικός', Final: 'Τελικός' }
+      if (match.stage === 'Final') {
+        playoffStr = `PLAYOFF · ${stageLabel.Final} (μονός, τελικός αγώνας — κρίνει τον τίτλο)`
+      } else {
+        const { data: legs } = await db.from('matches')
+          .select('match_id, match_date, goals_team_a, goals_team_b, team_a, team_b, match_status')
+          .eq('league_id', match.league_id).eq('stage', match.stage)
+        const pair = (legs ?? []).filter((l: any) =>
+          (l.team_a === match.team_a && l.team_b === match.team_b) ||
+          (l.team_a === match.team_b && l.team_b === match.team_a))
+          .sort((a: any, b: any) => String(a.match_date ?? '').localeCompare(String(b.match_date ?? '')))
+        const idx = pair.findIndex((l: any) => l.match_id === match.match_id)
+        const legNo = idx >= 0 ? idx + 1 : 1
+        let aggA = 0, aggB = 0
+        for (const l of pair) {
+          if (!['Played', 'Forfeit'].includes(l.match_status)) continue
+          aggA += l.team_a === match.team_a ? (l.goals_team_a ?? 0) : (l.goals_team_b ?? 0)
+          aggB += l.team_a === match.team_a ? (l.goals_team_b ?? 0) : (l.goals_team_a ?? 0)
+        }
+        const prevLeg = pair[0]
+        const prevStr = (prevLeg && prevLeg.match_id !== match.match_id && ['Played', 'Forfeit'].includes(prevLeg.match_status))
+          ? `Α΄ αγώνας είχε λήξει: ${nameA} ${prevLeg.team_a === match.team_a ? prevLeg.goals_team_a : prevLeg.goals_team_b}-${prevLeg.team_a === match.team_a ? prevLeg.goals_team_b : prevLeg.goals_team_a} ${nameB}\n`
+          : ''
+        playoffStr = `PLAYOFF · ${stageLabel[match.stage]} · ${legNo}ο ματς (διπλός αγώνας)\n${prevStr}Συνολικό σκορ (aggregate) μετά από αυτόν: ${nameA} ${aggA}-${aggB} ${nameB}`
+      }
+    }
+
     /* ── Κεφαλίδα αγώνα: Πρωτάθλημα, Ημερομηνία, Γήπεδο, Ομάδες, Ημίχρονο, Τελικό ── */
     const dateStr = match.match_date
       ? new Date(match.match_date).toLocaleDateString('el-GR',
@@ -146,7 +209,13 @@ export async function POST(req: Request) {
 Τελικό σκορ: ${nameA} ${match.goals_team_a}-${match.goals_team_b} ${nameB}${
   hasPens ? `\nΠέναλτι: ${match.pens_team_a}-${match.pens_team_b}` : ''
 }
-
+${playoffStr ? `\n${playoffStr}\n` : ''}
+ΚΑΤΑΤΑΞΗ (κανονική περίοδος, τρέχουσα)
+${nameA}: ${sLine(match.team_a)}
+${nameB}: ${sLine(match.team_b)}
+Πλήρης βαθμολογία:
+${tableStr || '(δεν υπάρχει ακόμη)'}
+${pstatStr ? `\nΣΤΑΤΙΣΤΙΚΑ ΣΕΖΟΝ (πρωταγωνιστές του αγώνα)\n${pstatStr}\n` : ''}
 ΦΑΣΕΙΣ
 ${timeline || '(δεν καταγράφηκαν φάσεις)'}`
 
