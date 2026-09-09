@@ -294,8 +294,11 @@ ${timeline || '(δεν καταγράφηκαν φάσεις)'}`
     if (process.env.ANTHROPIC_API_KEY) {
       const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
       const msg = await client.messages.create({
-        model: 'claude-sonnet-5',
-        max_tokens: 2000,
+        // Πιο προηγμένο μοντέλο για πλουσιότερο, πιο «ανθρώπινο» ρεπορτάζ.
+        // Το Opus 5 τρέχει adaptive thinking από default — δίνουμε μεγαλύτερο
+        // max_tokens ώστε να χωράει η σκέψη + το κείμενο (χρεώνονται μόνο όσα παραχθούν).
+        model: 'claude-opus-5',
+        max_tokens: 6000,
         system: SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       })
