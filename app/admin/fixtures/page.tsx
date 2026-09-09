@@ -213,6 +213,15 @@ export default function AdminFixtures() {
         }
       }
 
+      // 2β) Πιασμένες ώρες από υπάρχοντες αγώνες (π.χ. Summer που τρέχει) — για να μη γίνει διπλοκράτηση.
+      //     Κλειδί: ώρα+γήπεδο. Τρέχει ΜΕΤΑ το clearFirst, οπότε δεν μετράει όσα μόλις σβήστηκαν.
+      const occKey = (iso: string, f: string) => `${new Date(iso).getTime()}|${f}`
+      const occupied = new Set<string>()
+      const { data: existMatches } = await supabase.from('matches')
+        .select('field, match_date').not('match_date', 'is', null).in('field', fieldList)
+      for (const m of existMatches ?? [])
+        if (m.field) occupied.add(occKey(m.match_date, m.field))
+
       // 3) Κατάσταση ανά πρωτάθλημα
       const states: LeagueState[] = targets.map(t => {
         const rounds = buildRounds(t.teamIds, double)
@@ -271,11 +280,12 @@ export default function AdminFixtures() {
         const week = c.week
         const dow = c.date.getDay()
         const used = new Set<string>()
-        // Κάθε γήπεδο αυτής της ώρας γίνεται slot (ελεύθερο ή με αγώνα)
-        for (const f of fieldList) slotEntries.push({ iso: c.iso, field: f })
+        // Κάθε ελεύθερο γήπεδο αυτής της ώρας γίνεται slot — εκτός αν είναι ήδη πιασμένο από άλλο αγώνα.
+        for (const f of fieldList) if (!occupied.has(occKey(c.iso, f))) slotEntries.push({ iso: c.iso, field: f })
 
         for (let s = 0; s < F; s++) {
           const field = fieldList[s] // «καλό» πρώτο (Γήπ. 4) — μία ανοιχτή ώρα → στο καλό
+          if (occupied.has(occKey(c.iso, field))) continue // πιασμένο από υπάρχον ματς → προσπέρασέ το
           let placed = false
           for (let k = 0; k < states.length; k++) {
             const L = states[(cursor + k) % states.length]
