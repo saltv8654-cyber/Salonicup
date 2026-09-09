@@ -29,6 +29,11 @@ export default async function SchedulePage() {
   const key = (f: string | null, iso: string) => `${f ?? ''}|${new Date(iso).getTime()}`
   for (const m of matches ?? []) booked.add(key(m.field, m.match_date))
 
+  // Ελεύθερα slots (για την επιλογή «Αλλαγή ώρας» του captain)
+  const freeSlots = (slots ?? [])
+    .filter(s => !booked.has(key(s.field, s.starts_at)))
+    .map(s => ({ iso: s.starts_at, field: s.field, venue: (s.venue as any)?.name ?? null }))
+
   // Στοιχεία προς εμφάνιση: όλα τα ματς + όσα slots δεν έχουν ματς εκείνη την ώρα/γήπεδο
   type Item = { iso: string; field: string | null; match?: any; venue?: string }
   const items: Item[] = []
@@ -120,7 +125,7 @@ export default async function SchedulePage() {
                       <div key={m.match_id}>
                         <Link href={`/match/${m.match_id}`} className="block active:bg-[#1C1C22]">{inner}</Link>
                         {!done && !live && (
-                          <div className="px-3 pb-2.5 -mt-0.5"><MatchResponse match={m} /></div>
+                          <div className="px-3 pb-2.5 -mt-0.5"><MatchResponse match={m} freeSlots={freeSlots} /></div>
                         )}
                       </div>
                     )
