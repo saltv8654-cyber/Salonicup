@@ -16,6 +16,7 @@ const NAV = [
   { href: '/admin/schedule', label: 'Πρόγραμμα',     icon: '📋' },
   { href: '/admin/fixtures', label: 'Γεννήτρια',     icon: '🗓️' },
   { href: '/admin/venues',   label: 'Γήπεδα',        icon: '📍' },
+  { href: '/admin/slots',    label: 'Ελεύθερα',      icon: '🟢' },
   { href: '/admin/post',     label: 'Post',          icon: '📸' },
   { href: '/admin/toteam',   label: 'Ομάδα αγων.',   icon: '🏅' },
   { href: '/admin/staff',    label: 'Προσωπικό',     icon: '🎬' },
