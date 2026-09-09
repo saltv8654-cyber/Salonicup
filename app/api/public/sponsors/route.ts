@@ -28,9 +28,9 @@ export async function GET() {
   try {
     const supabase = db()
     const { data } = await supabase.from('sponsors')
-      .select('name, logo_url, tier, sort, created_at')
+      .select('name, logo_url, link_url, tier, sort, created_at')
       .order('sort').order('created_at')
-    const pack = (s: any) => ({ name: s.name || null, logo: s.logo_url || null })
+    const pack = (s: any) => ({ name: s.name || null, logo: s.logo_url || null, link: s.link_url || null })
     const rows = data ?? []
     return json({
       major: rows.filter(s => s.tier === 'major').map(pack),

@@ -3,10 +3,13 @@ create table if not exists sponsors (
   id         uuid primary key default gen_random_uuid(),
   name       text not null default '',
   logo_url   text,
+  link_url   text,                             -- σύνδεσμος site χορηγού (κλικ στο λογότυπο)
   tier       text not null default 'minor',   -- 'major' | 'minor'
   sort       int  not null default 0,
   created_at timestamptz default now()
 );
+-- Αν ο πίνακας υπάρχει ήδη:
+alter table sponsors add column if not exists link_url text;
 alter table sponsors enable row level security;
 drop policy if exists sponsors_read  on sponsors;
 drop policy if exists sponsors_admin on sponsors;
