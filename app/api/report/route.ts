@@ -5,6 +5,7 @@ import { PERIODS, EVENTS, fmtMinute, absMinute } from '@/lib/match'
 import type { Period, EventType } from '@/lib/types'
 
 export const maxDuration = 60
+export const dynamic = 'force-dynamic'
 
 const SYSTEM = `Είσαι ο αρθρογράφος του Salonicup, ερασιτεχνικού πρωταθλήματος ποδοσφαίρου στη Θεσσαλονίκη.
 
@@ -401,7 +402,7 @@ ${timeline || '(δεν καταγράφηκαν φάσεις)'}`
         : []),
     ].join('\n')
 
-    return NextResponse.json({ report })
+    return NextResponse.json({ report, ai: !!process.env.ANTHROPIC_API_KEY }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e: any) {
     console.error('report error', e)
     return NextResponse.json(
