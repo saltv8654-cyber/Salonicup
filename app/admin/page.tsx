@@ -43,7 +43,7 @@ export default async function AdminDashboard() {
           AI κειμένων: {aiOn ? 'ενεργό' : 'ανενεργό'}
         </span>
         <span className="text-[10px] text-dim ml-auto">
-          {aiOn ? 'Claude Opus 5' : 'δωρεάν τοπικό κείμενο'}
+          {aiOn ? 'Claude Sonnet 5' : 'δωρεάν τοπικό κείμενο'}
         </span>
       </div>
 
