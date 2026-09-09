@@ -29,8 +29,24 @@ export default async function AdminDashboard() {
     { l: 'Αγώνες',       v: matches.count ?? 0, href: '/admin/matches' },
   ]
 
+  const aiOn = !!process.env.ANTHROPIC_API_KEY
+
   return (
     <div className="p-4 max-w-2xl mx-auto">
+      <div className="mb-3 flex items-center gap-2 rounded-xl border px-3 py-2.5"
+        style={{
+          borderColor: aiOn ? 'rgba(47,168,79,0.35)' : 'rgba(216,72,60,0.3)',
+          background: aiOn ? 'rgba(47,168,79,0.08)' : 'rgba(216,72,60,0.06)',
+        }}>
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: aiOn ? '#2FA84F' : '#D8483C' }} />
+        <span className="text-[12px] font-extrabold" style={{ color: aiOn ? '#2FA84F' : '#D8483C' }}>
+          AI κειμένων: {aiOn ? 'ενεργό' : 'ανενεργό'}
+        </span>
+        <span className="text-[10px] text-dim ml-auto">
+          {aiOn ? 'Claude Sonnet 5' : 'δωρεάν τοπικό κείμενο'}
+        </span>
+      </div>
+
       <div className="grid grid-cols-2 gap-2 mb-6">
         {stats.map(s => (
           <Link key={s.l} href={s.href}
