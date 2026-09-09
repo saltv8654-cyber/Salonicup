@@ -218,6 +218,23 @@ export default function AdminMatches() {
       { label: 'Ημιτελικός 2', home: info(win(2, 7)), away: info(win(3, 6)), homeLbl: 'Νικ. 2ος-7ος', awayLbl: 'Νικ. 3ος-6ος' },
     ]
   }
+  // Ζευγάρι τελικού από τους νικητές των ημιτελικών (κενό = δεν κρίθηκε ακόμη).
+  // Γηπεδούχος τυπικά ο φιναλίστ με ψηλότερη θέση στην κανονική περίοδο.
+  const finalPairing = (leagueId: string) => {
+    const seeds = standings.filter(s => s.league_id === leagueId).sort((a, b) => a.position - b.position)
+    if (seeds.length < 8) return null as any
+    const byPos = (p: number) => seeds.find(s => s.position === p)
+    const info = (id: string | null) => id ? seeds.find(s => s.team_id === id) : null
+    const w = (h: number, a: number) => {
+      const H = byPos(h), A = byPos(a)
+      return (H && A) ? tieWinnerId(leagueId, H.team_id, A.team_id, 'QF') : null
+    }
+    const sfWin = (x: string | null, y: string | null) => (x && y) ? tieWinnerId(leagueId, x, y, 'SF') : null
+    let A = { team: info(sfWin(w(1, 8), w(4, 5))), lbl: 'Νικ. Ημιτελικού 1' }
+    let B = { team: info(sfWin(w(2, 7), w(3, 6))), lbl: 'Νικ. Ημιτελικού 2' }
+    if (A.team && B.team && B.team.position < A.team.position) { const t = A; A = B; B = t }
+    return { home: A.team, away: B.team, homeLbl: A.lbl, awayLbl: B.lbl }
+  }
   const openNew = (p: any = null) => { setEdit(null); setPreset(p); setOpen(true) }
   const openEdit = (m: any) => { setEdit(m); setPreset(null); setOpen(true) }
 
@@ -416,6 +433,41 @@ export default function AdminMatches() {
                     })}
                   </div>
                 )}
+
+                {/* Γρήγορη δημιουργία τελικού (νικητές ημιτελικών· «εκκρεμεί» αν δεν κρίθηκαν) */}
+                {qfPairings(g.id).length > 0 && (() => {
+                  const fp = finalPairing(g.id)
+                  if (!fp) return null
+                  const hName = fp.home?.team_name ?? fp.homeLbl
+                  const aName = fp.away?.team_name ?? fp.awayLbl
+                  return (
+                    <div className="px-2.5 pb-3 pt-2 border-t flex flex-col gap-2"
+                      style={{ borderColor: 'rgba(232,185,35,0.18)' }}>
+                      <span className="text-[8.5px] font-extrabold text-dim tracking-[0.1em] pl-0.5">
+                        ΓΡΗΓΟΡΗ ΔΗΜΙΟΥΡΓΙΑ · ΤΕΛΙΚΟΣ (μονός αγώνας)
+                      </span>
+                      <div className="rounded-lg bg-chalk/[0.03] border border-chalk/[0.05] px-2.5 py-2 flex flex-col gap-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[8.5px] font-black text-dim w-[54px] shrink-0">🏆 Τελικός</span>
+                          <span className="flex-1 text-[11.5px] font-bold text-chalk truncate">{hName} – {aName}</span>
+                        </div>
+                        <button
+                          onClick={() => openNew({ league_id: g.id, stage: 'Final',
+                            team_a: fp.home?.team_id, team_b: fp.away?.team_id,
+                            placeholder_a: fp.home ? null : fp.homeLbl, placeholder_b: fp.away ? null : fp.awayLbl })}
+                          className="rounded-md bg-chalk/[0.04] border border-chalk/[0.06] px-2 py-1.5 text-left active:bg-[#1C1C22]">
+                          <span className="text-[8.5px] text-off font-bold">ΓΗΠΕΔΟΥΧΟΣ (ψηλότερος στην κανονική)</span>
+                          <span className="block text-[10.5px] font-extrabold text-chalk truncate">🏟 {hName}</span>
+                        </button>
+                        {(!fp.home || !fp.away) && (
+                          <span className="text-[8.5px] text-off pl-0.5">
+                            Ο άγνωστος φιναλίστ μπαίνει ως «εκκρεμεί» — όρισε ημερομηνία τώρα, συμπλήρωσε ομάδα μετά.
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             </div>
           ))}
