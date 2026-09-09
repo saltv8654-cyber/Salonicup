@@ -21,6 +21,7 @@ const STATUS_DOT: Record<string, string> = {
   Postponed: '#c9a227', Forfeit: '#8a6d1f',
 }
 
+const RESP_DOT: Record<string, string> = { ok: '#2FA84F', reschedule: '#c9a227', postpone: '#D8483C' }
 const STAGE_LBL: Record<string, string> = { QF: 'Προημ.', SF: 'Ημιτελ.', Final: 'Τελικός' }
 const STAGE_RANK: Record<string, number> = { QF: 0, SF: 1, Final: 2 }
 
@@ -42,7 +43,7 @@ function buildFixtureRows(teamId: string, matches: any[]) {
 }
 
 /** Κελί αγώνα (ένας γύρος) — πάτημα ανοίγει επεξεργασία. */
-function AdminLeg({ m, teamId, onEdit }: { m: any; teamId: string; onEdit: () => void }) {
+function AdminLeg({ m, teamId, onEdit, resp }: { m: any; teamId: string; onEdit: () => void; resp?: { a?: string; b?: string } }) {
   if (!m) {
     return (
       <div className="rounded-lg bg-chalk/[0.02] border border-dashed border-chalk/[0.06]
@@ -89,6 +90,14 @@ function AdminLeg({ m, teamId, onEdit }: { m: any; teamId: string; onEdit: () =>
           <FieldBadge field={m.field} size="xs" />
         </div>
       )}
+      {resp && (resp.a || resp.b) && (
+        <div className="flex justify-center gap-1 mt-1" title="Απαντήσεις captain (γηπεδούχος · φιλοξ.)">
+          {(['a', 'b'] as const).map(s => (
+            <span key={s} className="w-1.5 h-1.5 rounded-full"
+              style={{ background: RESP_DOT[resp[s] ?? ''] ?? 'rgba(255,255,255,0.14)' }} />
+          ))}
+        </div>
+      )}
     </button>
   )
 }
@@ -107,6 +116,7 @@ export default function AdminMatches() {
   const [edit, setEdit]       = useState<any>(null)
   const [preset, setPreset]   = useState<any>(null)
   const [standings, setStandings] = useState<any[]>([])
+  const [resp, setResp] = useState<Record<string, { a?: string; b?: string }>>({})
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   const toggleTeam = (key: string) => setExpanded(prev => {
@@ -116,7 +126,7 @@ export default function AdminMatches() {
   })
 
   async function fetchAll() {
-    const [m, l, t, v, p, st, sd] = await Promise.all([
+    const [m, l, t, v, p, st, sd, mr] = await Promise.all([
       supabase.from('matches').select(`
         *, team_a_data:team_a(name, logo_url), team_b_data:team_b(name, logo_url),
         league:league_id(name), venue:venue_id(name)
@@ -127,6 +137,7 @@ export default function AdminMatches() {
       supabase.from('profiles').select('id, full_name, email, role, team_id').order('full_name'),
       supabase.from('staff').select('id, name, kind').order('name'),
       supabase.from('standings').select('league_id, team_id, team_name, logo_url, position').order('position'),
+      supabase.from('match_responses').select('match_id, team_id, status'),
     ])
     setRows(m.data ?? [])
     setLeagues(l.data ?? [])
@@ -135,6 +146,17 @@ export default function AdminMatches() {
     setPeople(p.data ?? [])
     setStaff(st.data ?? [])
     setStandings(sd.data ?? [])
+    // Απαντήσεις captain ανά αγώνα → πλευρά (a/b) βάσει team_id
+    const mByeId = new Map((m.data ?? []).map((x: any) => [x.match_id, x]))
+    const rmap: Record<string, { a?: string; b?: string }> = {}
+    for (const r of mr.data ?? []) {
+      const mm: any = mByeId.get(r.match_id)
+      if (!mm) continue
+      const side = r.team_id === mm.team_a ? 'a' : r.team_id === mm.team_b ? 'b' : null
+      if (!side) continue
+      ;(rmap[r.match_id] ??= {})[side] = r.status
+    }
+    setResp(rmap)
     setLoad(false)
   }
 
@@ -302,14 +324,14 @@ export default function AdminMatches() {
                             {fixtures.map((r, i) => (
                               <div key={i} className="grid items-center gap-2
                                 [grid-template-columns:1fr_84px_1fr]">
-                                <AdminLeg m={r.leg1} teamId={team.team_id}
+                                <AdminLeg m={r.leg1} teamId={team.team_id} resp={r.leg1 ? resp[r.leg1.match_id] : undefined}
                                   onEdit={() => openEdit(r.leg1)} />
                                 <div className="flex flex-col items-center gap-1 min-w-0">
                                   <Crest url={r.oppLogo} name={r.oppName} size={24} />
                                   <span className="text-[9.5px] font-semibold text-silver text-center
                                     leading-tight truncate max-w-[84px]">{r.oppName}</span>
                                 </div>
-                                <AdminLeg m={r.leg2} teamId={team.team_id}
+                                <AdminLeg m={r.leg2} teamId={team.team_id} resp={r.leg2 ? resp[r.leg2.match_id] : undefined}
                                   onEdit={() => openEdit(r.leg2)} />
                               </div>
                             ))}

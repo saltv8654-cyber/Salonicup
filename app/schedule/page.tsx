@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { BottomNav, Empty, FieldBadge } from '@/app/ui'
 import CaptainGate from '@/app/captain-gate'
 import LogoutButton from '@/app/logout-button'
+import MatchResponse from './match-response'
 import { fmtTime, fmtDay, athensDateKey } from '@/lib/time'
 
 export const revalidate = 30
@@ -17,7 +18,7 @@ export default async function SchedulePage() {
       .select('slot_id, field, starts_at, venue:venue_id(name)')
       .gte('starts_at', since()).order('starts_at'),
     supabase.from('matches')
-      .select(`match_id, match_date, field, match_status, placeholder_a, placeholder_b,
+      .select(`match_id, match_date, field, match_status, placeholder_a, placeholder_b, team_a, team_b,
         league:league_id(name), team_a_data:team_a(name), team_b_data:team_b(name)`)
       .not('match_date', 'is', null)
       .gte('match_date', since()).order('match_date'),
@@ -115,7 +116,14 @@ export default async function SchedulePage() {
                     </div>
                   )
                   return m
-                    ? <Link key={m.match_id} href={`/match/${m.match_id}`} className="block active:bg-[#1C1C22]">{inner}</Link>
+                    ? (
+                      <div key={m.match_id}>
+                        <Link href={`/match/${m.match_id}`} className="block active:bg-[#1C1C22]">{inner}</Link>
+                        {!done && !live && (
+                          <div className="px-3 pb-2.5 -mt-0.5"><MatchResponse match={m} /></div>
+                        )}
+                      </div>
+                    )
                     : <div key={`f-${it.iso}-${it.field}`}>{inner}</div>
                 })}
               </div>
