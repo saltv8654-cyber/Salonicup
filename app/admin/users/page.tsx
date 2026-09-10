@@ -15,11 +15,12 @@ const ROLES = [
 ]
 
 type TeamOpt = { value: string; label: string }
+type TeamGroup = { league: string; teams: TeamOpt[] }
 
 export default function AdminUsers() {
   const supabase = createClient()
   const [rows, setRows] = useState<Profile[]>([])
-  const [teamOpts, setTeamOpts] = useState<TeamOpt[]>([])
+  const [teamGroups, setTeamGroups] = useState<TeamGroup[]>([])
   const [load, setLoad] = useState(true)
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState<string>('all')  // φίλτρο ρόλου
@@ -33,9 +34,16 @@ export default function AdminUsers() {
       supabase.from('teams').select('team_id, name, league:league_id(name)').order('name'),
     ])
     setRows(data ?? [])
-    setTeamOpts((ts ?? []).map((t: any) => ({
-      value: t.team_id, label: `${(t.league as any)?.name ? (t.league as any).name + ' · ' : ''}${t.name}`,
-    })).sort((a, b) => a.label.localeCompare(b.label, 'el')))
+    // Ομαδοποίηση ομάδων ανά πρωτάθλημα (για εύκολη επιλογή στον αρχηγό)
+    const gmap = new Map<string, TeamOpt[]>()
+    for (const t of ts ?? []) {
+      const lg = (t.league as any)?.name ?? 'Χωρίς πρωτάθλημα'
+      if (!gmap.has(lg)) gmap.set(lg, [])
+      gmap.get(lg)!.push({ value: t.team_id, label: t.name })
+    }
+    setTeamGroups([...gmap.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0], 'el'))
+      .map(([league, teams]) => ({ league, teams: teams.sort((x, y) => x.label.localeCompare(y.label, 'el')) })))
     setLoad(false)
   }
 
@@ -71,7 +79,9 @@ export default function AdminUsers() {
 
   const count = (v: string) => rows.filter(u => u.role === v).length
   const tabs = [{ value: 'all', label: 'Όλοι' }, ...ROLES]
-  const shown = filter === 'all' ? rows : rows.filter(u => u.role === filter)
+  const ts = (u: any) => new Date((u as any).created_at ?? 0).getTime()
+  const shown = (filter === 'all' ? rows : rows.filter(u => u.role === filter))
+    .slice().sort((a, b) => ts(b) - ts(a))  // νεότεροι πάνω-πάνω
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
@@ -136,7 +146,11 @@ export default function AdminUsers() {
                     className={`mt-1.5 w-full bg-chalk/[0.05] rounded-lg px-2 py-1.5 text-[11px] font-bold
                       outline-none border ${(u as any).team_id ? 'text-silver border-chalk/[0.06]' : 'text-lit border-lit/40'}`}>
                     <option value="">⚠ Διάλεξε ομάδα…</option>
-                    {teamOpts.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    {teamGroups.map(g => (
+                      <optgroup key={g.league} label={g.league}>
+                        {g.teams.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                      </optgroup>
+                    ))}
                   </select>
                 )}
               </div>
