@@ -403,8 +403,10 @@ ${timeline || '(δεν καταγράφηκαν φάσεις)'}`
     return NextResponse.json({ report, ai: !!process.env.ANTHROPIC_API_KEY }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e: any) {
     console.error('report error', e)
+    const where = String(e?.stack ?? '').split('\n').map((l: string) => l.trim())
+      .find((l: string) => l.includes('route') || l.includes('.ts') || l.includes('.js')) ?? ''
     return NextResponse.json(
-      { error: e.message ?? 'Σφάλμα δημιουργίας κειμένου' },
+      { error: (e?.message ?? 'Σφάλμα δημιουργίας κειμένου') + (where ? ` [${where.slice(0, 140)}]` : '') },
       { status: 500 }
     )
   }
