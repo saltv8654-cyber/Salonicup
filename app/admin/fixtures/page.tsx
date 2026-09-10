@@ -138,6 +138,41 @@ export default function AdminFixtures() {
 
   const [busy, setBusy] = useState(false)
   const [doneInfo, setDoneInfo] = useState<{ matches: number } | null>(null)
+  const [dupBusy, setDupBusy] = useState(false)
+  const [dupRes, setDupRes] = useState<{ pairs: string[]; slots: string[] } | null>(null)
+
+  // Έλεγχος διπλότυπων: ίδιο ζευγάρι+αγωνιστική+φάση, και διπλοκράτηση γηπέδου+ώρας.
+  async function checkDuplicates() {
+    setDupBusy(true); setDupRes(null)
+    const { data } = await supabase.from('matches').select(`
+      match_id, league_id, round, stage, team_a, team_b, match_date, field, placeholder_a, placeholder_b,
+      team_a_data:team_a(name), team_b_data:team_b(name), league:league_id(name)`)
+    const ms = data ?? []
+    const nm = (m: any, s: 'a' | 'b') => (s === 'a' ? m.team_a_data : m.team_b_data)?.name ?? (s === 'a' ? m.placeholder_a : m.placeholder_b) ?? '—'
+    // 1) Ίδιο ζευγάρι + αγωνιστική + φάση (ίδιο πρωτάθλημα)
+    const byFix = new Map<string, any[]>()
+    for (const m of ms) {
+      const pair = [m.team_a, m.team_b].filter(Boolean).sort().join('~')
+      const k = `${m.league_id}|${m.stage ?? 'reg'}|${m.round}|${pair}`
+      ;(byFix.get(k) ?? byFix.set(k, []).get(k)!).push(m)
+    }
+    const pairs = [...byFix.values()].filter(g => g.length > 1).map(g => {
+      const m = g[0]
+      return `${m.league?.name ?? ''} · Αγ.${m.round}${m.stage ? ' ' + m.stage : ''}: ${nm(m, 'a')} – ${nm(m, 'b')} (×${g.length})`
+    })
+    // 2) Διπλοκράτηση: ίδιο γήπεδο + ίδια ώρα
+    const bySlot = new Map<string, any[]>()
+    for (const m of ms) {
+      if (!m.match_date || !m.field) continue
+      const k = `${m.field}|${new Date(m.match_date).getTime()}`
+      ;(bySlot.get(k) ?? bySlot.set(k, []).get(k)!).push(m)
+    }
+    const slots = [...bySlot.values()].filter(g => g.length > 1).map(g => {
+      const m = g[0]
+      return `${m.field} · ${new Date(m.match_date).toLocaleString('el-GR', { timeZone: 'Europe/Athens', weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })}: ${g.map((x: any) => `${nm(x, 'a')}–${nm(x, 'b')}`).join(' , ')}`
+    })
+    setDupRes({ pairs, slots }); setDupBusy(false)
+  }
 
   useEffect(() => {
     Promise.all([
@@ -672,6 +707,41 @@ export default function AdminFixtures() {
               Βαθμολογία
             </Link>
           </div>
+        </div>
+      )}
+
+      {/* Έλεγχος διπλότυπων αγώνων */}
+      <button onClick={checkDuplicates} disabled={dupBusy}
+        className="w-full py-3 rounded-xl bg-chalk/[0.05] border border-chalk/[0.08]
+          text-silver font-bold text-[13.5px] disabled:opacity-50">
+        {dupBusy ? 'Έλεγχος…' : '🔎 Έλεγχος διπλών αγώνων'}
+      </button>
+
+      {dupRes && (
+        <div className="rounded-xl border p-3.5 flex flex-col gap-2"
+          style={{ borderColor: (dupRes.pairs.length || dupRes.slots.length) ? 'rgba(216,72,60,0.35)' : 'rgba(47,168,79,0.35)',
+                   background: (dupRes.pairs.length || dupRes.slots.length) ? 'rgba(216,72,60,0.06)' : 'rgba(47,168,79,0.06)' }}>
+          {!dupRes.pairs.length && !dupRes.slots.length ? (
+            <p className="text-[13px] font-bold" style={{ color: '#2FA84F' }}>✅ Δεν βρέθηκαν διπλότυπα.</p>
+          ) : (
+            <>
+              {dupRes.pairs.length > 0 && (
+                <div>
+                  <p className="text-[12px] font-extrabold mb-1" style={{ color: '#D8483C' }}>
+                    Ίδιο ζευγάρι σε ίδια αγωνιστική ({dupRes.pairs.length})</p>
+                  {dupRes.pairs.map((s, i) => <p key={i} className="text-[11px] text-silver">• {s}</p>)}
+                </div>
+              )}
+              {dupRes.slots.length > 0 && (
+                <div>
+                  <p className="text-[12px] font-extrabold mb-1" style={{ color: '#D8483C' }}>
+                    Διπλοκράτηση γηπέδου/ώρας ({dupRes.slots.length})</p>
+                  {dupRes.slots.map((s, i) => <p key={i} className="text-[11px] text-silver">• {s}</p>)}
+                </div>
+              )}
+              <p className="text-[10px] text-off mt-1">Σβήσε τα διπλά από τους «Αγώνες».</p>
+            </>
+          )}
         </div>
       )}
     </div>
