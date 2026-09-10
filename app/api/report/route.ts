@@ -361,19 +361,29 @@ ${timeline || '(δεν καταγράφηκαν φάσεις)'}`
     }
 
     let body: string
-    if (process.env.ANTHROPIC_API_KEY) {
-      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-      const msg = await client.messages.create({
-        model: 'claude-sonnet-5',
-        max_tokens: 4000,
-        system: SYSTEM,
-        messages: [{ role: 'user', content: prompt }],
-      })
-      body = msg.content
-        .filter(b => b.type === 'text')
-        .map(b => (b as any).text)
-        .join('\n')
-        .trim()
+    // trim(): καθαρίζει κρυφά κενά/newline στο κλειδί (αλλιώς το fetch πετάει
+    // «The string did not match the expected pattern» βάζοντάς το ως header).
+    const apiKey = process.env.ANTHROPIC_API_KEY?.trim()
+    if (apiKey) {
+      try {
+        const client = new Anthropic({ apiKey })
+        const msg = await client.messages.create({
+          model: 'claude-sonnet-5',
+          max_tokens: 4000,
+          system: SYSTEM,
+          messages: [{ role: 'user', content: prompt }],
+        })
+        body = msg.content
+          .filter(b => b.type === 'text')
+          .map(b => (b as any).text)
+          .join('\n')
+          .trim()
+        if (!body) body = buildAutoNarrative()  // κενή απάντηση → εφεδρεία
+      } catch (aiErr) {
+        // Αποτυχία AI (π.χ. κλειδί/όριο) → δίνουμε το δωρεάν τοπικό κείμενο αντί για σφάλμα.
+        console.error('AI report failed, using local narrative', aiErr)
+        body = buildAutoNarrative()
+      }
     } else {
       body = buildAutoNarrative()
     }
