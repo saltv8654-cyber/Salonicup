@@ -171,6 +171,15 @@ export default function AdminMatches() {
     toast.success('Διαγράφηκε'); fetchAll()
   }
 
+  // Τακτοποίηση αιτήματος captain: σβήνει την απάντηση → φεύγει από το πάνελ & πέφτει το σήμα.
+  async function dismissRequest(matchId: string, teamId: string) {
+    setRespRows(prev => prev.filter(r => !(r.match_id === matchId && r.team_id === teamId)))
+    const { error } = await supabase.from('match_responses').delete()
+      .eq('match_id', matchId).eq('team_id', teamId)
+    if (error) { toast.error('Δεν αφαιρέθηκε'); fetchAll(); return }
+    toast.success('Τακτοποιήθηκε')
+  }
+
   if (load) return <Loading />
 
   const filtered = filter ? rows.filter(r => r.league_id === filter) : rows
@@ -303,26 +312,33 @@ export default function AdminMatches() {
             </div>
             <div className="flex flex-col">
               {items.map((x: any, i: number) => (
-                <button key={`${x.match_id}|${x.team_id}`} onClick={() => openEdit(x.m)}
-                  className={`text-left px-3.5 py-2.5 active:bg-chalk/[0.03] ${i ? 'border-t border-chalk/[0.05]' : ''}`}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full shrink-0"
-                      style={{
-                        background: x.status === 'postpone' ? 'rgba(216,72,60,0.15)' : 'rgba(201,162,39,0.18)',
-                        color: x.status === 'postpone' ? '#D8483C' : '#e8b923',
-                      }}>
-                      {x.status === 'postpone' ? 'ΑΝΑΒΟΛΗ' : 'ΑΛΛΑΓΗ ΩΡΑΣ'}
-                    </span>
-                    <span className="text-[12px] font-bold text-chalk truncate shrink-0 max-w-[40%]">{x.team}</span>
-                    <span className="text-[10.5px] text-dim truncate">
-                      {x.m.team_a_data?.name ?? x.m.placeholder_a ?? '—'} – {x.m.team_b_data?.name ?? x.m.placeholder_b ?? '—'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {x.m.match_date && <span className="text-[9.5px] text-off tnum shrink-0">{fmtDay(x.m.match_date)} · {fmtTime(x.m.match_date)}</span>}
-                    {x.note && <span className="text-[10px] text-silver truncate">«{x.note}»</span>}
-                  </div>
-                </button>
+                <div key={`${x.match_id}|${x.team_id}`}
+                  className={`flex items-stretch ${i ? 'border-t border-chalk/[0.05]' : ''}`}>
+                  <button onClick={() => openEdit(x.m)} className="flex-1 text-left px-3.5 py-2.5 active:bg-chalk/[0.03] min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full shrink-0"
+                        style={{
+                          background: x.status === 'postpone' ? 'rgba(216,72,60,0.15)' : 'rgba(201,162,39,0.18)',
+                          color: x.status === 'postpone' ? '#D8483C' : '#e8b923',
+                        }}>
+                        {x.status === 'postpone' ? 'ΑΝΑΒΟΛΗ' : 'ΑΛΛΑΓΗ ΩΡΑΣ'}
+                      </span>
+                      <span className="text-[12px] font-bold text-chalk truncate shrink-0 max-w-[40%]">{x.team}</span>
+                      <span className="text-[10.5px] text-dim truncate">
+                        {x.m.team_a_data?.name ?? x.m.placeholder_a ?? '—'} – {x.m.team_b_data?.name ?? x.m.placeholder_b ?? '—'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {x.m.match_date && <span className="text-[9.5px] text-off tnum shrink-0">{fmtDay(x.m.match_date)} · {fmtTime(x.m.match_date)}</span>}
+                      {x.note && <span className="text-[10px] text-silver truncate">«{x.note}»</span>}
+                    </div>
+                  </button>
+                  <button onClick={() => dismissRequest(x.match_id, x.team_id)}
+                    title="Τακτοποιήθηκε — αφαίρεση"
+                    className="px-3.5 shrink-0 grid place-items-center text-[#2FA84F] active:bg-chalk/[0.03] border-l border-chalk/[0.05] text-base font-black">
+                    ✓
+                  </button>
+                </div>
               ))}
             </div>
           </div>
