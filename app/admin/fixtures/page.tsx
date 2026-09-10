@@ -405,12 +405,18 @@ export default function AdminFixtures() {
         const dow = c.date.getDay()
         const used = new Set<string>()
         // Γήπεδα αυτής της μέρας (αν έχει οριστεί περιορισμός), αλλιώς όλα.
-        const flds = (dayFields[dow] ?? fieldList).filter(f => fieldList.includes(f))
+        // Ταίριασμα ανεκτικό σε τελείες/κενά/πεζά (π.χ. «Γηπ 4» ↔ «Γήπ. 4»).
+        const norm = (s: string) => s.toLowerCase().replace(/[.\s]/g, '')
+        const flds = dayFields[dow]
+          ? dayFields[dow].map(f => fieldList.find(ff => norm(ff) === norm(f))).filter((f): f is string => !!f)
+          : fieldList
+        // Αν ο περιορισμός δεν ταίριαξε με κανένα γήπεδο, μη μείνει η μέρα κενή — χρησιμοποίησε όλα.
+        const useFlds = flds.length ? flds : fieldList
         // Κάθε ελεύθερο γήπεδο αυτής της ώρας γίνεται slot — εκτός αν είναι ήδη πιασμένο από άλλο αγώνα.
-        for (const f of flds) if (!occupied.has(occKey(c.iso, f))) slotEntries.push({ iso: c.iso, field: f })
+        for (const f of useFlds) if (!occupied.has(occKey(c.iso, f))) slotEntries.push({ iso: c.iso, field: f })
 
-        for (let s = 0; s < flds.length; s++) {
-          const field = flds[s] // «καλό» πρώτο (Γήπ. 4) — μία ανοιχτή ώρα → στο καλό
+        for (let s = 0; s < useFlds.length; s++) {
+          const field = useFlds[s] // «καλό» πρώτο (Γήπ. 4) — μία ανοιχτή ώρα → στο καλό
           if (occupied.has(occKey(c.iso, field))) continue // πιασμένο από υπάρχον ματς → προσπέρασέ το
           let placed = false
           for (let k = 0; k < states.length; k++) {
