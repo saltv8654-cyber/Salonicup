@@ -48,6 +48,22 @@ const parseDay = (tok: string) => {
   const t = tok.toLowerCase().slice(0, 2)
   return t in DAY ? DAY[t] : null
 }
+
+/** Γήπεδα ανά μέρα: γραμμές «Πεμ: Γήπ. 4» → { 4: ['Γήπ. 4'] }. Ό,τι δεν οριστεί → όλα τα γήπεδα. */
+function parseDayFields(text: string): Record<number, string[]> {
+  const map: Record<number, string[]> = {}
+  for (const raw of (text || '').split('\n')) {
+    const line = raw.trim()
+    if (!line) continue
+    const m = line.match(/^(\S+)\s*[:：-]?\s*(.+)$/)
+    if (!m) continue
+    const dow = parseDay(m[1])
+    if (dow == null) continue
+    const fields = m[2].split(',').map(s => s.trim()).filter(Boolean)
+    if (fields.length) map[dow] = fields
+  }
+  return map
+}
 const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)
 
 /** Εξαιρέσεις ημερών: γραμμές «ΗΗ/ΜΜ/ΕΕΕΕ - ΗΗ/ΜΜ/ΕΕΕΕ» (ή μεμονωμένη ημέρα). */
@@ -116,6 +132,7 @@ export default function AdminFixtures() {
   const [clearFirst, setClearFirst] = useState(false)
   const [useDraw, setUseDraw] = useState(false)  // 1η αγωνιστική = ζευγάρια από την κλήρωση
   const [blackoutText, setBlackoutText] = useState('')  // μέρες που δεν παίζουμε (π.χ. Χριστούγεννα)
+  const [dayFieldsText, setDayFieldsText] = useState('')  // γήπεδα ανά μέρα (π.χ. Πεμ: Γήπ. 4)
   const [venues, setVenues] = useState<{ venue_id: string; name: string }[]>([])
   const [venueId, setVenueId] = useState('')
 
@@ -336,16 +353,19 @@ export default function AdminFixtures() {
       const pairDayOk = (a: string, b: string, dow: number) =>
         compatibleDays(a, b) ? (dayOk(a, dow) && dayOk(b, dow)) : dayOk(a, dow)
 
+      const dayFields = parseDayFields(dayFieldsText)
       for (const c of cands) {
         if (allDone()) break
         const week = c.week
         const dow = c.date.getDay()
         const used = new Set<string>()
+        // Γήπεδα αυτής της μέρας (αν έχει οριστεί περιορισμός), αλλιώς όλα.
+        const flds = (dayFields[dow] ?? fieldList).filter(f => fieldList.includes(f))
         // Κάθε ελεύθερο γήπεδο αυτής της ώρας γίνεται slot — εκτός αν είναι ήδη πιασμένο από άλλο αγώνα.
-        for (const f of fieldList) if (!occupied.has(occKey(c.iso, f))) slotEntries.push({ iso: c.iso, field: f })
+        for (const f of flds) if (!occupied.has(occKey(c.iso, f))) slotEntries.push({ iso: c.iso, field: f })
 
-        for (let s = 0; s < F; s++) {
-          const field = fieldList[s] // «καλό» πρώτο (Γήπ. 4) — μία ανοιχτή ώρα → στο καλό
+        for (let s = 0; s < flds.length; s++) {
+          const field = flds[s] // «καλό» πρώτο (Γήπ. 4) — μία ανοιχτή ώρα → στο καλό
           if (occupied.has(occKey(c.iso, field))) continue // πιασμένο από υπάρχον ματς → προσπέρασέ το
           let placed = false
           for (let k = 0; k < states.length; k++) {
@@ -382,7 +402,14 @@ export default function AdminFixtures() {
       }
 
       if (rows.length < totalMatches) {
-        throw new Error(`Δεν επαρκούν τα slots (μπήκαν ${rows.length}/${totalMatches}). Βάλε περισσότερες μέρες/ώρες ή ξετσέκαρε «μία/εβδομάδα».`)
+        const leftFor = (L: LeagueState) => L.remaining.length + L.rounds.slice(L.rPtr + 1).reduce((a, r) => a + r.length, 0)
+        const unfinished = states.filter(L => !L.done)
+          .map(L => `${leagues.find(l => l.league_id === L.id)?.name ?? L.id} (−${leftFor(L)})`).join(', ')
+        const enoughSlots = slotEntries.length >= totalMatches
+        const hint = enoughSlots
+          ? 'Υπάρχουν αρκετά slots συνολικά — μάλλον κάποια αγωνιστική δεν χωράει σε ΕΝΑ ΠΣΚ. Ξετσέκαρε το «Μία αγωνιστική ανά ΠΣΚ» ή βάλε περισσότερες ώρες/μέρες.'
+          : 'Δεν υπάρχουν αρκετά slots συνολικά. Πρόσθεσε ώρες/μέρες/γήπεδα, ή μείωσε τις εξαιρέσεις.'
+        throw new Error(`Μπήκαν ${rows.length}/${totalMatches} αγώνες. Διαθέσιμα slots: ${slotEntries.length}. Ημιτελή: ${unfinished || '—'}.\n${hint}`)
       }
 
       const inserted: any[] = []
@@ -498,6 +525,18 @@ export default function AdminFixtures() {
         </div>
 
         <Field label="ΓΗΠΕΔΑ — ΠΑΡΑΛΛΗΛΑ (κόμμα· το 1ο = «καλό»)" value={fields} onChange={setFields} />
+
+        <div>
+          <label className="block text-[8.5px] font-extrabold text-dim
+            tracking-[0.12em] mb-1.5 pl-0.5">ΓΗΠΕΔΑ ΑΝΑ ΜΕΡΑ (προαιρετικό)</label>
+          <textarea value={dayFieldsText} onChange={e => setDayFieldsText(e.target.value)} rows={2}
+            placeholder="π.χ. Πεμ: Γήπ. 4"
+            className="w-full bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-[13px]
+              font-mono leading-relaxed outline-none border border-chalk/[0.07] focus:border-lit/50 placeholder:text-off" />
+          <p className="text-[10px] text-off mt-1.5">
+            Περιορίζει τα γήπεδα μόνο για συγκεκριμένες μέρες (π.χ. την Πέμπτη μόνο «Γήπ. 4»). Ό,τι δεν οριστεί εδώ χρησιμοποιεί όλα τα παραπάνω γήπεδα.
+          </p>
+        </div>
 
         <div>
           <label className="block text-[8.5px] font-extrabold text-dim
