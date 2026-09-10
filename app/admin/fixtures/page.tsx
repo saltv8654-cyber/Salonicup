@@ -353,6 +353,11 @@ export default function AdminFixtures() {
       const pairDayOk = (a: string, b: string, dow: number) =>
         compatibleDays(a, b) ? (dayOk(a, dow) && dayOk(b, dow)) : dayOk(a, dow)
 
+      // Πόσο «δεσμευμένο» είναι ένα ζευγάρι: σε πόσες από τις ενεργές μέρες μπορεί να παίξει.
+      // Λιγότερες μέρες = πιο δεσμευμένο → πρέπει να μπει ΠΡΩΤΟ (π.χ. ομάδα μόνο καθημερινή).
+      const activeDows = Object.keys(byDow).map(Number)
+      const pairFlex = (a: string, b: string) => activeDows.filter(d => pairDayOk(a, b, d)).length
+
       const dayFields = parseDayFields(dayFieldsText)
       for (const c of cands) {
         if (allDone()) break
@@ -376,9 +381,16 @@ export default function AdminFixtures() {
               if (L.roundWeek !== -1 && week !== L.roundWeek) continue
               if (L.roundWeek === -1 && week < L.weekLock) continue
             }
-            const idx = L.remaining.findIndex(([a, b]) =>
-              !used.has(a) && !used.has(b) &&
-              pairDayOk(a, b, dow) && timeOk(a, c.tmin) && timeOk(b, c.tmin))
+            // Διάλεξε το ΠΙΟ δεσμευμένο έγκυρο ζευγάρι για αυτή τη μέρα/ώρα
+            // (ώστε οι «μόνο καθημερινή» ομάδες να πιάνουν Πέμ/Παρ πριν γεμίσουν).
+            let idx = -1, bestFlex = Infinity
+            for (let j = 0; j < L.remaining.length; j++) {
+              const [a, b] = L.remaining[j]
+              if (used.has(a) || used.has(b)) continue
+              if (!(pairDayOk(a, b, dow) && timeOk(a, c.tmin) && timeOk(b, c.tmin))) continue
+              const fl = pairFlex(a, b)
+              if (fl < bestFlex) { bestFlex = fl; idx = j; if (fl <= 1) break }
+            }
             if (idx < 0) continue
             const [a, b] = L.remaining.splice(idx, 1)[0]
             if (oneWeek && L.roundWeek === -1) L.roundWeek = week
