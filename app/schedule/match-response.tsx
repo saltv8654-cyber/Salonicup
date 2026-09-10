@@ -9,6 +9,13 @@ type St = 'ok' | 'reschedule' | 'postpone'
 type FreeSlot = { iso: string; field: string | null; venue: string | null }
 type Resp = { status: St; note: string | null }
 
+// Κλειδί εβδομάδας (Δευ–Κυρ) για να δείχνουμε μόνο ελεύθερα ΤΗΣ εβδομάδας του αγώνα.
+const weekKey = (iso: string) => {
+  const d = new Date(iso)
+  const m = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7))
+  return `${m.getFullYear()}-${m.getMonth()}-${m.getDate()}`
+}
+
 const OPTS: { v: St; label: string; on: string }[] = [
   { v: 'ok',         label: '✓ ΟΚ',       on: 'bg-[#2FA84F] text-white border-[#2FA84F]' },
   { v: 'reschedule', label: 'Αλλαγή ώρας', on: 'bg-[#c9a227] text-black border-[#c9a227]' },
@@ -39,6 +46,10 @@ export default function MatchResponse({ match, freeSlots = [] }: { match: any; f
   const myTeam = profile?.team_id ?? null
   const mySide: 'a' | 'b' | null = myTeam === match.team_a ? 'a' : myTeam === match.team_b ? 'b' : null
   const show = isAdmin || !!mySide
+  // Μόνο ελεύθερα της ΙΔΙΑΣ εβδομάδας με τον αγώνα
+  const weekSlots = match.match_date
+    ? freeSlots.filter(s => weekKey(s.iso) === weekKey(match.match_date))
+    : freeSlots
 
   const nameA = match.team_a_data?.name ?? match.placeholder_a ?? 'Ομάδα Α'
   const nameB = match.team_b_data?.name ?? match.placeholder_b ?? 'Ομάδα Β'
@@ -129,7 +140,7 @@ export default function MatchResponse({ match, freeSlots = [] }: { match: any; f
       )}
 
       {modal && (
-        <RequestModal kind={modal} freeSlots={freeSlots} busy={busy}
+        <RequestModal kind={modal} freeSlots={weekSlots} busy={busy}
           onClose={() => setModal(null)}
           onSubmit={note => submit(modal, note)} />
       )}
