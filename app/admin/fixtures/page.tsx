@@ -88,6 +88,11 @@ function parseBlackout(text: string): [Date, Date][] {
   return out
 }
 const rotate = <T,>(a: T[], k: number) => a.map((_, i) => a[(i + k) % a.length])
+// Ανακάτεμα (Fisher–Yates): ώστε να μη μπαίνει πάντα πρώτο το ίδιο ζευγάρι → μοιράζονται μέρες/ώρες.
+const shuffle = <T,>(a: T[]): T[] => {
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]] }
+  return a
+}
 
 // Ταυτότητα σαββατοκύριακου: Πεμ-Παρ-Σαβ-Κυρ της ίδιας εβδομάδας (Δευ–Κυρ) πέφτουν στο ίδιο id
 function weekendId(date: Date): number {
@@ -354,7 +359,7 @@ export default function AdminFixtures() {
       // 3) Κατάσταση ανά πρωτάθλημα
       const states: LeagueState[] = targets.map(t => {
         const rounds = buildRounds(t.teamIds, double)
-        return { id: t.id, rounds, rPtr: 0, remaining: rounds[0]?.slice() ?? [], weekLock: 0, roundWeek: -1, done: (rounds[0]?.length ?? 0) === 0 }
+        return { id: t.id, rounds, rPtr: 0, remaining: shuffle(rounds[0]?.slice() ?? []), weekLock: 0, roundWeek: -1, done: (rounds[0]?.length ?? 0) === 0 }
       })
       const totalMatches = states.reduce((s, L) => s + L.rounds.reduce((a, r) => a + r.length, 0), 0)
 
@@ -374,7 +379,7 @@ export default function AdminFixtures() {
           if (L.roundWeek === wk && L.remaining.length > 0) {
             const roundNum = L.rPtr + 1
             rows = rows.filter(r => !(r.league_id === L.id && r.round === roundNum))
-            L.remaining = L.rounds[L.rPtr].slice()
+            L.remaining = shuffle(L.rounds[L.rPtr].slice())
             L.roundWeek = -1
             L.weekLock = wk + 7
           }
@@ -483,7 +488,7 @@ export default function AdminFixtures() {
             used.add(a); used.add(b)
             if (L.remaining.length === 0) {
               if (oneWeek) { L.weekLock = L.roundWeek + 7; L.roundWeek = -1 } // επόμενο σαββατοκύριακο
-              if (L.rPtr < L.rounds.length - 1) { L.rPtr++; L.remaining = L.rounds[L.rPtr].slice() }
+              if (L.rPtr < L.rounds.length - 1) { L.rPtr++; L.remaining = shuffle(L.rounds[L.rPtr].slice()) }
               else L.done = true
             }
             cursor++
