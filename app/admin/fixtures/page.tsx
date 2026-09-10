@@ -92,6 +92,7 @@ export default function AdminFixtures() {
   const [oneWeek, setOneWeek] = useState(true)
   const [double, setDouble] = useState(true)
   const [clearFirst, setClearFirst] = useState(false)
+  const [useDraw, setUseDraw] = useState(false)  // 1η αγωνιστική = ζευγάρια από την κλήρωση
   const [venues, setVenues] = useState<{ venue_id: string; name: string }[]>([])
   const [venueId, setVenueId] = useState('')
 
@@ -171,6 +172,7 @@ export default function AdminFixtures() {
     try {
       // 1) Ποια πρωταθλήματα + ομάδες τους
       const targets: { id: string; teamIds: string[] }[] = []
+      const drawMissing: string[] = []  // πρωταθλήματα με ελλιπή κλήρωση (όταν useDraw)
       const availMap: Record<string, number[] | null> = {}  // team_id → διαθέσιμες μέρες (null = όλες)
       const nbMap: Record<string, number | null> = {}       // team_id → όχι πριν από (λεπτά)· null = καμία
 
@@ -195,14 +197,45 @@ export default function AdminFixtures() {
         for (const lid of selected) {
           const { data: ts } = await supabase.from('teams')
             .select('team_id, name, avail_days, not_before').eq('league_id', lid).eq('active', true).order('name')
-          const ids = (ts ?? []).map(t => t.team_id)
+          let ids = (ts ?? []).map(t => t.team_id)
           for (const t of ts ?? []) {
             availMap[t.team_id] = (t as any).avail_days ?? null
             nbMap[t.team_id] = (t as any).not_before ?? null
           }
+
+          // Σειρά από την κλήρωση: η 1η αγωνιστική = τα ζευγάρια που κληρώθηκαν.
+          // Ζευγάρι p = (slot 2p+1, slot 2p+2). Χτίζουμε σειρά ώστε ο circle method
+          // (γύρος 1: order[i] vs order[n-1-i]) να δώσει ακριβώς αυτά τα ζευγάρια.
+          if (useDraw && ids.length) {
+            const { data: ds } = await supabase.from('draw_slots')
+              .select('slot, team_id').eq('league_id', lid)
+            const bySlot = new Map<number, string>()
+            for (const r of ds ?? []) if (r.team_id) bySlot.set(r.slot, r.team_id)
+            const n = ids.length
+            const pairs = Math.floor(n / 2)
+            const aSide: string[] = [], bSide: string[] = []
+            let ok = true
+            for (let p = 0; p < pairs; p++) {
+              const a = bySlot.get(2 * p + 1), b = bySlot.get(2 * p + 2)
+              if (!a || !b) { ok = false; break }
+              aSide.push(a); bSide.push(b)
+            }
+            if (ok) {
+              const seeded = [...aSide, ...[...bSide].reverse()]
+              if (n % 2 === 1) { const last = bySlot.get(n); if (last) seeded.push(last) }
+              // Ασφάλεια: μόνο αν καλύπτει όλες τις ομάδες του πρωταθλήματος
+              if (new Set(seeded).size === ids.length) ids = seeded
+              else drawMissing.push(lid)
+            } else drawMissing.push(lid)
+          }
+
           if (ids.length >= 2) targets.push({ id: lid, teamIds: ids })
         }
         if (!targets.length) throw new Error('Τα επιλεγμένα πρωταθλήματα δεν έχουν αρκετές ομάδες')
+        if (useDraw && drawMissing.length) {
+          const names = drawMissing.map(id => leagues.find(l => l.league_id === id)?.name ?? id).join(', ')
+          throw new Error(`Ελλιπής κλήρωση (δεν έχουν συμπληρωθεί όλα τα ζευγάρια) στα: ${names}. Συμπλήρωσέ τα στη σελίδα «🎬 Κλήρωση» ή ξετσέκαρε την επιλογή κλήρωσης.`)
+        }
       }
 
       // 2) Προαιρετικό σβήσιμο υπαρχόντων ματς
@@ -471,6 +504,17 @@ export default function AdminFixtures() {
             onChange={e => setDouble(e.target.checked)}
             className="w-4 h-4 accent-[#E05B1F]" />
           <span className="text-[13px] text-silver font-semibold">Διπλός γύρος (κάθε ζευγάρι 2 φορές)</span>
+        </label>
+        <label className="flex items-start gap-2.5">
+          <input type="checkbox" checked={useDraw}
+            onChange={e => setUseDraw(e.target.checked)}
+            className="w-4 h-4 accent-[#E05B1F] mt-0.5" />
+          <span className="text-[13px] text-silver font-semibold">
+            1η αγωνιστική = ζευγάρια κλήρωσης
+            <span className="block text-[10.5px] text-off font-normal mt-0.5">
+              Παίρνει τα ζευγάρια από τη σελίδα «🎬 Κλήρωση» (ανά πρωτάθλημα) και βγάζει όλες τις αγωνιστικές με βάση αυτά.
+            </span>
+          </span>
         </label>
       </div>
 
