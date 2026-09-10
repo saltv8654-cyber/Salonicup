@@ -111,9 +111,14 @@ export default function PublicMatch() {
   let aggA = 0, aggB = 0
   if (tie) {
     for (const l of tie) {
-      if (!['Played', 'Forfeit'].includes(l.match_status)) continue
-      aggA += l.team_a === match.team_a ? l.goals_team_a : l.goals_team_b
-      aggB += l.team_a === match.team_a ? l.goals_team_b : l.goals_team_a
+      const isCur = l.match_id === match.match_id
+      // Μετράει: ολοκληρωμένα σκέλη + το τρέχον live σκέλος (με live σκορ).
+      const counted = ['Played', 'Forfeit', 'Live'].includes(l.match_status) || (isCur && (live || done))
+      if (!counted) continue
+      const lga = isCur ? match.goals_team_a : l.goals_team_a
+      const lgb = isCur ? match.goals_team_b : l.goals_team_b
+      aggA += l.team_a === match.team_a ? lga : lgb
+      aggB += l.team_a === match.team_a ? lgb : lga
     }
   }
 
@@ -246,8 +251,9 @@ export default function PublicMatch() {
               {tie.map((l, i) => {
                 const isCur = l.match_id === match.match_id
                 const dn = ['Played', 'Forfeit'].includes(l.match_status)
-                const ga = l.team_a === match.team_a ? l.goals_team_a : l.goals_team_b
-                const gb = l.team_a === match.team_a ? l.goals_team_b : l.goals_team_a
+                const lv = l.match_status === 'Live' || (isCur && live)  // τρέχον live σκέλος
+                const ga = isCur ? match.goals_team_a : (l.team_a === match.team_a ? l.goals_team_a : l.goals_team_b)
+                const gb = isCur ? match.goals_team_b : (l.team_a === match.team_a ? l.goals_team_b : l.goals_team_a)
                 return (
                   <div key={l.match_id} className="flex items-center gap-2 text-[12px]">
                     <span className="w-[64px] shrink-0 text-[9px] font-black text-dim tracking-wide">
@@ -256,8 +262,10 @@ export default function PublicMatch() {
                     <span className={`flex-1 truncate ${isCur ? 'text-lit font-bold' : 'text-silver'}`}>
                       {isCur ? '● Αυτός ο αγώνας' : (l.match_date ? fmtDay(l.match_date) : '—')}
                     </span>
-                    <span className="font-extrabold tnum text-chalk shrink-0">
-                      {dn ? `${ga}-${gb}` : 'εκκρεμεί'}
+                    <span className="font-extrabold tnum shrink-0 flex items-center gap-1 text-chalk"
+                      style={lv ? { color: '#E0563C' } : undefined}>
+                      {lv && <span className="text-[7px] font-black">LIVE</span>}
+                      {(dn || lv) ? `${ga}-${gb}` : 'εκκρεμεί'}
                     </span>
                   </div>
                 )
