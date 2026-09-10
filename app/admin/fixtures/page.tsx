@@ -327,9 +327,25 @@ export default function AdminFixtures() {
       const [Y, M, D] = startDate.split('-').map(Number)
       const start = new Date(Y, M - 1, D)
       const F = fieldList.length
-      const rows: any[] = []
+      let rows: any[] = []
       const slotEntries: { iso: string; field: string }[] = [] // κάθε ώρα×γήπεδο (για ελεύθερα)
       let cursor = 0
+
+      // Αν μια αγωνιστική δεν ολοκληρώθηκε μέσα στο ΠΣΚ που ξεκίνησε, ΑΝΑΙΡΕΣΕ τα μισά ματς
+      // της και ξαναδοκίμασέ την ΟΛΟΚΛΗΡΗ σε επόμενο ΠΣΚ (ώστε να μη σπάει & να μην κλειδώνει).
+      const rollbackPartial = (wk: number) => {
+        for (const L of states) {
+          if (L.done || !oneWeek) continue
+          if (L.roundWeek === wk && L.remaining.length > 0) {
+            const roundNum = L.rPtr + 1
+            rows = rows.filter(r => !(r.league_id === L.id && r.round === roundNum))
+            L.remaining = L.rounds[L.rPtr].slice()
+            L.roundWeek = -1
+            L.weekLock = wk + 7
+          }
+        }
+      }
+      let prevWeek = -1
 
       const allDone = () => states.every(L => L.done)
 
@@ -382,6 +398,9 @@ export default function AdminFixtures() {
       const dayFields = parseDayFields(dayFieldsText)
       for (const c of cands) {
         if (allDone()) break
+        // Αλλαγή ΠΣΚ → αναίρεσε ημιτελείς αγωνιστικές του προηγούμενου για να ξαναδοκιμαστούν αργότερα.
+        if (prevWeek !== -1 && c.week !== prevWeek) rollbackPartial(prevWeek)
+        prevWeek = c.week
         const week = c.week
         const dow = c.date.getDay()
         const used = new Set<string>()
