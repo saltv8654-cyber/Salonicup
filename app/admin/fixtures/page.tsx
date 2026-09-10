@@ -49,6 +49,28 @@ const parseDay = (tok: string) => {
   return t in DAY ? DAY[t] : null
 }
 const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)
+
+/** Εξαιρέσεις ημερών: γραμμές «ΗΗ/ΜΜ/ΕΕΕΕ - ΗΗ/ΜΜ/ΕΕΕΕ» (ή μεμονωμένη ημέρα). */
+function parseBlackout(text: string): [Date, Date][] {
+  const out: [Date, Date][] = []
+  const pd = (s: string): Date | null => {
+    const m = s.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/)
+    if (!m) return null
+    let y = parseInt(m[3]); if (y < 100) y += 2000
+    return new Date(y, parseInt(m[2]) - 1, parseInt(m[1]))
+  }
+  for (const raw of (text || '').split('\n')) {
+    const line = raw.trim()
+    if (!line) continue
+    const parts = line.split(/[-–—]/).map(s => s.trim()).filter(Boolean)
+    const a = pd(parts[0]); const b = parts[1] ? pd(parts[1]) : a
+    if (a && b) out.push([
+      new Date(a.getFullYear(), a.getMonth(), a.getDate(), 0, 0, 0),
+      new Date(b.getFullYear(), b.getMonth(), b.getDate(), 23, 59, 59),
+    ])
+  }
+  return out
+}
 const rotate = <T,>(a: T[], k: number) => a.map((_, i) => a[(i + k) % a.length])
 
 // Ταυτότητα σαββατοκύριακου: Πεμ-Παρ-Σαβ-Κυρ της ίδιας εβδομάδας (Δευ–Κυρ) πέφτουν στο ίδιο id
@@ -93,6 +115,7 @@ export default function AdminFixtures() {
   const [double, setDouble] = useState(true)
   const [clearFirst, setClearFirst] = useState(false)
   const [useDraw, setUseDraw] = useState(false)  // 1η αγωνιστική = ζευγάρια από την κλήρωση
+  const [blackoutText, setBlackoutText] = useState('')  // μέρες που δεν παίζουμε (π.χ. Χριστούγεννα)
   const [venues, setVenues] = useState<{ venue_id: string; name: string }[]>([])
   const [venueId, setVenueId] = useState('')
 
@@ -274,9 +297,14 @@ export default function AdminFixtures() {
 
       // Υποψήφιες ώρες, ταξινομημένες ανά σαββατοκύριακο → προτεραιότητα → ώρα
       const prio = parsePriority()
+      // Εξαιρέσεις: μέρες που ΔΕΝ παίζουμε (π.χ. εβδομάδα Χριστουγέννων)
+      const blackout = parseBlackout(blackoutText)
+      const isBlackout = (d: Date) => blackout.some(([s, e]) => d >= s && d <= e)
+
       const cands: { iso: string; date: Date; week: number; rank: number; tmin: number }[] = []
       for (let dayOffset = 0; dayOffset < 500; dayOffset++) {
         const date = addDays(start, dayOffset)
+        if (isBlackout(date)) continue    // παράκαμψη εξαιρεμένων ημερών
         const times = byDow[date.getDay()]
         if (!times) continue
         const week = weekendId(date)
@@ -490,6 +518,18 @@ export default function AdminFixtures() {
               font-mono leading-relaxed outline-none border border-chalk/[0.07] focus:border-lit/50" />
           <p className="text-[10px] text-off mt-1.5">
             Πρώτα μπαίνουν οι κορυφαίες ώρες· ό,τι λείπει πάει τελευταίο. Το «καλό» γήπεδο (1ο στη λίστα) προτιμάται όταν υπάρχει ελεύθερη ώρα.
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-[8.5px] font-extrabold text-dim
+            tracking-[0.12em] mb-1.5 pl-0.5">ΕΞΑΙΡΕΣΕΙΣ — ΜΕΡΕΣ ΠΟΥ ΔΕΝ ΠΑΙΖΟΥΜΕ (προαιρετικό)</label>
+          <textarea value={blackoutText} onChange={e => setBlackoutText(e.target.value)} rows={2}
+            placeholder="π.χ. 21/12/2026 - 06/01/2027"
+            className="w-full bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-[13px]
+              font-mono leading-relaxed outline-none border border-chalk/[0.07] focus:border-lit/50 placeholder:text-off" />
+          <p className="text-[10px] text-off mt-1.5">
+            Μία εξαίρεση ανά γραμμή, μορφή «ΗΗ/ΜΜ/ΕΕΕΕ - ΗΗ/ΜΜ/ΕΕΕΕ». Οι αγωνιστικές παρακάμπτουν αυτές τις μέρες και συνεχίζουν μετά.
           </p>
         </div>
 
