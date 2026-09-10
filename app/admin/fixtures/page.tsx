@@ -215,6 +215,7 @@ export default function AdminFixtures() {
       const drawMissing: string[] = []  // πρωταθλήματα με ελλιπή κλήρωση (όταν useDraw)
       const availMap: Record<string, number[] | null> = {}  // team_id → διαθέσιμες μέρες (null = όλες)
       const nbMap: Record<string, number | null> = {}       // team_id → όχι πριν από (λεπτά)· null = καμία
+      const nameById: Record<string, string> = {}           // team_id → όνομα (για μηνύματα)
 
       if (mode === 'new') {
         const n = parseInt(count) || 0
@@ -241,6 +242,7 @@ export default function AdminFixtures() {
           for (const t of ts ?? []) {
             availMap[t.team_id] = (t as any).avail_days ?? null
             nbMap[t.team_id] = (t as any).not_before ?? null
+            nameById[t.team_id] = (t as any).name ?? '—'
           }
 
           // Σειρά από την κλήρωση: η 1η αγωνιστική = τα ζευγάρια που κληρώθηκαν.
@@ -276,6 +278,25 @@ export default function AdminFixtures() {
           const names = drawMissing.map(id => leagues.find(l => l.league_id === id)?.name ?? id).join(', ')
           throw new Error(`Ελλιπής κλήρωση (δεν έχουν συμπληρωθεί όλα τα ζευγάρια) στα: ${names}. Συμπλήρωσέ τα στη σελίδα «🎬 Κλήρωση» ή ξετσέκαρε την επιλογή κλήρωσης.`)
         }
+      }
+
+      // 1β) Έλεγχος: ομάδες που ΔΕΝ μπορούν να παίξουν καμία ενεργή μέρα/ώρα (λάθος περιορισμός).
+      {
+        const activeDows = Object.keys(byDow).map(Number)
+        const allTmins = Object.values(byDow).flat().map(t => t.h * 60 + t.m)
+        const bad: string[] = []
+        for (const t of targets) {
+          const lname = leagues.find(l => l.league_id === t.id)?.name ?? ''
+          for (const tid of t.teamIds) {
+            const av = availMap[tid]
+            const dayOkAny = !av || av.length === 0 || activeDows.some(d => av.includes(d))
+            const nb = nbMap[tid]
+            const timeOkAny = nb == null || allTmins.some(m => m >= nb)
+            if (!dayOkAny) bad.push(`${nameById[tid] ?? tid} (${lname}): οι «διαθέσιμες μέρες» δεν περιλαμβάνουν καμία αγωνιστική μέρα`)
+            else if (!timeOkAny) bad.push(`${nameById[tid] ?? tid} (${lname}): το «όχι πριν από» είναι μετά από όλες τις ώρες`)
+          }
+        }
+        if (bad.length) throw new Error(`Ομάδες με περιορισμό που δεν παίζει ποτέ:\n• ${bad.join('\n• ')}\nΔιόρθωσε τους περιορισμούς στη σελίδα «Ομάδες».`)
       }
 
       // 2) Προαιρετικό σβήσιμο υπαρχόντων ματς
