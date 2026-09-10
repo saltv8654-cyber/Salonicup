@@ -1,8 +1,9 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
+import { createClient } from '@/lib/supabase/client'
 import { Loading } from '@/app/ui'
 
 const NAV = [
@@ -31,10 +32,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const path = usePathname()
   const router = useRouter()
   const { profile, isAdmin, loading, signOut } = useAuth()
+  const [pending, setPending] = useState(0)  // εκκρεμή αιτήματα captains (αλλαγή/αναβολή)
 
   useEffect(() => {
     if (!loading && !isAdmin) router.replace('/')
   }, [loading, isAdmin])
+
+  useEffect(() => {
+    if (!isAdmin) return
+    const supabase = createClient()
+    const load = () => supabase.from('match_responses')
+      .select('match_id', { count: 'exact', head: true })
+      .neq('status', 'ok')
+      .then(({ count }) => setPending(count ?? 0))
+    load()
+    const iv = setInterval(load, 60000)  // ανανέωση κάθε λεπτό
+    return () => clearInterval(iv)
+  }, [isAdmin, path])
 
   if (loading || !isAdmin) return <Loading />
 
@@ -85,11 +99,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           const on = n.href === '/admin' ? path === '/admin' : path.startsWith(n.href)
           return (
             <Link key={n.href} href={n.href}
-              className={`shrink-0 flex-1 min-w-[68px] flex flex-col items-center
+              className={`relative shrink-0 flex-1 min-w-[68px] flex flex-col items-center
                 justify-center gap-0.5 py-2.5
                 ${on ? 'text-lit' : 'text-dim'}`}>
               <span className={`text-base ${on ? '' : 'opacity-45'}`}>{n.icon}</span>
               <span className="text-[8.5px] font-bold whitespace-nowrap">{n.label}</span>
+              {n.href === '/admin/matches' && pending > 0 && (
+                <span className="absolute top-1 right-[18%] min-w-[16px] h-[16px] px-1
+                  rounded-full bg-danger text-white text-[9px] font-black grid place-items-center leading-none">
+                  {pending}
+                </span>
+              )}
             </Link>
           )
         })}
