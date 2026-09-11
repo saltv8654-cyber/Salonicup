@@ -1,7 +1,11 @@
 {
+  "id": "/",
   "name": "Salonicup",
   "short_name": "Salonicup",
   "description": "Ερασιτεχνικό πρωτάθλημα ποδοσφαίρου — Θεσσαλονίκη",
+  "lang": "el",
+  "dir": "ltr",
+  "categories": ["sports"],
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
