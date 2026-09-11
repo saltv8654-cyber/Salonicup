@@ -22,6 +22,14 @@ const STATUS_DOT: Record<string, string> = {
 }
 
 const RESP_DOT: Record<string, string> = { ok: '#2FA84F', reschedule: '#c9a227', postpone: '#D8483C' }
+
+/** Ειδοποίηση (push) στους αρχηγούς και των δύο ομάδων ότι άλλαξε ο αγώνας τους. */
+function notifyMatchChange(matchId: string) {
+  fetch('/api/notify-match-change', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ match_id: matchId }),
+  }).catch(() => {})
+}
 const STAGE_LBL: Record<string, string> = { QF: 'Προημ.', SF: 'Ημιτελ.', Final: 'Τελικός' }
 const STAGE_RANK: Record<string, number> = { QF: 0, SF: 1, Final: 2 }
 
@@ -670,12 +678,19 @@ function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose
       payload.goals_team_a = parseInt(scoreA) || 0
       payload.goals_team_b = parseInt(scoreB) || 0
     }
+    // Άλλαξε το πρόγραμμα (ώρα/γήπεδο); → θα ειδοποιήσουμε τους αρχηγούς
+    const schedChanged = !!row && (
+      (date || '') !== toDatetimeLocal(row.match_date) ||
+      (venue || null) !== (row.venue_id || null) ||
+      (field || null) !== (row.field || null))
+
     const { error } = row
       ? await supabase.from('matches').update(payload).eq('match_id', row.match_id)
       : await supabase.from('matches').insert(payload)
 
     setBusy(false)
     if (error) return toast.error('Δεν αποθηκεύτηκε: ' + error.message)
+    if (row && schedChanged) notifyMatchChange(row.match_id)
     toast.success('Αποθηκεύτηκε'); onSaved()
   }
 
@@ -715,6 +730,7 @@ function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose
     if (who === 'b' || who === 'both') await bump(teamB)
     setBusy(false)
     if (upd.error) return toast.error('Δεν έγινε: ' + upd.error.message)
+    notifyMatchChange(row.match_id)
     toast.success('Αναβλήθηκε — το γήπεδο ελευθερώθηκε'); onSaved()
   }
 
