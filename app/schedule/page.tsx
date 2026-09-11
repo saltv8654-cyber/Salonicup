@@ -5,6 +5,7 @@ import CaptainGate from '@/app/captain-gate'
 import LogoutButton from '@/app/logout-button'
 import MatchResponse from './match-response'
 import ChangeBanner from './change-banner'
+import MoreWeeks from './more-weeks'
 import { fmtTime, fmtDay, athensDateKey } from '@/lib/time'
 
 export const revalidate = 30
@@ -60,6 +61,70 @@ export default async function SchedulePage() {
       free: list.filter(x => !x.match).length,
     }))
 
+  // Χωρισμός σε «τρέχουσα εβδομάδα» (η πρώτη με αγώνες) + επόμενες
+  const wk = (iso: string) => {
+    const d = new Date(iso)
+    const m = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7))
+    return `${m.getFullYear()}-${m.getMonth()}-${m.getDate()}`
+  }
+  const firstWk = days.length ? wk(days[0].list[0].iso) : ''
+  const thisWeek = days.filter(d => wk(d.list[0].iso) === firstWk)
+  const later = days.filter(d => wk(d.list[0].iso) !== firstWk)
+
+  const dayBlock = (d: (typeof days)[number]) => (
+    <div key={d.key}>
+      <div className="flex items-baseline gap-2 mb-2 px-1">
+        <p className="text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-lit">{d.label}</p>
+        {d.free > 0 && (
+          <span className="text-[9px] font-extrabold text-lit bg-lit/[0.12] px-2 py-[2px] rounded-full">{d.free} ΕΛΕΥΘΕΡΑ</span>
+        )}
+      </div>
+      <div className="bg-turf rounded-xl border border-chalk/[0.05] overflow-hidden">
+        {d.list.map((it, i) => {
+          const m = it.match
+          const live = m?.match_status === 'Live'
+          const done = m && ['Played', 'Forfeit'].includes(m.match_status)
+          const inner = (
+            <div className={`flex items-center gap-2.5 px-3 py-2.5
+              ${i ? 'border-t border-chalk/[0.05]' : ''}
+              ${!m ? 'bg-lit/[0.05]' : ''}`}>
+              <span className="text-[13px] font-extrabold text-chalk tnum w-[46px] shrink-0">{fmtTime(it.iso)}</span>
+              <div className="shrink-0"><FieldBadge field={it.field} size="xs" /></div>
+              <div className="flex-1 min-w-0">
+                {m ? (
+                  <>
+                    <p className="text-[12.5px] font-semibold text-chalk truncate">
+                      {m.team_a_data?.name ?? m.placeholder_a ?? 'Εκκρεμεί'} <span className="text-dim">–</span> {m.team_b_data?.name ?? m.placeholder_b ?? 'Εκκρεμεί'}
+                    </p>
+                    <p className="text-[9.5px] text-dim truncate">{m.league?.name}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[12.5px] font-extrabold text-lit tracking-[0.04em]">ΕΛΕΥΘΕΡΟ</p>
+                    {it.venue && <p className="text-[9.5px] text-off truncate">{it.venue}</p>}
+                  </>
+                )}
+              </div>
+              {live && <span className="text-[8.5px] font-extrabold text-live shrink-0">LIVE</span>}
+              {done && <span className="text-[8.5px] font-extrabold text-dim shrink-0">ΤΕΛ</span>}
+              {m && !live && !done && <span className="text-dim text-xs shrink-0">›</span>}
+            </div>
+          )
+          return m
+            ? (
+              <div key={m.match_id}>
+                <Link href={`/match/${m.match_id}`} className="block active:bg-[#1C1C22]">{inner}</Link>
+                {!done && !live && (
+                  <div className="px-3 pb-2.5 -mt-0.5"><MatchResponse match={m} freeSlots={freeSlots} /></div>
+                )}
+              </div>
+            )
+            : <div key={`f-${it.iso}-${it.field}`}>{inner}</div>
+        })}
+      </div>
+    </div>
+  )
+
   return (
     <CaptainGate>
       <div className="min-h-screen bg-pitch pb-20">
@@ -79,64 +144,12 @@ export default async function SchedulePage() {
         <div className="px-3.5 pt-1 flex flex-col gap-4">
           {!days.length ? (
             <Empty>Δεν έχει οριστεί πρόγραμμα γηπέδων.</Empty>
-          ) : days.map(d => (
-            <div key={d.key}>
-              <div className="flex items-baseline gap-2 mb-2 px-1">
-                <p className="text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-lit">
-                  {d.label}
-                </p>
-                {d.free > 0 && (
-                  <span className="text-[9px] font-extrabold text-lit bg-lit/[0.12]
-                    px-2 py-[2px] rounded-full">{d.free} ΕΛΕΥΘΕΡΑ</span>
-                )}
-              </div>
-              <div className="bg-turf rounded-xl border border-chalk/[0.05] overflow-hidden">
-                {d.list.map((it, i) => {
-                  const m = it.match
-                  const live = m?.match_status === 'Live'
-                  const done = m && ['Played', 'Forfeit'].includes(m.match_status)
-                  const inner = (
-                    <div className={`flex items-center gap-2.5 px-3 py-2.5
-                      ${i ? 'border-t border-chalk/[0.05]' : ''}
-                      ${!m ? 'bg-lit/[0.05]' : ''}`}>
-                      <span className="text-[13px] font-extrabold text-chalk tnum w-[46px] shrink-0">
-                        {fmtTime(it.iso)}
-                      </span>
-                      <div className="shrink-0"><FieldBadge field={it.field} size="xs" /></div>
-                      <div className="flex-1 min-w-0">
-                        {m ? (
-                          <>
-                            <p className="text-[12.5px] font-semibold text-chalk truncate">
-                              {m.team_a_data?.name ?? m.placeholder_a ?? 'Εκκρεμεί'} <span className="text-dim">–</span> {m.team_b_data?.name ?? m.placeholder_b ?? 'Εκκρεμεί'}
-                            </p>
-                            <p className="text-[9.5px] text-dim truncate">{m.league?.name}</p>
-                          </>
-                        ) : (
-                          <>
-                            <p className="text-[12.5px] font-extrabold text-lit tracking-[0.04em]">ΕΛΕΥΘΕΡΟ</p>
-                            {it.venue && <p className="text-[9.5px] text-off truncate">{it.venue}</p>}
-                          </>
-                        )}
-                      </div>
-                      {live && <span className="text-[8.5px] font-extrabold text-live shrink-0">LIVE</span>}
-                      {done && <span className="text-[8.5px] font-extrabold text-dim shrink-0">ΤΕΛ</span>}
-                      {m && !live && !done && <span className="text-dim text-xs shrink-0">›</span>}
-                    </div>
-                  )
-                  return m
-                    ? (
-                      <div key={m.match_id}>
-                        <Link href={`/match/${m.match_id}`} className="block active:bg-[#1C1C22]">{inner}</Link>
-                        {!done && !live && (
-                          <div className="px-3 pb-2.5 -mt-0.5"><MatchResponse match={m} freeSlots={freeSlots} /></div>
-                        )}
-                      </div>
-                    )
-                    : <div key={`f-${it.iso}-${it.field}`}>{inner}</div>
-                })}
-              </div>
-            </div>
-          ))}
+          ) : (
+            <>
+              {thisWeek.map(dayBlock)}
+              {later.length > 0 && <MoreWeeks count={later.length}>{later.map(dayBlock)}</MoreWeeks>}
+            </>
+          )}
         </div>
 
         <BottomNav />
