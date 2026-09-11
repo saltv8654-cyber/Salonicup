@@ -38,6 +38,11 @@ export async function POST(req: Request) {
   const teamIds = [m.team_a, m.team_b].filter(Boolean) as string[]
   if (!teamIds.length) return NextResponse.json({ ok: true, sent: 0 })
 
+  // In-app μήνυμα (banner) για κάθε ομάδα
+  await admin.from('match_notices').insert(
+    teamIds.map(tid => ({ match_id, team_id: tid, body: `${fixture}: ${when}` }))
+  ).then(() => {}, () => {})  // αν λείπει ο πίνακας, αγνόησε
+
   const { data: caps } = await admin.from('profiles').select('id').eq('role', 'captain').in('team_id', teamIds)
   const ids = (caps ?? []).map((c: any) => c.id)
   if (!ids.length) return NextResponse.json({ ok: true, sent: 0 })

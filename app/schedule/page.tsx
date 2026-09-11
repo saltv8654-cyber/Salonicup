@@ -4,6 +4,7 @@ import { BottomNav, Empty, FieldBadge } from '@/app/ui'
 import CaptainGate from '@/app/captain-gate'
 import LogoutButton from '@/app/logout-button'
 import MatchResponse from './match-response'
+import ChangeBanner from './change-banner'
 import { fmtTime, fmtDay, athensDateKey } from '@/lib/time'
 
 export const revalidate = 30
@@ -72,6 +73,8 @@ export default async function SchedulePage() {
           <p className="text-[9.5px] tracking-[0.22em] uppercase text-lit font-extrabold">Salonicup</p>
           <h1 className="text-2xl font-extrabold text-chalk mt-1 tracking-tight">Γήπεδα</h1>
         </header>
+
+        <ChangeBanner />
 
         <div className="px-3.5 pt-1 flex flex-col gap-4">
           {!days.length ? (
