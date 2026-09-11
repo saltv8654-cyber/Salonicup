@@ -693,6 +693,20 @@ function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose
     toast.success('Έγινε πλήρες reset'); onSaved()
   }
 
+  // Αναβολή + άδειασμα γηπέδου/ώρας: ο αγώνας μένει (χωρίς ημερομηνία) για να ξαναοριστεί,
+  // και το slot ελευθερώνεται ώστε να μπει άλλο ματς στη θέση του. ΔΕΝ δίνει νίκη στα χαρτιά.
+  async function postponeFree() {
+    if (!row) return
+    if (!confirm('Αναβολή αγώνα & άδειασμα γηπέδου;\nΟ αγώνας μένει (χωρίς ημερομηνία/γήπεδο) για να τον ξαναορίσεις αργότερα, και το slot ελευθερώνεται για άλλο ματς.\nΔΕΝ δίνεται νίκη στα χαρτιά.')) return
+    setBusy(true)
+    const { error } = await supabase.from('matches').update({
+      match_status: 'Postponed', match_date: null, venue_id: null, field: null,
+    }).eq('match_id', row.match_id)
+    setBusy(false)
+    if (error) return toast.error('Δεν έγινε: ' + error.message)
+    toast.success('Αναβλήθηκε — το γήπεδο ελευθερώθηκε'); onSaved()
+  }
+
   return (
     <Modal title={row ? 'Επεξεργασία αγώνα' : 'Νέος αγώνας'} onClose={onClose}>
       <Select label="ΠΡΩΤΑΘΛΗΜΑ" value={league}
@@ -795,6 +809,9 @@ function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose
 
       {row && (
         <>
+          <button onClick={postponeFree} disabled={busy}
+            className="w-full mt-2 py-2.5 rounded-xl bg-[#c9a227]/15 border border-[#c9a227]/35
+              text-[#e8b923] text-[12.5px] font-bold disabled:opacity-50">⏸ Αναβολή & άδειασμα γηπέδου</button>
           <button onClick={reset} disabled={busy}
             className="w-full mt-2 py-2.5 rounded-xl bg-[#c9a227]/15 border border-[#c9a227]/35
               text-[#e8b923] text-[12.5px] font-bold disabled:opacity-50">↺ Πλήρες reset (από την αρχή)</button>
