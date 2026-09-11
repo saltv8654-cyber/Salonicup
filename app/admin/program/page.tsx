@@ -2,9 +2,19 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { FieldBadge, Empty } from '@/app/ui'
 import { fmtTime, fmtDay, athensDateKey } from '@/lib/time'
-import MoreWeeks from '@/app/schedule/more-weeks'
+import WeekAccordion, { type Week } from '@/app/schedule/week-accordion'
 
 export const dynamic = 'force-dynamic'
+
+const GRMON = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαΐ', 'Ιουν', 'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ']
+const weekLabel = (iso: string) => {
+  const d = new Date(iso)
+  const mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7))
+  const sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6)
+  return mon.getMonth() === sun.getMonth()
+    ? `${mon.getDate()}–${sun.getDate()} ${GRMON[sun.getMonth()]}`
+    : `${mon.getDate()} ${GRMON[mon.getMonth()]} – ${sun.getDate()} ${GRMON[sun.getMonth()]}`
+}
 
 const since = () => new Date(Date.now() - 86400000).toISOString()
 const key = (f: string | null, iso: string) => `${f ?? ''}|${new Date(iso).getTime()}`
@@ -73,10 +83,6 @@ export default async function AdminProgram() {
     const m = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7))
     return `${m.getFullYear()}-${m.getMonth()}-${m.getDate()}`
   }
-  const firstWk = days.length ? wk(days[0].list[0].iso) : ''
-  const thisWeek = days.filter(d => wk(d.list[0].iso) === firstWk)
-  const later = days.filter(d => wk(d.list[0].iso) !== firstWk)
-
   const dayBlock = (d: (typeof days)[number]) => (
             <div key={d.key}>
               <div className="flex items-baseline gap-2 mb-2 px-1">
@@ -132,15 +138,27 @@ export default async function AdminProgram() {
             </div>
   )
 
+  // Ομαδοποίηση ημερών ανά εβδομάδα (πτυσσόμενο)
+  const weekMap = new Map<string, (typeof days)>()
+  for (const d of days) {
+    const k = wk(d.list[0].iso)
+    if (!weekMap.has(k)) weekMap.set(k, [])
+    weekMap.get(k)!.push(d)
+  }
+  const weeks: Week[] = [...weekMap.entries()].map(([k, ds]) => ({
+    key: k,
+    label: weekLabel(ds[0].list[0].iso),
+    free: ds.reduce((s, d) => s + d.free, 0),
+    count: ds.reduce((s, d) => s + (d.list.length - d.free), 0),
+    body: <>{ds.map(dayBlock)}</>,
+  }))
+
   return (
     <div className="p-4 max-w-2xl mx-auto">
       <h1 className="text-lg font-extrabold text-chalk mb-3">Ημερολόγιο</h1>
 
       {!days.length ? <Empty>Δεν υπάρχει πρόγραμμα.</Empty> : (
-        <div className="flex flex-col gap-4">
-          {thisWeek.map(dayBlock)}
-          {later.length > 0 && <MoreWeeks count={later.length}>{later.map(dayBlock)}</MoreWeeks>}
-        </div>
+        <WeekAccordion weeks={weeks} />
       )}
     </div>
   )

@@ -5,8 +5,18 @@ import CaptainGate from '@/app/captain-gate'
 import LogoutButton from '@/app/logout-button'
 import MatchResponse from './match-response'
 import ChangeBanner from './change-banner'
-import MoreWeeks from './more-weeks'
+import WeekAccordion, { type Week } from './week-accordion'
 import { fmtTime, fmtDay, athensDateKey } from '@/lib/time'
+
+const GRMON = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαΐ', 'Ιουν', 'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ']
+const weekLabel = (iso: string) => {
+  const d = new Date(iso)
+  const mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7))
+  const sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6)
+  return mon.getMonth() === sun.getMonth()
+    ? `${mon.getDate()}–${sun.getDate()} ${GRMON[sun.getMonth()]}`
+    : `${mon.getDate()} ${GRMON[mon.getMonth()]} – ${sun.getDate()} ${GRMON[sun.getMonth()]}`
+}
 
 export const revalidate = 30
 
@@ -67,10 +77,6 @@ export default async function SchedulePage() {
     const m = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7))
     return `${m.getFullYear()}-${m.getMonth()}-${m.getDate()}`
   }
-  const firstWk = days.length ? wk(days[0].list[0].iso) : ''
-  const thisWeek = days.filter(d => wk(d.list[0].iso) === firstWk)
-  const later = days.filter(d => wk(d.list[0].iso) !== firstWk)
-
   const dayBlock = (d: (typeof days)[number]) => (
     <div key={d.key}>
       <div className="flex items-baseline gap-2 mb-2 px-1">
@@ -125,6 +131,21 @@ export default async function SchedulePage() {
     </div>
   )
 
+  // Ομαδοποίηση ημερών ανά εβδομάδα (πτυσσόμενο)
+  const weekMap = new Map<string, (typeof days)>()
+  for (const d of days) {
+    const k = wk(d.list[0].iso)
+    if (!weekMap.has(k)) weekMap.set(k, [])
+    weekMap.get(k)!.push(d)
+  }
+  const weeks: Week[] = [...weekMap.entries()].map(([k, ds]) => ({
+    key: k,
+    label: weekLabel(ds[0].list[0].iso),
+    free: ds.reduce((s, d) => s + d.free, 0),
+    count: ds.reduce((s, d) => s + (d.list.length - d.free), 0),
+    body: <>{ds.map(dayBlock)}</>,
+  }))
+
   return (
     <CaptainGate>
       <div className="min-h-screen bg-pitch pb-20">
@@ -145,10 +166,7 @@ export default async function SchedulePage() {
           {!days.length ? (
             <Empty>Δεν έχει οριστεί πρόγραμμα γηπέδων.</Empty>
           ) : (
-            <>
-              {thisWeek.map(dayBlock)}
-              {later.length > 0 && <MoreWeeks count={later.length}>{later.map(dayBlock)}</MoreWeeks>}
-            </>
+            <WeekAccordion weeks={weeks} />
           )}
         </div>
 
