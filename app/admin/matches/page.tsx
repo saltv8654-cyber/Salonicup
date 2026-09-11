@@ -330,8 +330,12 @@ export default function AdminMatches() {
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       {x.m.match_date && <span className="text-[9.5px] text-off tnum shrink-0">{fmtDay(x.m.match_date)} · {fmtTime(x.m.match_date)}</span>}
-                      {x.note && <span className="text-[10px] text-silver truncate">«{x.note}»</span>}
                     </div>
+                    {x.note && (
+                      <p className="text-[11px] text-silver mt-1 whitespace-pre-wrap break-words leading-snug">
+                        «{x.note}»
+                      </p>
+                    )}
                   </button>
                   <button onClick={() => dismissRequest(x.match_id, x.team_id)}
                     title="Τακτοποιήθηκε — αφαίρεση"
