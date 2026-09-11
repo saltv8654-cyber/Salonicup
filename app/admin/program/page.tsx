@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { FieldBadge, Empty } from '@/app/ui'
 import { fmtTime, fmtDay, athensDateKey } from '@/lib/time'
+import MoreWeeks from '@/app/schedule/more-weeks'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,13 +68,16 @@ export default async function AdminProgram() {
   const nm = (m: any, s: 'a' | 'b') =>
     (s === 'a' ? m.team_a_data : m.team_b_data)?.name ?? (s === 'a' ? m.placeholder_a : m.placeholder_b) ?? '—'
 
-  return (
-    <div className="p-4 max-w-2xl mx-auto">
-      <h1 className="text-lg font-extrabold text-chalk mb-3">Ημερολόγιο</h1>
+  const wk = (iso: string) => {
+    const d = new Date(iso)
+    const m = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7))
+    return `${m.getFullYear()}-${m.getMonth()}-${m.getDate()}`
+  }
+  const firstWk = days.length ? wk(days[0].list[0].iso) : ''
+  const thisWeek = days.filter(d => wk(d.list[0].iso) === firstWk)
+  const later = days.filter(d => wk(d.list[0].iso) !== firstWk)
 
-      {!days.length ? <Empty>Δεν υπάρχει πρόγραμμα.</Empty> : (
-        <div className="flex flex-col gap-4">
-          {days.map(d => (
+  const dayBlock = (d: (typeof days)[number]) => (
             <div key={d.key}>
               <div className="flex items-baseline gap-2 mb-2 px-1">
                 <p className="text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-lit">{d.label}</p>
@@ -126,7 +130,16 @@ export default async function AdminProgram() {
                 })}
               </div>
             </div>
-          ))}
+  )
+
+  return (
+    <div className="p-4 max-w-2xl mx-auto">
+      <h1 className="text-lg font-extrabold text-chalk mb-3">Ημερολόγιο</h1>
+
+      {!days.length ? <Empty>Δεν υπάρχει πρόγραμμα.</Empty> : (
+        <div className="flex flex-col gap-4">
+          {thisWeek.map(dayBlock)}
+          {later.length > 0 && <MoreWeeks count={later.length}>{later.map(dayBlock)}</MoreWeeks>}
         </div>
       )}
     </div>
