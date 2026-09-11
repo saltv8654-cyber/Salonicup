@@ -593,6 +593,7 @@ function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose
   const [status, setStatus]   = useState<MatchState>(row?.match_status ?? 'Scheduled')
   const [stream, setStream]   = useState(row?.stream_url ?? '')
   const [busy, setBusy]       = useState(false)
+  const [showPostpone, setShowPostpone] = useState(false)
   // Νίκη στα χαρτιά: ποια ομάδα κερδίζει 3-0 (ή καμία = 0-0, διπλή απουσία)
   const [ffWinner, setFfWinner] = useState<'a' | 'b' | 'none'>(
     row?.match_status === 'Forfeit'
@@ -694,16 +695,22 @@ function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose
   }
 
   // Αναβολή + άδειασμα γηπέδου/ώρας: ο αγώνας μένει (χωρίς ημερομηνία) για να ξαναοριστεί,
-  // και το slot ελευθερώνεται ώστε να μπει άλλο ματς στη θέση του. ΔΕΝ δίνει νίκη στα χαρτιά.
-  async function postponeFree() {
+  // το slot ελευθερώνεται, και προσμετράται η αναβολή σε όποια ομάδα την πήρε. ΔΕΝ δίνει νίκη στα χαρτιά.
+  async function doPostpone(who: 'a' | 'b' | 'both' | 'none') {
     if (!row) return
-    if (!confirm('Αναβολή αγώνα & άδειασμα γηπέδου;\nΟ αγώνας μένει (χωρίς ημερομηνία/γήπεδο) για να τον ξαναορίσεις αργότερα, και το slot ελευθερώνεται για άλλο ματς.\nΔΕΝ δίνεται νίκη στα χαρτιά.')) return
     setBusy(true)
-    const { error } = await supabase.from('matches').update({
+    const upd = await supabase.from('matches').update({
       match_status: 'Postponed', match_date: null, venue_id: null, field: null,
     }).eq('match_id', row.match_id)
+    const bump = async (tid: string) => {
+      if (!tid) return
+      const cur = teams.find(t => t.team_id === tid)?.postponements ?? 0
+      await supabase.from('teams').update({ postponements: cur + 1 }).eq('team_id', tid)
+    }
+    if (who === 'a' || who === 'both') await bump(teamA)
+    if (who === 'b' || who === 'both') await bump(teamB)
     setBusy(false)
-    if (error) return toast.error('Δεν έγινε: ' + error.message)
+    if (upd.error) return toast.error('Δεν έγινε: ' + upd.error.message)
     toast.success('Αναβλήθηκε — το γήπεδο ελευθερώθηκε'); onSaved()
   }
 
@@ -809,9 +816,29 @@ function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose
 
       {row && (
         <>
-          <button onClick={postponeFree} disabled={busy}
+          <button onClick={() => setShowPostpone(v => !v)} disabled={busy}
             className="w-full mt-2 py-2.5 rounded-xl bg-[#c9a227]/15 border border-[#c9a227]/35
               text-[#e8b923] text-[12.5px] font-bold disabled:opacity-50">⏸ Αναβολή & άδειασμα γηπέδου</button>
+          {showPostpone && (
+            <div className="mt-2 rounded-xl border border-[#c9a227]/35 bg-[#c9a227]/[0.06] p-3 flex flex-col gap-2">
+              <p className="text-[10.5px] text-off leading-snug">
+                Ποιος πήρε την αναβολή; (προσμετράται στο σύνολο αναβολών της ομάδας). Το γήπεδο/ώρα ελευθερώνεται· ΔΕΝ δίνεται νίκη στα χαρτιά.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  ['a', `${leagueTeams.find(t => t.team_id === teamA)?.name ?? 'Γηπεδούχος'}`],
+                  ['b', `${leagueTeams.find(t => t.team_id === teamB)?.name ?? 'Φιλοξ/νος'}`],
+                  ['both', 'Και οι δύο'],
+                  ['none', 'Κανένας'],
+                ] as const).map(([w, lbl]) => (
+                  <button key={w} disabled={busy} onClick={() => doPostpone(w)}
+                    className="py-2.5 rounded-lg bg-chalk/[0.06] border border-chalk/[0.08] text-silver text-[11.5px] font-bold truncate disabled:opacity-50">
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <button onClick={reset} disabled={busy}
             className="w-full mt-2 py-2.5 rounded-xl bg-[#c9a227]/15 border border-[#c9a227]/35
               text-[#e8b923] text-[12.5px] font-bold disabled:opacity-50">↺ Πλήρες reset (από την αρχή)</button>
