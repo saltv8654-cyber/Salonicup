@@ -1,6 +1,7 @@
 /* Salonicup service worker — installability + offline shell.
    Προσοχή: τα live δεδομένα (Supabase, API) ΔΕΝ γίνονται cache. */
-const CACHE = 'salonicup-v242'
+const CACHE = 'salonicup-v243'
+const IMG_CACHE = 'salonicup-img-v1'   // λογότυπα/φωτό από Supabase Storage (μείωση egress)
 const ASSETS = [
   '/', '/manifest.json',
   '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png',
@@ -15,7 +16,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== IMG_CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   )
 })
@@ -25,6 +26,23 @@ self.addEventListener('fetch', (e) => {
   if (request.method !== 'GET') return
 
   const url = new URL(request.url)
+
+  // Εικόνες από Supabase Storage (λογότυπα/φωτό) → cache-first ώστε να ΜΗΝ
+  // ξανακατεβαίνουν σε κάθε άνοιγμα (μεγάλη μείωση του "Cached Egress").
+  if (url.pathname.includes('/storage/v1/object/')) {
+    e.respondWith(
+      caches.open(IMG_CACHE).then((c) =>
+        c.match(request).then((cached) =>
+          cached || fetch(request).then((res) => {
+            if (res && res.ok) c.put(request, res.clone())
+            return res
+          }).catch(() => cached)
+        )
+      )
+    )
+    return
+  }
+
   // Άσε τρίτα hosts (Supabase κ.λπ.) να πάνε κατευθείαν στο δίκτυο
   if (url.origin !== self.location.origin) return
 
