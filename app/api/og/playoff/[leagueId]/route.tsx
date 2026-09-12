@@ -6,9 +6,8 @@ export const dynamic = 'force-dynamic'
 
 const GOLD = '#E8B923', GOLD2 = '#F0D264'
 
-type Kit = { p: string; s: string | null; pat: string }
-type T = { id: string; name: string; logo: string | null; seed: number; kit?: Kit }
-type Side = { seed?: number; name?: string; logo?: string | null; scores?: (number | null)[]; win?: boolean; ph?: string; kit?: Kit }
+type T = { id: string; name: string; logo: string | null; seed: number }
+type Side = { seed?: number; name?: string; logo?: string | null; scores?: (number | null)[]; win?: boolean; ph?: string }
 type Tie = { a: Side; b: Side }
 
 export async function GET(req: Request, { params }: { params: { leagueId: string } }) {
@@ -30,17 +29,7 @@ export async function GET(req: Request, { params }: { params: { leagueId: string
 
   const seeds: (T | undefined)[] = rows.slice(0, 8).map((r: any, i: number) =>
     ({ id: r.team_id, name: r.team_name, logo: r.logo_url, seed: i + 1 }))
-
-  // Χρώματα φανέλας (kit) ανά ομάδα — όπως ορίζονται στη διαχείριση ομάδων
-  const seedIds = seeds.filter(Boolean).map(s => (s as T).id)
-  const { data: kits } = await supabase.from('teams')
-    .select('team_id, kit_primary, kit_secondary, kit_pattern').in('team_id', seedIds)
-  const kitBy = new Map<string, Kit>()
-  for (const k of kits ?? []) kitBy.set(k.team_id, {
-    p: k.kit_primary || C.lit, s: k.kit_secondary || null, pat: k.kit_pattern || 'solid' })
-  seeds.forEach(s => { if (s) s.kit = kitBy.get(s.id) })
-
-  const side = (t: T): Side => ({ seed: t.seed, name: t.name, logo: t.logo, kit: t.kit })
+  const side = (t: T): Side => ({ seed: t.seed, name: t.name, logo: t.logo })
   const doneM = (m: any) => ['Played', 'Forfeit'].includes(m.match_status)
   const legsOf = (s: string) => (s === 'Final' ? 1 : 2)
   const tieData = (t1: T, t2: T, stg: string) => {
@@ -67,8 +56,8 @@ export async function GET(req: Request, { params }: { params: { leagueId: string
     if (!t1 || !t2) return { tie: { a: t1 ? side(t1) : { ph: ph1 }, b: t2 ? side(t2) : { ph: ph2 } } }
     const r = tieData(t1, t2, stg)
     return { winner: r.winner, tie: {
-      a: { seed: t1.seed, name: t1.name, logo: t1.logo, kit: t1.kit, scores: r.s1, win: r.winner?.id === t1.id },
-      b: { seed: t2.seed, name: t2.name, logo: t2.logo, kit: t2.kit, scores: r.s2, win: r.winner?.id === t2.id },
+      a: { seed: t1.seed, name: t1.name, logo: t1.logo, scores: r.s1, win: r.winner?.id === t1.id },
+      b: { seed: t2.seed, name: t2.name, logo: t2.logo, scores: r.s2, win: r.winner?.id === t2.id },
     } }
   }
   const t18 = mkTie(seeds[0], seeds[7], 'QF', '1ος', '8ος')
@@ -82,36 +71,12 @@ export async function GET(req: Request, { params }: { params: { leagueId: string
 
   const CW = 430            // πλάτος κάρτας
   const rowH = 66
-  const BAR = 9             // πλάτος κάθετης μπάρας χρωμάτων ομάδας
-
-  // Κάθετη μπάρα με τα χρώματα του kit (μονόχρωμο / ρίγες / μισό-μισό)
-  const KitBar = ({ kit }: { kit?: Kit }) => {
-    if (!kit) return <div style={{ display: 'flex', width: BAR, alignSelf: 'stretch', background: C.line }} />
-    const { p, s, pat } = kit
-    if (pat === 'halves' && s) return (
-      <div style={{ display: 'flex', flexDirection: 'column', width: BAR, alignSelf: 'stretch' }}>
-        <div style={{ display: 'flex', flex: 1, background: p }} />
-        <div style={{ display: 'flex', flex: 1, background: s }} />
-      </div>
-    )
-    if (pat === 'stripes' && s) return (
-      <div style={{ display: 'flex', flexDirection: 'column', width: BAR, alignSelf: 'stretch' }}>
-        {[0, 1, 2, 3, 4, 5].map(i => (
-          <div key={i} style={{ display: 'flex', flex: 1, background: i % 2 ? s : p }} />
-        ))}
-      </div>
-    )
-    return <div style={{ display: 'flex', width: BAR, alignSelf: 'stretch', background: p }} />
-  }
 
   const Row = ({ s, gold }: { s: Side; gold?: boolean }) => {
     if (s.ph) return (
-      <div style={{ display: 'flex', alignItems: 'stretch', height: rowH }}>
-        <div style={{ display: 'flex', width: BAR, alignSelf: 'stretch', background: C.line }} />
-        <div style={{ display: 'flex', alignItems: 'center', flex: 1, padding: '0 16px' }}>
-          <div style={{ display: 'flex', width: 26 }} />
-          <div style={{ display: 'flex', fontSize: 24, color: C.dim }}>{s.ph}</div>
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', height: rowH, padding: '0 16px' }}>
+        <div style={{ display: 'flex', width: 26 }} />
+        <div style={{ display: 'flex', fontSize: 24, color: C.dim }}>{s.ph}</div>
       </div>
     )
     const scores = s.scores?.length ? s.scores : [null]
@@ -119,27 +84,24 @@ export async function GET(req: Request, { params }: { params: { leagueId: string
     const nm = s.name ?? '—'
     const nameFs = nm.length > 16 ? 21 : nm.length > 12 ? 24 : 27
     return (
-      <div style={{ display: 'flex', alignItems: 'stretch', height: rowH,
+      <div style={{ display: 'flex', alignItems: 'center', height: rowH, padding: '0 16px',
         background: s.win ? (gold ? 'rgba(232,185,35,0.15)' : 'rgba(245,120,46,0.16)') : 'transparent' }}>
-        <KitBar kit={s.kit} />
-        <div style={{ display: 'flex', alignItems: 'center', flex: 1, padding: '0 16px' }}>
-          <div style={{ display: 'flex', width: 26, justifyContent: 'center', fontSize: 20, fontWeight: 700, color: C.dim }}>
-            {s.seed ?? ''}
-          </div>
-          {s.logo
-            ? <img src={s.logo} width={34} height={34} style={{ width: 34, height: 34, objectFit: 'contain', margin: '0 10px' }} />
-            : <div style={{ display: 'flex', width: 34, height: 34, margin: '0 10px' }} />}
-          <div style={{ display: 'flex', flex: 1, minWidth: 0, fontSize: nameFs, fontWeight: 700,
-            lineHeight: 1.05, color: s.win ? acc : C.chalk }}>
-            {nm}</div>
-          <div style={{ display: 'flex', flexShrink: 0, marginLeft: 8 }}>
-            {scores.map((v, i) => (
-              <div key={i} style={{ display: 'flex', width: 36, justifyContent: 'center', fontSize: 28, fontWeight: 700,
-                color: s.win ? acc : C.silver, borderLeft: i > 0 ? `1px solid ${C.line}` : 'none' }}>
-                {v ?? '–'}
-              </div>
-            ))}
-          </div>
+        <div style={{ display: 'flex', width: 26, justifyContent: 'center', fontSize: 20, fontWeight: 700, color: C.dim }}>
+          {s.seed ?? ''}
+        </div>
+        {s.logo
+          ? <img src={s.logo} width={34} height={34} style={{ width: 34, height: 34, objectFit: 'contain', margin: '0 10px' }} />
+          : <div style={{ display: 'flex', width: 34, height: 34, margin: '0 10px' }} />}
+        <div style={{ display: 'flex', flex: 1, minWidth: 0, fontSize: nameFs, fontWeight: 700,
+          lineHeight: 1.05, color: s.win ? acc : C.chalk }}>
+          {nm}</div>
+        <div style={{ display: 'flex', flexShrink: 0, marginLeft: 8 }}>
+          {scores.map((v, i) => (
+            <div key={i} style={{ display: 'flex', width: 36, justifyContent: 'center', fontSize: 28, fontWeight: 700,
+              color: s.win ? acc : C.silver, borderLeft: i > 0 ? `1px solid ${C.line}` : 'none' }}>
+              {v ?? '–'}
+            </div>
+          ))}
         </div>
       </div>
     )
