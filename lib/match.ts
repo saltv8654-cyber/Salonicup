@@ -75,4 +75,4 @@ export function playerTallies(events: { player_id?: string | null; event_type: s
   return m
 }
 
-export const MAX_POSTPONEMENTS = 2
+export const MAX_POSTPONEMENTS = 3

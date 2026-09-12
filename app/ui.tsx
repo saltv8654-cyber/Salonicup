@@ -87,7 +87,7 @@ export function SectionLabel({ children, live }: {
 }
 
 /* ── Αναβολές: 0/2 σβηστό, 1/2 κίτρινο, 2/2 κόκκινο ── */
-export function Postponements({ n, max = 2 }: { n: number; max?: number }) {
+export function Postponements({ n, max = 3 }: { n: number; max?: number }) {
   const style =
     n >= max ? 'bg-danger/[0.18] border-danger/45 text-[#E8564A]'
     : n === max - 1 ? 'bg-card/[0.14] border-card/40 text-card'
