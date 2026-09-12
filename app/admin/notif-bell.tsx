@@ -7,13 +7,11 @@ type Notif = { id: string; kind: string; title: string; body: string | null; url
 
 const ICON: Record<string, string> = { response: '⚽', signup: '🙋', default: '🔔' }
 
-function ago(iso: string) {
-  const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
-  if (s < 60) return 'μόλις τώρα'
-  const m = Math.floor(s / 60); if (m < 60) return `${m}′`
-  const h = Math.floor(m / 60); if (h < 24) return `${h} ώρ.`
-  const d = Math.floor(h / 24); if (d < 7) return `${d} ημ.`
-  return new Date(iso).toLocaleDateString('el-GR', { day: 'numeric', month: 'short' })
+function fmtDateTime(iso: string) {
+  const d = new Date(iso)
+  const date = d.toLocaleDateString('el-GR', { weekday: 'short', day: '2-digit', month: '2-digit' })
+  const time = d.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' })
+  return `${date} · ${time}`
 }
 
 export default function NotifBell() {
@@ -93,7 +91,7 @@ export default function NotifBell() {
               <div className="flex-1 min-w-0">
                 <p className="text-[12px] font-bold text-chalk leading-snug">{n.title}</p>
                 {n.body && <p className="text-[11px] text-silver leading-snug truncate">{n.body}</p>}
-                <p className="text-[9.5px] text-dim mt-0.5">{ago(n.created_at)}</p>
+                <p className="text-[9.5px] text-dim mt-0.5">{fmtDateTime(n.created_at)}</p>
               </div>
             </button>
           ))}
