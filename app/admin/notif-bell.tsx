@@ -78,7 +78,7 @@ export default function NotifBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-[300px] max-h-[70vh] overflow-y-auto
+        <div className="absolute left-0 top-full mt-2 w-[min(300px,calc(100vw-32px))] max-h-[70vh] overflow-y-auto
           bg-turf border border-chalk/[0.1] rounded-xl shadow-2xl z-50">
           <div className="px-3.5 py-2.5 border-b border-chalk/[0.06] flex items-center justify-between sticky top-0 bg-turf">
             <span className="text-[12px] font-extrabold text-chalk">Ειδοποιήσεις</span>
