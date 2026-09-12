@@ -131,7 +131,7 @@ export default async function AdminProgram() {
                     </div>
                   )
                   return m
-                    ? <Link key={m.match_id} href={`/match/${m.match_id}`} className="block active:bg-[#1C1C22]">{inner}</Link>
+                    ? <Link key={m.match_id} href={`/admin/matches?edit=${m.match_id}`} className="block active:bg-[#1C1C22]">{inner}</Link>
                     : <div key={`f-${it.iso}-${it.field}`}>{inner}</div>
                 })}
               </div>
