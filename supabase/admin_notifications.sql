@@ -85,4 +85,24 @@ create trigger trg_notify_signup
   after insert on profiles
   for each row execute function notify_admin_signup();
 
+-- ── Trigger: 3η (ή παραπάνω) αναβολή ομάδας ──
+create or replace function notify_admin_postpone3() returns trigger as $$
+begin
+  if NEW.postponements >= 3 and NEW.postponements > coalesce(OLD.postponements, 0) then
+    insert into admin_notifications (kind, title, body, url)
+    values (
+      'postpone3',
+      coalesce(NEW.name, 'Ομάδα') || ' — 3η αναβολή',
+      'Η ομάδα έφτασε τις ' || NEW.postponements || ' αναβολές',
+      '/admin/teams'
+    );
+  end if;
+  return NEW;
+end; $$ language plpgsql security definer;
+
+drop trigger if exists trg_notify_postpone3 on teams;
+create trigger trg_notify_postpone3
+  after update of postponements on teams
+  for each row execute function notify_admin_postpone3();
+
 notify pgrst, 'reload schema';

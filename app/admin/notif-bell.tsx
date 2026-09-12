@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 
 type Notif = { id: string; kind: string; title: string; body: string | null; url: string | null; read: boolean; created_at: string }
 
-const ICON: Record<string, string> = { response: '⚽', signup: '🙋', default: '🔔' }
+const ICON: Record<string, string> = { response: '⚽', signup: '🙋', postpone3: '🚫', default: '🔔' }
 
 function fmtDateTime(iso: string) {
   const d = new Date(iso)

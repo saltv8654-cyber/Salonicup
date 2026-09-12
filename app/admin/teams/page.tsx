@@ -54,7 +54,6 @@ export default function AdminTeams() {
     const { error } = await supabase.from('teams')
       .update({ postponements: next }).eq('team_id', t.team_id)
     if (error) return toast.error('Δεν ενημερώθηκε')
-    if (next >= 3) toast('3η αναβολή — αποβολή!', { icon: '🚫' })
     fetchRows()
   }
 
