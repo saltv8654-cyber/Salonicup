@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { createClient } from '@/lib/supabase/client'
 import { Loading } from '@/app/ui'
+import NotifBell from './notif-bell'
 
 const NAV = [
   { href: '/admin',          label: 'Πίνακας',       icon: '📊' },
@@ -57,11 +58,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="min-h-screen bg-pitch pb-20">
       <header className="sticky top-0 z-30 bg-pitch/95 backdrop-blur-xl
         border-b border-chalk/[0.06] px-4 py-3 flex items-center justify-between">
-        <div>
-          <p className="text-[9px] tracking-[0.2em] uppercase text-lit font-extrabold">
-            Salonicup
-          </p>
-          <p className="text-sm font-bold text-chalk">Διαχείριση</p>
+        <div className="flex items-center gap-2.5">
+          <NotifBell />
+          <div>
+            <p className="text-[9px] tracking-[0.2em] uppercase text-lit font-extrabold">
+              Salonicup
+            </p>
+            <p className="text-sm font-bold text-chalk">Διαχείριση</p>
+          </div>
         </div>
         <div className="flex flex-col items-end gap-1.5">
           <span className="flex items-center gap-1 text-[10px] font-bold text-silver
