@@ -173,6 +173,17 @@ export default function AdminMatches() {
 
   useEffect(() => { fetchAll() }, [])
 
+  // Deep-link από το Ημερολόγιο: /admin/matches?edit=<matchId> → άνοιγμα φόρμας αγώνα.
+  // ΠΡΟΣΟΧΗ: πριν από κάθε early return (rules of hooks).
+  useEffect(() => {
+    if (deepDone || !rows.length) return
+    const id = new URLSearchParams(window.location.search).get('edit')
+    if (!id) { setDeepDone(true); return }
+    const m = rows.find((x: any) => x.match_id === id)
+    if (m) { setEdit(m); setPreset(null); setOpen(true) }
+    setDeepDone(true)
+  }, [rows, deepDone])
+
   async function remove(id: string) {
     if (!confirm('Διαγραφή αγώνα; Θα σβηστούν και οι φάσεις του.')) return
     const { error } = await supabase.from('matches').delete().eq('match_id', id)
@@ -279,16 +290,6 @@ export default function AdminMatches() {
   }
   const openNew = (p: any = null) => { setEdit(null); setPreset(p); setOpen(true) }
   const openEdit = (m: any) => { setEdit(m); setPreset(null); setOpen(true) }
-
-  // Deep-link από το Ημερολόγιο: /admin/matches?edit=<matchId> → άνοιγμα φόρμας αγώνα
-  useEffect(() => {
-    if (deepDone || !rows.length) return
-    const id = new URLSearchParams(window.location.search).get('edit')
-    if (!id) { setDeepDone(true); return }
-    const m = rows.find((x: any) => x.match_id === id)
-    if (m) openEdit(m)
-    setDeepDone(true)
-  }, [rows, deepDone])
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
