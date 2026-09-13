@@ -659,6 +659,24 @@ function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose
     if (!tbdA && !tbdB && teamA === teamB) return toast.error('Ίδια ομάδα δύο φορές')
     setBusy(true)
 
+    // Έλεγχος διπλοκράτησης: ίδια μέρα+ώρα+γήπεδο με άλλον αγώνα → προειδοποίηση
+    if (date && field) {
+      const iso = new Date(date).toISOString()
+      let q = supabase.from('matches')
+        .select('match_id, team_a_data:team_a(name), team_b_data:team_b(name), placeholder_a, placeholder_b')
+        .eq('field', field).eq('match_date', iso).neq('match_status', 'Postponed')
+      if (row) q = q.neq('match_id', row.match_id)
+      const { data: clash } = await q
+      if (clash && clash.length) {
+        const c: any = clash[0]
+        const a = c.team_a_data?.name ?? c.placeholder_a ?? '—'
+        const b = c.team_b_data?.name ?? c.placeholder_b ?? '—'
+        const ok = window.confirm(
+          `⚠️ Υπάρχει ήδη αγώνας σε αυτό το γήπεδο/ώρα:\n\n${a} – ${b}\n\nΘες σίγουρα να το βάλεις κι εδώ;`)
+        if (!ok) { setBusy(false); return }
+      }
+    }
+
     const payload: any = {
       league_id: league,
       round: parseInt(round) || 1,
