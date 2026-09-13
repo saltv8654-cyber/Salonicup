@@ -79,10 +79,16 @@ export default function AdminFinance() {
     return map
   }, [leagues])
 
+  // Πρωταθλήματα που ΔΕΝ μετράνε στα Οικονομικά (π.χ. Summer League — παλιά διοργάνωση)
+  const skipLeagues = useMemo(
+    () => new Set(leagues.filter(l => (l.name ?? '').toUpperCase().includes('SUMMER')).map(l => l.league_id)),
+    [leagues])
+
   // Υπολογισμοί περιόδου
   const calc = useMemo(() => {
     let inc = 0, field = 0, n8 = 0, n7 = 0, fee8sum = 0, fee7sum = 0, hosted = 0
     for (const m of matches) {
+      if (skipLeagues.has(m.league_id)) continue   // αγνόησε Summer League
       const day = athensDateKey(m.match_date)
       if (day < from || day > to) continue
       const r = rateAt(day); if (!r) continue
@@ -105,7 +111,7 @@ export default function AdminFinance() {
     const exp = field + salaries + other
     const incTotal = inc + otherInc + sponsors
     return { inc, matchInc: inc, otherInc, sponsors, incTotal, field, salaries, other, exp, net: incTotal - exp, n8, n7, fee8sum, fee7sum, hosted }
-  }, [matches, pays, expenses, incomes, rates, fmtMap, from, to])
+  }, [matches, pays, expenses, incomes, rates, fmtMap, skipLeagues, from, to])
 
   // ── Ενέργειες ──
   async function saveRate(id: string, patch: Partial<Rate>) {
