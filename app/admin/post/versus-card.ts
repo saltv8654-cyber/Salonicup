@@ -60,7 +60,7 @@ export function themeForLeague(name: string | undefined): ThemeId {
   if (u.includes('TROPHY') || u.includes('SKG')) return 'trophy'
   if (u.includes('FANTASY')) return 'fantasy'
   if (u.includes('LEGEND')) return 'legends'
-  return 'orange'
+  return 'liga'
 }
 
 /** Αριθμός σκέλους (1/2) ενός playoff αγώνα, με βάση όλα τα ματς του πρωταθλήματος. */
@@ -99,7 +99,7 @@ export interface VersusCardOpts {
 export async function buildVersusCard(opts: VersusCardOpts): Promise<Blob | null> {
   await ensureOswald()
   const { match: m, allMatches = [], standings = [], sponsors = [],
-    theme = 'orange', leagueName = '', leagueLogo = null, season = '' } = opts
+    theme = 'liga', leagueName = '', leagueLogo = null, season = '' } = opts
 
   const dt = m.match_date ? new Date(m.match_date) : null
   const formOf = (teamId: string): ('W' | 'D' | 'L')[] =>

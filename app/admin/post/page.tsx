@@ -6,7 +6,7 @@ import { Select, LogoUpload } from '../ui'
 import { athensDateKey, fmtDay, fmtTime } from '@/lib/time'
 import toast from 'react-hot-toast'
 import { drawPost, THEMES, type PostType, type PostData, type DayGroup, type MatchRow, type ThemeId } from './canvas'
-import { versusStageLabel, legOfMatch, saveImageBlob } from './versus-card'
+import { versusStageLabel, legOfMatch, saveImageBlob, themeForLeague } from './versus-card'
 
 const TYPES: { id: PostType; label: string }[] = [
   { id: 'schedule',  label: 'Πρόγραμμα' },
@@ -95,7 +95,7 @@ export default function AdminPost() {
   const [weekMode, setWeekMode]   = useState<'program' | 'results'>('program')
   const [weekLeagues, setWeekLeagues] = useState<Set<string>>(new Set())
   const [format, setFormat]       = useState<'square' | 'story' | 'yt'>('square')
-  const [theme, setTheme]         = useState<ThemeId>('orange')
+  const [theme, setTheme]         = useState<ThemeId>('liga')
   const [showSponsors, setShowSponsors] = useState(true)
   const [sponsorA, setSponsorA]   = useState('')
   const [sponsorB, setSponsorB]   = useState('')
@@ -129,6 +129,12 @@ export default function AdminPost() {
       setLoad(false)
     })
   }, [])
+
+  // Προεπιλογή θέματος ανά πρωτάθλημα (Liga→χρυσό, Master→πράσινο, κ.λπ.)
+  useEffect(() => {
+    const lg = leagues.find(l => l.league_id === league)
+    if (lg) setTheme(themeForLeague(lg.name))
+  }, [league, leagues])
 
   useEffect(() => {
     if (!league) return
