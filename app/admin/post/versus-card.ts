@@ -51,10 +51,15 @@ export async function saveImageBlob(blob: Blob, filename: string): Promise<'shar
   return 'downloaded'
 }
 
-/** Miami στυλ για Summer League, αλλιώς πορτοκαλί. */
+/** Θέμα ανά πρωτάθλημα (χρώματα PL-style). */
 export function themeForLeague(name: string | undefined): ThemeId {
   const u = (name || '').toUpperCase()
   if (u.includes('SUMMER')) return 'miami'
+  if (u.includes('LIGA')) return 'liga'
+  if (u.includes('MASTER')) return 'master'
+  if (u.includes('TROPHY') || u.includes('SKG')) return 'trophy'
+  if (u.includes('FANTASY')) return 'fantasy'
+  if (u.includes('LEGEND')) return 'legends'
   return 'orange'
 }
 

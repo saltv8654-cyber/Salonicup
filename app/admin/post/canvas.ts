@@ -18,11 +18,16 @@ const COL = {
 export type PostType = 'schedule' | 'results' | 'standings' | 'versus' | 'week'
 
 /* Χρωματικά θέματα ανά πρωτάθλημα (accent + φόντο). */
-export type ThemeId = 'orange' | 'yellow' | 'miami'
+export type ThemeId = 'orange' | 'yellow' | 'miami' | 'liga' | 'master' | 'trophy' | 'fantasy' | 'legends'
 export const THEMES: Record<ThemeId, { label: string; accent: string; accent2: string; bgTop: string; bgBottom: string }> = {
-  orange: { label: 'Πορτοκαλί', accent: '#FF7A2F', accent2: '#E05B1F', bgTop: '#0e1830', bgBottom: '#0a1020' },
-  yellow: { label: 'Κίτρινο',   accent: '#F2C230', accent2: '#D8A21F', bgTop: '#1a1608', bgBottom: '#0e0c05' },
-  miami:  { label: 'Miami',     accent: '#ff2d95', accent2: '#d81f7a', bgTop: '#1a0d3d', bgBottom: '#0a0618' },
+  orange:  { label: 'Πορτοκαλί', accent: '#FF7A2F', accent2: '#E05B1F', bgTop: '#0e1830', bgBottom: '#0a1020' },
+  yellow:  { label: 'Κίτρινο',   accent: '#F2C230', accent2: '#D8A21F', bgTop: '#1a1608', bgBottom: '#0e0c05' },
+  miami:   { label: 'Miami',     accent: '#ff2d95', accent2: '#d81f7a', bgTop: '#1a0d3d', bgBottom: '#0a0618' },
+  liga:    { label: 'Liga',      accent: '#E8B923', accent2: '#B8860B', bgTop: '#141109', bgBottom: '#080704' },   // χρυσό / μαύρο
+  master:  { label: 'Master',    accent: '#27C24C', accent2: '#178A34', bgTop: '#0a1a10', bgBottom: '#050d07' },   // πράσινο / μαύρο
+  trophy:  { label: 'Trophy',    accent: '#E8362A', accent2: '#A81D14', bgTop: '#1a0a08', bgBottom: '#0d0403' },   // κόκκινο / μαύρο
+  fantasy: { label: 'Fantasy',   accent: '#38A9E8', accent2: '#E8B923', bgTop: '#0a1622', bgBottom: '#050b12' },   // γαλάζιο / χρυσό / μαύρο
+  legends: { label: 'Legends',   accent: '#9B51E0', accent2: '#C9CCD6', bgTop: '#150a22', bgBottom: '#0a0512' },   // μωβ / ασημί / μαύρο
 }
 
 export interface Versus {
