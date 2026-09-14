@@ -77,12 +77,10 @@ export default function MatchResponse({ match, freeSlots = [] }: { match: any; f
     if (error) return toast.error('Δεν αποθηκεύτηκε: ' + error.message)
     setBySide(prev => ({ ...prev, [mySide]: { status: v, note } }))
     toast.success(v === 'ok' ? 'Επιβεβαιώθηκε' : 'Στάλθηκε')
-    if (v !== 'ok') {
-      fetch('/api/notify-captain-response', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ match_id: match.match_id, status: v, note }),
-      }).catch(() => {})
-    }
+    fetch('/api/notify-captain-response', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ match_id: match.match_id, status: v, note }),
+    }).catch(() => {})
   }
 
   if (loading || !ready || !show) return null

@@ -6,7 +6,7 @@ import webpush from 'web-push'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const LBL: Record<string, string> = { reschedule: 'ζητά αλλαγή ώρας', postpone: 'ζητά αναβολή' }
+const LBL: Record<string, string> = { ok: 'είναι ΟΚ', reschedule: 'ζητά αλλαγή ώρας', postpone: 'ζητά αναβολή' }
 
 /** Ειδοποιεί τους admin (push) ότι captain ζήτησε αλλαγή/αναβολή σε αγώνα. */
 export async function POST(req: Request) {
@@ -51,7 +51,9 @@ export async function POST(req: Request) {
   const adminIds = (admins ?? []).map((a: any) => a.id)
   const oppIds   = (opps ?? []).map((a: any) => a.id)
 
-  const title = status === 'postpone' ? '⛔ Αίτημα αναβολής' : '🕐 Αίτημα αλλαγής ώρας'
+  const title = status === 'postpone' ? '⛔ Αίτημα αναβολής'
+    : status === 'reschedule' ? '🕐 Αίτημα αλλαγής ώρας'
+    : '✅ Επιβεβαίωση captain'
   const body  = `${who} ${LBL[status]}: ${fixture}${note ? ` — «${note}»` : ''}`
 
   async function push(userIds: string[], url: string) {
