@@ -216,7 +216,7 @@ export default function AdminPost() {
       if (kind === 'results') {
         row.score = `${m.goals_team_a ?? 0}-${m.goals_team_b ?? 0}`
       } else {
-        row.time = d ? d.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' }) : ''
+        row.time = d ? d.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', hour12: false }) : ''
       }
       if (!byDay.has(dayKey)) byDay.set(dayKey, [])
       byDay.get(dayKey)!.push(row)
@@ -318,7 +318,7 @@ export default function AdminPost() {
           homeName: m.team_a_data?.name ?? '—', homeLogo: m.team_a_data?.logo_url ?? null,
           awayName: m.team_b_data?.name ?? '—', awayLogo: m.team_b_data?.logo_url ?? null,
           day: dt ? fmtDay(m.match_date) : '',
-          time: dt ? dt.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' }) : '',
+          time: dt ? dt.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
           field: m.field ?? '',
           homePos: sa?.position, homePts: sa?.points, homeForm: formOf(m.team_a),
           awayPos: sb?.position, awayPts: sb?.points, awayForm: formOf(m.team_b),

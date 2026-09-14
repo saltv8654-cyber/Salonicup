@@ -10,7 +10,7 @@ const ICON: Record<string, string> = { response: '⚽', signup: '🙋', postpone
 function fmtDateTime(iso: string) {
   const d = new Date(iso)
   const date = d.toLocaleDateString('el-GR', { weekday: 'short', day: '2-digit', month: '2-digit' })
-  const time = d.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' })
+  const time = d.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', hour12: false })
   return `${date} · ${time}`
 }
 

@@ -129,7 +129,7 @@ export async function buildVersusCard(opts: VersusCardOpts): Promise<Blob | null
       homeName: m.team_a_data?.name ?? '—', homeLogo: m.team_a_data?.logo_url ?? null,
       awayName: m.team_b_data?.name ?? '—', awayLogo: m.team_b_data?.logo_url ?? null,
       day: dt ? dt.toLocaleDateString('el-GR', { weekday: 'long', day: 'numeric', month: 'numeric' }) : '',
-      time: dt ? dt.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' }) : '',
+      time: dt ? dt.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
       field: m.field ?? '',
       homePos: sa?.position, homePts: sa?.points, homeForm: formOf(m.team_a),
       awayPos: sb?.position, awayPts: sb?.points, awayForm: formOf(m.team_b),
