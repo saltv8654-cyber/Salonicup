@@ -99,24 +99,31 @@ export default function AdminPost() {
   const [showSponsors, setShowSponsors] = useState(true)
   const [sponsorA, setSponsorA]   = useState('')
   const [sponsorB, setSponsorB]   = useState('')
+  const [sponsorC, setSponsorC]   = useState('')
+  const [sponsorD, setSponsorD]   = useState('')
 
   // Λογότυπα χορηγών — τοπικά + καθολικά στη βάση (για OBS από οποιαδήποτε συσκευή)
   useEffect(() => {
     setSponsorA(localStorage.getItem('sponsorA') || '')
     setSponsorB(localStorage.getItem('sponsorB') || '')
+    setSponsorC(localStorage.getItem('sponsorC') || '')
+    setSponsorD(localStorage.getItem('sponsorD') || '')
     // Καθολικοί χορηγοί από τη βάση κερδίζουν, αν υπάρχουν
     supabase.from('app_settings').select('sponsors').eq('id', 1).maybeSingle()
       .then(({ data }: any) => {
         const sp: string[] = data?.sponsors ?? []
-        if (sp[0] !== undefined) { setSponsorA(sp[0] ?? ''); localStorage.setItem('sponsorA', sp[0] ?? '') }
-        if (sp[1] !== undefined) { setSponsorB(sp[1] ?? ''); localStorage.setItem('sponsorB', sp[1] ?? '') }
+        const set = [setSponsorA, setSponsorB, setSponsorC, setSponsorD]
+        const keys = ['sponsorA', 'sponsorB', 'sponsorC', 'sponsorD']
+        for (let i = 0; i < 4; i++) if (sp[i] !== undefined) { set[i](sp[i] ?? ''); localStorage.setItem(keys[i], sp[i] ?? '') }
       })
   }, [])
-  const syncSponsors = (a: string, b: string) =>
-    supabase.from('app_settings').upsert({ id: 1, sponsors: [a, b].filter(Boolean), updated_at: new Date().toISOString() })
+  const syncSponsors = (a: string, b: string, c: string, d: string) =>
+    supabase.from('app_settings').upsert({ id: 1, sponsors: [a, b, c, d].filter(Boolean), updated_at: new Date().toISOString() })
       .then(() => {}, () => {})
-  const saveSponsorA = (u: string) => { setSponsorA(u); localStorage.setItem('sponsorA', u); setReady(false); syncSponsors(u, sponsorB) }
-  const saveSponsorB = (u: string) => { setSponsorB(u); localStorage.setItem('sponsorB', u); setReady(false); syncSponsors(sponsorA, u) }
+  const saveSponsorA = (u: string) => { setSponsorA(u); localStorage.setItem('sponsorA', u); setReady(false); syncSponsors(u, sponsorB, sponsorC, sponsorD) }
+  const saveSponsorB = (u: string) => { setSponsorB(u); localStorage.setItem('sponsorB', u); setReady(false); syncSponsors(sponsorA, u, sponsorC, sponsorD) }
+  const saveSponsorC = (u: string) => { setSponsorC(u); localStorage.setItem('sponsorC', u); setReady(false); syncSponsors(sponsorA, sponsorB, u, sponsorD) }
+  const saveSponsorD = (u: string) => { setSponsorD(u); localStorage.setItem('sponsorD', u); setReady(false); syncSponsors(sponsorA, sponsorB, sponsorC, u) }
   const [busy, setBusy]           = useState(false)
   const [ready, setReady]         = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -283,7 +290,7 @@ export default function AdminPost() {
           typeLabel: weekMode === 'results' ? 'Αποτελέσματα' : 'Πρόγραμμα',
           leagueLogo: multi ? null : (one?.logo_url ?? null),
           groups, standings: [],
-          sponsors: showSponsors ? [sponsorA, sponsorB].filter(Boolean) : [],
+          sponsors: showSponsors ? [sponsorA, sponsorB, sponsorC, sponsorD].filter(Boolean) : [],
           theme,
         }
         await drawPost(canvasRef.current, weekPost, { w: size.w, h: size.h })
@@ -351,7 +358,7 @@ export default function AdminPost() {
             }))
           : [],
         versus,
-        sponsors: showSponsors ? [sponsorA, sponsorB].filter(Boolean) : [],
+        sponsors: showSponsors ? [sponsorA, sponsorB, sponsorC, sponsorD].filter(Boolean) : [],
         theme,
       }
       await drawPost(canvasRef.current, data, type === 'versus' ? { w: size.w, h: size.h } : undefined)
@@ -591,6 +598,10 @@ export default function AdminPost() {
               fallback="🅰️" label="ΧΟΡΗΓΟΣ 1" />
             <LogoUpload bucket="logos" url={sponsorB} onChange={saveSponsorB}
               fallback="🅱️" label="ΧΟΡΗΓΟΣ 2" />
+            <LogoUpload bucket="logos" url={sponsorC} onChange={saveSponsorC}
+              fallback="🇨" label="ΧΟΡΗΓΟΣ 3" />
+            <LogoUpload bucket="logos" url={sponsorD} onChange={saveSponsorD}
+              fallback="🇩" label="ΧΟΡΗΓΟΣ 4" />
           </div>
         </div>
       </div>
