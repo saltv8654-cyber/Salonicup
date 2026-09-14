@@ -468,24 +468,27 @@ function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEl
   const cardW = S - PAD * 2
   const total = d.groups.reduce((n, g) => n + g.matches.length, 0)
   const nDays = d.groups.length
-  const gap = 14
-  const dayH = 58
   const top = 264
-  // ύψος κάρτας ώστε να χωράνε όλες πάνω από το υποσέλιδο/χορηγούς
-  let cardH = 108
-  const needed = nDays * dayH + total * (cardH + gap) + nDays * 6
-  if (needed > bottom - top) {
-    cardH = Math.max(60, (bottom - top - nDays * dayH - total * gap - nDays * 6) / Math.max(total, 1))
+  // Προσαρμογή ώστε να χωράνε ΟΛΟΙ οι αγώνες πάνω από το υποσέλιδο/χορηγούς:
+  // μικραίνουμε κάρτες, κενά και τίτλους ημέρας όσο χρειάζεται.
+  let cardH = 108, gap = 14, dayH = 58
+  const need = (ch: number, g: number, dh: number) => nDays * dh + total * (ch + g) + nDays * 6
+  if (need(cardH, gap, dayH) > bottom - top) {
+    gap = 10; dayH = 48
+    cardH = Math.max(38, (bottom - top - nDays * dayH - total * gap - nDays * 6) / Math.max(total, 1))
   }
+  // Συντελεστής σμίκρυνσης περιεχομένου (λογότυπα/γραμματοσειρές) ανάλογα με το ύψος κάρτας
+  const k = Math.max(0.5, Math.min(1, cardH / 108))
   let y = top
 
   d.groups.forEach((g) => {
     // τίτλος ημέρας (μπλε, κεντραρισμένος)
+    const dfs = Math.round(36 * k)
     ctx.fillStyle = COL.blue
-    ctx.font = font(600, 36)
+    ctx.font = font(600, dfs)
     ctx.textAlign = 'center'
     ctx.textBaseline = 'alphabetic'
-    ctx.fillText(g.day.toUpperCase(), S / 2, y + 36)
+    ctx.fillText(g.day.toUpperCase(), S / 2, y + dfs)
     y += dayH
 
     g.matches.forEach((m) => {
@@ -499,8 +502,10 @@ function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEl
       ctx.stroke()
 
       const showTag = !!m.tag && cardH >= 78
+      const cs = Math.round(62 * k)   // μέγεθος εμβλήματος ομάδας
+      const nfs = Math.round(36 * k)  // μέγεθος ονόματος ομάδας
       // Όταν υπάρχει σήμα playoff, κατεβάζουμε λίγο το περιεχόμενο ώστε να μη «κάθεται» πάνω στην ώρα
-      const cy = y + cardH / 2 + (showTag ? 14 : 0)
+      const cy = y + cardH / 2 + (showTag ? 14 * k : 0)
       // Χρυσό σήμα playoff (πάνω-κέντρο της κάρτας)
       if (showTag) {
         ctx.font = font(700, 21)
@@ -520,37 +525,37 @@ function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEl
       }
       // Σήμα πρωταθλήματος (μόνο σε εβδομαδιαίο με πολλά πρωταθλήματα)
       const lead = m.leagueLogo ? 48 : 0
-      if (m.leagueLogo) crest(ctx, L(m.leagueLogo), m.leagueName ?? '', PAD + 26, cy, 34)
+      if (m.leagueLogo) crest(ctx, L(m.leagueLogo), m.leagueName ?? '', PAD + 26, cy, Math.round(34 * k))
       // γηπεδούχος (αριστερά)
-      crest(ctx, L(m.homeLogo), m.homeName, PAD + 30 + 30 + lead, cy, 62)
+      crest(ctx, L(m.homeLogo), m.homeName, PAD + 30 + 30 + lead, cy, cs)
       ctx.fillStyle = COL.white
       ctx.textAlign = 'left'
       ctx.textBaseline = 'middle'
-      ctx.fillText(fitFont(ctx, m.homeName, 316 - lead, 600, 36, 20), PAD + 104 + lead, cy)
+      ctx.fillText(fitFont(ctx, m.homeName, 316 - lead, 600, nfs, Math.min(20, nfs)), PAD + 104 + lead, cy)
 
       // κέντρο: ώρα (πορτοκαλί) ή σκορ (άσπρο) + γήπεδο από κάτω
       ctx.textAlign = 'center'
       if (m.score != null) {
         ctx.fillStyle = COL.white
-        ctx.font = font(700, 56)
-        ctx.fillText(m.score, S / 2, m.field ? cy - 13 : cy)
+        ctx.font = font(700, Math.round(56 * k))
+        ctx.fillText(m.score, S / 2, m.field ? cy - 13 * k : cy)
       } else {
         ctx.fillStyle = pal.accent
-        ctx.font = font(700, 42)
-        ctx.fillText(m.time ?? '', S / 2, m.field ? cy - 13 : cy)
+        ctx.font = font(700, Math.round(42 * k))
+        ctx.fillText(m.time ?? '', S / 2, m.field ? cy - 13 * k : cy)
       }
       if (m.field) {
         ctx.fillStyle = COL.dim
-        ctx.font = font(600, 26)
-        ctx.fillText(m.field, S / 2, cy + 28)
+        ctx.font = font(600, Math.round(26 * k))
+        ctx.fillText(m.field, S / 2, cy + 24 * k)
       }
 
       // φιλοξενούμενος (δεξιά)
       const rx = S - PAD - 30 - 30
-      crest(ctx, L(m.awayLogo), m.awayName, rx, cy, 62)
+      crest(ctx, L(m.awayLogo), m.awayName, rx, cy, cs)
       ctx.fillStyle = COL.white
       ctx.textAlign = 'right'
-      ctx.fillText(fitFont(ctx, m.awayName, 316, 600, 36, 20), S - PAD - 104, cy)
+      ctx.fillText(fitFont(ctx, m.awayName, 316, 600, nfs, Math.min(20, nfs)), S - PAD - 104, cy)
 
       y += cardH + gap
     })
