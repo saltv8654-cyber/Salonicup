@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { createClient } from '@/lib/supabase/client'
 import { Loading } from '@/app/ui'
+import { resyncPush } from '@/lib/push'
 import NotifBell from './notif-bell'
 
 const NAV = [
@@ -39,6 +40,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (!loading && !isAdmin) router.replace('/')
   }, [loading, isAdmin])
+
+  // Ξανασύνδεσε τη συνδρομή push με τον admin λογαριασμό, ώστε τα captain/εγγραφές push να φτάνουν
+  useEffect(() => { if (isAdmin) resyncPush() }, [isAdmin])
 
   useEffect(() => {
     if (!isAdmin) return

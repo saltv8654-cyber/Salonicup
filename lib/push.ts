@@ -67,6 +67,23 @@ export async function enablePush() {
   return j.endpoint as string
 }
 
+/** Ξανασυνδέει σιωπηλά την υπάρχουσα συνδρομή με τον τρέχοντα χρήστη (ενημερώνει το user_id
+ *  στον server), ώστε οι στοχευμένες ειδοποιήσεις (π.χ. admin) να φτάνουν σωστά. */
+export async function resyncPush() {
+  if (!pushSupported() || Notification.permission !== 'granted') return
+  try {
+    const reg = await navigator.serviceWorker.ready
+    const sub = await reg.pushManager.getSubscription()
+    if (!sub) return
+    const j = sub.toJSON() as any
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth }),
+    }).catch(() => {})
+  } catch { /* σιωπηλά */ }
+}
+
 /** Απεγγράφεται από το push σε αυτή τη συσκευή και σβήνει τη συνδρομή στον server. */
 export async function disablePush() {
   if (!pushSupported()) return
