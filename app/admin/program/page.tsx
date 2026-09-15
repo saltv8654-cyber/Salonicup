@@ -32,7 +32,7 @@ function Pill({ s }: { s: string }) {
 
 export default async function AdminProgram() {
   const supabase = createClient()
-  const [{ data: matches }, { data: slots }, { data: resp }] = await Promise.all([
+  const [{ data: matches }, { data: slots }, { data: resp }, { data: postponed }] = await Promise.all([
     supabase.from('matches')
       .select(`match_id, match_date, field, match_status, goals_team_a, goals_team_b,
         team_a, team_b, placeholder_a, placeholder_b,
@@ -40,6 +40,10 @@ export default async function AdminProgram() {
       .not('match_date', 'is', null).gte('match_date', since()).order('match_date'),
     supabase.from('slots').select('field, starts_at, venue:venue_id(name)').gte('starts_at', since()).order('starts_at'),
     supabase.from('match_responses').select('match_id, team_id, status, note'),
+    supabase.from('matches')
+      .select(`match_id, round, placeholder_a, placeholder_b,
+        league:league_id(name), team_a_data:team_a(name), team_b_data:team_b(name)`)
+      .eq('match_status', 'Postponed').order('round').order('league_id'),
   ])
 
   // Απαντήσεις captains ανά αγώνα → πλευρά a/b
@@ -153,12 +157,49 @@ export default async function AdminProgram() {
     body: <>{ds.map(dayBlock)}</>,
   }))
 
+  // ── Αναβληθέντα ματς (χωρίς ημερομηνία) ομαδοποιημένα ανά αγωνιστική ──
+  const ppByRound = new Map<number, any[]>()
+  for (const m of postponed ?? []) {
+    const r = m.round ?? 0
+    if (!ppByRound.has(r)) ppByRound.set(r, [])
+    ppByRound.get(r)!.push(m)
+  }
+  const ppWeeks: Week[] = [...ppByRound.entries()].sort((a, b) => a[0] - b[0]).map(([r, list]) => ({
+    key: `pp-${r}`,
+    label: r ? `Αγωνιστική ${r}` : 'Χωρίς αγωνιστική',
+    free: 0,
+    count: list.length,
+    body: (
+      <div className="bg-turf rounded-xl border border-chalk/[0.05] overflow-hidden">
+        {list.map((m: any, i: number) => (
+          <Link key={m.match_id} href={`/admin/matches?edit=${m.match_id}`}
+            className={`block px-3 py-2.5 active:bg-[#1C1C22] ${i ? 'border-t border-chalk/[0.05]' : ''}`}>
+            <p className="text-[12.5px] font-semibold text-chalk truncate">
+              {(m.team_a_data as any)?.name ?? m.placeholder_a ?? '—'} <span className="text-dim">–</span> {(m.team_b_data as any)?.name ?? m.placeholder_b ?? '—'}
+            </p>
+            <p className="text-[9.5px] text-dim truncate">{(m.league as any)?.name} · πάτα για επαναπρογραμματισμό</p>
+          </Link>
+        ))}
+      </div>
+    ),
+  }))
+
   return (
     <div className="p-4 max-w-2xl mx-auto">
       <h1 className="text-lg font-extrabold text-chalk mb-3">Ημερολόγιο</h1>
 
       {!days.length ? <Empty>Δεν υπάρχει πρόγραμμα.</Empty> : (
         <WeekAccordion weeks={weeks} />
+      )}
+
+      {ppWeeks.length > 0 && (
+        <div className="mt-7">
+          <h2 className="text-[15px] font-extrabold text-chalk mb-3 flex items-center gap-2">
+            ⛔ Αναβληθέντα ματς
+            <span className="text-[10px] font-bold text-dim">{postponed?.length ?? 0}</span>
+          </h2>
+          <WeekAccordion weeks={ppWeeks} />
+        </div>
       )}
     </div>
   )
