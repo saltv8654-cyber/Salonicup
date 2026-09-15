@@ -750,6 +750,7 @@ function MatchForm({ row, preset, leagues, teams, venues, people, staff, onClose
     setBusy(true)
     const upd = await supabase.from('matches').update({
       match_status: 'Postponed', match_date: null, venue_id: null, field: null,
+      postpone_by: who,   // ποιος πήρε την αναβολή: 'a' | 'b' | 'both' | 'none'
     }).eq('match_id', row.match_id)
     const bump = async (tid: string) => {
       if (!tid) return

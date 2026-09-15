@@ -41,7 +41,7 @@ export default async function AdminProgram() {
     supabase.from('slots').select('field, starts_at, venue:venue_id(name)').gte('starts_at', since()).order('starts_at'),
     supabase.from('match_responses').select('match_id, team_id, status, note'),
     supabase.from('matches')
-      .select(`match_id, round, placeholder_a, placeholder_b,
+      .select(`match_id, round, placeholder_a, placeholder_b, postpone_by,
         league:league_id(name), team_a_data:team_a(name), team_b_data:team_b(name)`)
       .eq('match_status', 'Postponed').order('round').order('league_id'),
   ])
@@ -171,15 +171,33 @@ export default async function AdminProgram() {
     count: list.length,
     body: (
       <div className="bg-turf rounded-xl border border-chalk/[0.05] overflow-hidden">
-        {list.map((m: any, i: number) => (
-          <Link key={m.match_id} href={`/admin/matches?edit=${m.match_id}`}
-            className={`block px-3 py-2.5 active:bg-[#1C1C22] ${i ? 'border-t border-chalk/[0.05]' : ''}`}>
-            <p className="text-[12.5px] font-semibold text-chalk truncate">
-              {(m.team_a_data as any)?.name ?? m.placeholder_a ?? '—'} <span className="text-dim">–</span> {(m.team_b_data as any)?.name ?? m.placeholder_b ?? '—'}
-            </p>
-            <p className="text-[9.5px] text-dim truncate">{(m.league as any)?.name} · πάτα για επαναπρογραμματισμό</p>
-          </Link>
-        ))}
+        {list.map((m: any, i: number) => {
+          const an = (m.team_a_data as any)?.name ?? m.placeholder_a ?? '—'
+          const bn = (m.team_b_data as any)?.name ?? m.placeholder_b ?? '—'
+          const blame = m.postpone_by === 'a' ? an
+            : m.postpone_by === 'b' ? bn
+            : m.postpone_by === 'both' ? 'και οι δύο'
+            : m.postpone_by === 'none' ? 'καμία (κοινή)'
+            : null
+          return (
+            <Link key={m.match_id} href={`/admin/matches?edit=${m.match_id}`}
+              className={`block px-3 py-2.5 active:bg-[#1C1C22] ${i ? 'border-t border-chalk/[0.05]' : ''}`}>
+              <p className="text-[12.5px] font-semibold text-chalk truncate">
+                {an} <span className="text-dim">–</span> {bn}
+              </p>
+              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                <span className="text-[9.5px] text-dim truncate">{(m.league as any)?.name}</span>
+                {blame && (
+                  <span className="text-[8.5px] font-black px-1.5 py-0.5 rounded-full shrink-0"
+                    style={{ background: 'rgba(216,72,60,0.16)', color: '#D8483C' }}>
+                    υπαιτιότητα: {blame}
+                  </span>
+                )}
+              </div>
+              <p className="text-[9px] text-off mt-0.5">πάτα για επαναπρογραμματισμό</p>
+            </Link>
+          )
+        })}
       </div>
     ),
   }))
