@@ -79,8 +79,9 @@ export async function GET(req: Request) {
   ])
   const nameOf = (id: string | null, list: any[], key: string) =>
     (id && (list ?? []).find((x: any) => x.id === id)?.[key]) || null
-  const spk = (id: string | null) => nameOf(id, profs ?? [], 'full_name')
-  const ref = (id: string | null) => nameOf(id, staff ?? [], 'name')
+  // Αναζήτηση ονόματος και στους δύο πίνακες (staff + profiles), όποιος κι αν είναι ο τύπος
+  const spk = (id: string | null) => nameOf(id, profs ?? [], 'full_name') || nameOf(id, staff ?? [], 'name')
+  const ref = (id: string | null) => nameOf(id, staff ?? [], 'name') || nameOf(id, profs ?? [], 'full_name')
 
   const byDay = new Map<string, any[]>()
   for (const m of matches ?? []) {
