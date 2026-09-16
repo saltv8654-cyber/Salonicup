@@ -29,23 +29,31 @@ function LoginForm() {
     e.preventDefault()
     if (mode === 'signup') return signup()
     setBusy(true)
+
+    // 1) Μόνο η σύνδεση μετράει για «λάθος email/κωδικός»
     try {
       await signIn(email, pass)
+    } catch {
+      toast.error('Λάθος email ή κωδικός')
+      setBusy(false)
+      return
+    }
+
+    // 2) Πλοήγηση ανά ρόλο — best-effort, ΔΕΝ βγάζει σφάλμα σύνδεσης αν κάτι στραβώσει
+    try {
       const next = params.get('next')
       if (next) router.push(next)
       else {
-        // Προσγείωση ανά ρόλο: admin→πίνακας, speaker→panel, όλοι οι άλλοι (φωτογράφος/θεατής)→Αγώνες
         const { data: { user } } = await supabase.auth.getUser()
         const { data: prof } = user
-          ? await supabase.from('profiles').select('role').eq('id', user.id).single()
+          ? await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
           : { data: null as any }
         const r = prof?.role
         router.push(r === 'admin' ? '/admin' : r === 'speaker' ? '/speaker' : '/')
       }
       router.refresh()
-    } catch (err: any) {
-      toast.error('Λάθος email ή κωδικός')
-      setBusy(false)
+    } catch {
+      router.push('/'); router.refresh()
     }
   }
 
