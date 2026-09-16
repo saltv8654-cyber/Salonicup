@@ -152,6 +152,12 @@ export default function AdminFinance() {
     if (error) return toast.error('Απέτυχε')
     setExpenses(prev => prev.filter(x => x.id !== id))
   }
+  async function editExpense(id: string, day: string, label: string, amount: number, note?: string) {
+    const { error } = await supabase.from('expenses').update({ day, label, amount, note: note || null }).eq('id', id)
+    if (error) return toast.error('Δεν αποθηκεύτηκε')
+    setExpenses(prev => prev.map(x => x.id === id ? { ...x, day, label, amount, note: note || null } : x))
+    toast.success('Αποθηκεύτηκε')
+  }
   async function addIncome(kind: string, day: string, label: string, amount: number, note?: string) {
     const { data, error } = await supabase.from('incomes')
       .insert({ kind, day, label, amount, note: note || null }).select().single()
@@ -162,6 +168,12 @@ export default function AdminFinance() {
     const { error } = await supabase.from('incomes').delete().eq('id', id)
     if (error) return toast.error('Απέτυχε')
     setIncomes(prev => prev.filter(x => x.id !== id))
+  }
+  async function editIncome(id: string, day: string, label: string, amount: number, note?: string) {
+    const { error } = await supabase.from('incomes').update({ day, label, amount, note: note || null }).eq('id', id)
+    if (error) return toast.error('Δεν αποθηκεύτηκε')
+    setIncomes(prev => prev.map(x => x.id === id ? { ...x, day, label, amount, note: note || null } : x))
+    toast.success('Αποθηκεύτηκε')
   }
 
   if (load) return <Loading />
@@ -229,17 +241,17 @@ export default function AdminFinance() {
       {/* Λοιπά έσοδα */}
       <LedgerList title="💶 Λοιπά έσοδα" income
         list={incomes.filter(x => x.kind !== 'sponsor' && x.day >= from && x.day <= to)}
-        onAdd={(d, l, a, n) => addIncome('other', d, l, a, n)} onDel={delIncome} />
+        onAdd={(d, l, a, n) => addIncome('other', d, l, a, n)} onDel={delIncome} onEdit={editIncome} />
 
       {/* Χορηγίες */}
       <LedgerList title="🤝 Χορηγίες" income labelPlaceholder="Χορηγός"
         list={incomes.filter(x => x.kind === 'sponsor' && x.day >= from && x.day <= to)}
-        onAdd={(d, l, a, n) => addIncome('sponsor', d, l, a, n)} onDel={delIncome} />
+        onAdd={(d, l, a, n) => addIncome('sponsor', d, l, a, n)} onDel={delIncome} onEdit={editIncome} />
 
       {/* Λοιπά έξοδα — καταχώρηση */}
       <LedgerList title="🧾 Λοιπά έξοδα"
         list={expenses.filter(x => x.day >= from && x.day <= to)}
-        onAdd={(d, l, a, n) => addExpense(d, l, a, n)} onDel={delExpense} />
+        onAdd={(d, l, a, n) => addExpense(d, l, a, n)} onDel={delExpense} onEdit={editExpense} />
 
       {/* Συμμετοχές ομάδων (ανά πρωτάθλημα) */}
       {(() => {
@@ -402,11 +414,12 @@ function RateInput({ label, def, onSave }: { label: string; def: string; onSave:
 }
 
 /** Γενική λίστα εσόδων/εξόδων με ημερομηνία, περιγραφή, ποσό & σχόλιο. */
-function LedgerList({ title, list, onAdd, onDel, income, labelPlaceholder = 'Περιγραφή' }: {
+function LedgerList({ title, list, onAdd, onDel, onEdit, income, labelPlaceholder = 'Περιγραφή' }: {
   title: string
   list: { id: string; day: string; label: string; amount: number; note?: string | null }[]
   onAdd: (day: string, label: string, amount: number, note?: string) => void
   onDel: (id: string) => void
+  onEdit: (id: string, day: string, label: string, amount: number, note?: string) => void
   income?: boolean
   labelPlaceholder?: string
 }) {
@@ -416,6 +429,21 @@ function LedgerList({ title, list, onAdd, onDel, income, labelPlaceholder = 'Π�
   const [note, setNote] = useState('')
   const color = income ? '#2FA84F' : '#D8483C'
   const total = list.reduce((s, x) => s + Number(x.amount), 0)
+
+  // Επεξεργασία υπάρχουσας εγγραφής
+  const [editId, setEditId] = useState<string | null>(null)
+  const [eDay, setEDay] = useState(''); const [eLabel, setELabel] = useState('')
+  const [eAmount, setEAmount] = useState(''); const [eNote, setENote] = useState('')
+  const startEdit = (x: any) => {
+    setEditId(x.id); setEDay(x.day); setELabel(x.label)
+    setEAmount(String(x.amount)); setENote(x.note ?? '')
+  }
+  const saveEdit = () => {
+    const n = parseFloat(eAmount.replace(',', '.'))
+    if (!eLabel.trim() || isNaN(n)) return toast.error('Συμπλήρωσε περιγραφή & ποσό')
+    onEdit(editId!, eDay, eLabel.trim(), n, eNote.trim() || undefined)
+    setEditId(null)
+  }
 
   function add() {
     const n = parseFloat(amount.replace(',', '.'))
@@ -452,7 +480,27 @@ function LedgerList({ title, list, onAdd, onDel, income, labelPlaceholder = 'Π�
       </div>
       {list.length > 0 && (
         <div className="flex flex-col gap-1 mt-2">
-          {list.map(x => (
+          {list.map(x => editId === x.id ? (
+            <div key={x.id} className="flex flex-col gap-2 py-2 border-t border-chalk/[0.05]">
+              <div className="flex items-center gap-2 flex-wrap">
+                <input type="date" value={eDay} onChange={e => setEDay(e.target.value)}
+                  className="bg-chalk/[0.04] rounded-lg px-2.5 py-2 text-chalk text-[12px] outline-none border border-chalk/[0.07]" />
+                <input value={eLabel} onChange={e => setELabel(e.target.value)} placeholder={labelPlaceholder}
+                  className="flex-1 min-w-[110px] bg-chalk/[0.04] rounded-lg px-3 py-2 text-chalk text-[13px] outline-none border border-chalk/[0.07]" />
+                <div className="flex items-center bg-chalk/[0.04] rounded-lg border border-chalk/[0.07] px-2 w-[84px]">
+                  <input inputMode="decimal" value={eAmount} onChange={e => setEAmount(e.target.value)} placeholder="0"
+                    className="w-full bg-transparent py-2 text-chalk text-[13px] font-bold tnum outline-none" />
+                  <span className="text-dim text-[11px]">€</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input value={eNote} onChange={e => setENote(e.target.value)} placeholder="Σχόλιο (προαιρετικό)"
+                  className="flex-1 bg-chalk/[0.04] rounded-lg px-3 py-2 text-chalk text-[12.5px] outline-none border border-chalk/[0.07]" />
+                <button onClick={saveEdit} className="px-3 py-2 rounded-lg bg-brand text-white text-[12px] font-extrabold shrink-0">✓</button>
+                <button onClick={() => setEditId(null)} className="px-3 py-2 rounded-lg bg-chalk/[0.06] text-dim text-[12px] font-bold shrink-0">✕</button>
+              </div>
+            </div>
+          ) : (
             <div key={x.id} className="flex items-start gap-2 py-1.5 border-t border-chalk/[0.05]">
               <span className="text-[10px] text-dim tnum shrink-0 w-[74px] pt-0.5">{x.day}</span>
               <div className="flex-1 min-w-0">
@@ -460,6 +508,7 @@ function LedgerList({ title, list, onAdd, onDel, income, labelPlaceholder = 'Π�
                 {x.note && <span className="block text-[10.5px] text-dim truncate">💬 {x.note}</span>}
               </div>
               <span className="text-[12.5px] font-bold tnum shrink-0 pt-0.5" style={{ color }}>{eur(Number(x.amount))}</span>
+              <button onClick={() => startEdit(x)} className="text-lit text-[12px] px-1 shrink-0 pt-0.5">✎</button>
               <button onClick={() => onDel(x.id)} className="text-danger text-[12px] px-1 shrink-0 pt-0.5">✕</button>
             </div>
           ))}
