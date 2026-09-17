@@ -254,9 +254,11 @@ export default function AdminFixtures() {
       const targets: { id: string; teamIds: string[] }[] = []
       const drawMissing: string[] = []  // πρωταθλήματα με ελλιπή κλήρωση (όταν useDraw)
       const availMap: Record<string, number[] | null> = {}  // team_id → διαθέσιμες μέρες (null = όλες)
-      const nbMap: Record<string, number | null> = {}       // team_id → όχι πριν από (λεπτά)· null = καμία
-      const naMap: Record<string, number | null> = {}       // team_id → όχι μετά από (λεπτά)· null = καμία
-      const nbDaysMap: Record<string, number[] | null> = {} // team_id → μέρες που ισχύει το παράθυρο· null/κενό = όλες
+      const nbMap: Record<string, number | null> = {}       // (παλιό) team_id → όχι πριν από (λεπτά)
+      const naMap: Record<string, number | null> = {}       // (παλιό) team_id → όχι μετά από (λεπτά)
+      const nbDaysMap: Record<string, number[] | null> = {} // (παλιό) team_id → μέρες που ισχύει το παράθυρο
+      // Νέο: ώρες ανά μέρα → { [dow]: {from?, to?} } σε λεπτά
+      const winMap: Record<string, Record<string, { from?: number; to?: number }> | null> = {}
       const nameById: Record<string, string> = {}           // team_id → όνομα (για μηνύματα)
 
       if (mode === 'new') {
@@ -279,13 +281,14 @@ export default function AdminFixtures() {
         if (!selected.size) throw new Error('Διάλεξε τουλάχιστον ένα πρωτάθλημα')
         for (const lid of selected) {
           const { data: ts } = await supabase.from('teams')
-            .select('team_id, name, avail_days, not_before, not_after, not_before_days').eq('league_id', lid).eq('active', true).order('name')
+            .select('team_id, name, avail_days, not_before, not_after, not_before_days, day_windows').eq('league_id', lid).eq('active', true).order('name')
           let ids = (ts ?? []).map(t => t.team_id)
           for (const t of ts ?? []) {
             availMap[t.team_id] = (t as any).avail_days ?? null
             nbMap[t.team_id] = (t as any).not_before ?? null
             naMap[t.team_id] = (t as any).not_after ?? null
             nbDaysMap[t.team_id] = (t as any).not_before_days ?? null
+            winMap[t.team_id] = (t as any).day_windows ?? null
             nameById[t.team_id] = (t as any).name ?? '—'
           }
 
@@ -336,16 +339,27 @@ export default function AdminFixtures() {
             const dayOkAny = !av || av.length === 0 || activeDows.some(d => av.includes(d))
             const nb = nbMap[tid], na = naMap[tid]
             const nbDays = nbDaysMap[tid]
+            const win = winMap[tid]
             // Ημέρες που μπορεί να παίξει η ομάδα
             const playableDows = activeDows.filter(d => !av || av.length === 0 || av.includes(d))
-            // Υπάρχει έστω μία μέρα/ώρα μέσα στο παράθυρο; (ισχύει μόνο τις nbDays)
-            const timeOkAny = (nb == null && na == null) || playableDows.some(d => {
+            // Υπάρχει έστω μία μέρα/ώρα μέσα στο (ανά μέρα) παράθυρο;
+            const slotOkOnDay = (d: number) => {
+              if (win) {
+                const w = win[String(d)]
+                if (!w) return true
+                return (byDow[d] ?? []).some(t => {
+                  const m = t.h * 60 + t.m
+                  return (w.from == null || m >= w.from) && (w.to == null || m <= w.to)
+                })
+              }
               const applies = !nbDays || nbDays.length === 0 || nbDays.includes(d)
-              return !applies || (byDow[d] ?? []).some(t => {
+              if (!applies) return true
+              return (byDow[d] ?? []).some(t => {
                 const m = t.h * 60 + t.m
                 return (nb == null || m >= nb) && (na == null || m <= na)
               })
-            })
+            }
+            const timeOkAny = (!win && nb == null && na == null) || playableDows.some(slotOkOnDay)
             if (!dayOkAny) bad.push(`${nameById[tid] ?? tid} (${lname}): οι «διαθέσιμες μέρες» δεν περιλαμβάνουν καμία αγωνιστική μέρα`)
             else if (!timeOkAny) bad.push(`${nameById[tid] ?? tid} (${lname}): το «όχι πριν από» είναι μετά από όλες τις ώρες`)
           }
@@ -429,8 +443,17 @@ export default function AdminFixtures() {
         const av = availMap[teamId]
         return !av || av.length === 0 || av.includes(dow)
       }
-      // Ώρα ΟΚ: μέσα στο παράθυρο [όχι πριν, όχι μετά] — ισχύει ΜΟΝΟ τις μέρες nbDays (null/κενό = όλες)
+      // Ώρα ΟΚ: νέο μοντέλο (ώρες ανά μέρα) — αλλιώς fallback στο παλιό ενιαίο παράθυρο.
       const timeOk = (teamId: string, tmin: number, dow: number) => {
+        const win = winMap[teamId]
+        if (win) {
+          const w = win[String(dow)]
+          if (!w) return true                       // ελεύθερα αυτή τη μέρα
+          if (w.from != null && tmin < w.from) return false
+          if (w.to != null && tmin > w.to) return false
+          return true
+        }
+        // ── παλιό μοντέλο ──
         const nb = nbMap[teamId], na = naMap[teamId]
         if (nb == null && na == null) return true
         const nbDays = nbDaysMap[teamId]

@@ -215,21 +215,26 @@ function TeamForm({ row, leagues, onClose, onSaved }: {
   // Διαθέσιμες μέρες (0=Κυ..6=Σα). Κενό/όλες = χωρίς περιορισμό.
   const [days, setDays] = useState<Set<number>>(
     new Set<number>((row as any)?.avail_days?.length ? (row as any).avail_days : [0, 1, 2, 3, 4, 5, 6]))
-  // «Όχι πριν από» ώρα (HH:MM). Κενό = καμία.
-  const nbInit = (row as any)?.not_before != null
-    ? `${String(Math.floor((row as any).not_before / 60)).padStart(2, '0')}:${String((row as any).not_before % 60).padStart(2, '0')}`
-    : ''
-  const [notBefore, setNotBefore] = useState<string>(nbInit)
-  const naInit = (row as any)?.not_after != null
-    ? `${String(Math.floor((row as any).not_after / 60)).padStart(2, '0')}:${String((row as any).not_after % 60).padStart(2, '0')}`
-    : ''
-  const [notAfter, setNotAfter] = useState<string>(naInit)
-  // Μέρες που ισχύει το χρονικό παράθυρο (όχι πριν / όχι μετά). Κενό/όλες = ισχύει κάθε μέρα.
-  const [nbDays, setNbDays] = useState<Set<number>>(
-    new Set<number>((row as any)?.not_before_days?.length ? (row as any).not_before_days : []))
-  const toggleNbDay = (d: number) => setNbDays(prev => {
-    const n = new Set(prev); n.has(d) ? n.delete(d) : n.add(d); return n
-  })
+  // Ώρες ανά μέρα (από–έως). Κενό μέρα = ελεύθερα. Κλειδί: dow 0=Κυ..6=Σα.
+  const m2s = (m: number | null | undefined) =>
+    m == null ? '' : `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+  const winInit: Record<number, { from: string; to: string }> = {}
+  {
+    const dw = (row as any)?.day_windows
+    if (dw && typeof dw === 'object') {
+      for (const k of Object.keys(dw)) winInit[+k] = { from: m2s(dw[k]?.from), to: m2s(dw[k]?.to) }
+    } else if ((row as any)?.not_before != null || (row as any)?.not_after != null) {
+      // Μετάβαση από παλιό ενιαίο παράθυρο
+      const ds = (row as any)?.not_before_days?.length ? (row as any).not_before_days : [0, 1, 2, 3, 4, 5, 6]
+      for (const d of ds) winInit[d] = { from: m2s((row as any).not_before), to: m2s((row as any).not_after) }
+    }
+  }
+  const [dayWin, setDayWin] = useState<Record<number, { from: string; to: string }>>(winInit)
+  const setWin = (d: number, field: 'from' | 'to', val: string) =>
+    setDayWin(prev => {
+      const cur = prev[d] ?? { from: '', to: '' }
+      return { ...prev, [d]: { ...cur, [field]: val } }
+    })
   const [busy, setBusy]     = useState(false)
 
   const toggleDay = (d: number) => setDays(prev => {
@@ -243,12 +248,20 @@ function TeamForm({ row, leagues, onClose, onSaved }: {
 
     // Αν είναι επιλεγμένες όλες (ή καμία) → null = χωρίς περιορισμό
     const availDays = days.size === 0 || days.size === 7 ? null : [...days].sort((a, b) => a - b)
-    let nb: number | null = null
-    const nbm = notBefore.match(/^(\d{1,2}):(\d{2})$/)
-    if (nbm) nb = parseInt(nbm[1]) * 60 + parseInt(nbm[2])
-    let na: number | null = null
-    const nam = notAfter.match(/^(\d{1,2}):(\d{2})$/)
-    if (nam) na = parseInt(nam[1]) * 60 + parseInt(nam[2])
+    const s2m = (s: string): number | null => {
+      const m = s.match(/^(\d{1,2}):(\d{2})$/)
+      return m ? parseInt(m[1]) * 60 + parseInt(m[2]) : null
+    }
+    const dayWindows: Record<number, { from?: number; to?: number }> = {}
+    for (let d = 0; d < 7; d++) {
+      const w = dayWin[d]; if (!w) continue
+      const from = s2m(w.from), to = s2m(w.to)
+      if (from == null && to == null) continue
+      dayWindows[d] = {}
+      if (from != null) dayWindows[d].from = from
+      if (to != null) dayWindows[d].to = to
+    }
+    const day_windows = Object.keys(dayWindows).length ? dayWindows : null
     const payload = {
       name: name.trim(),
       league_id: league,
@@ -257,10 +270,11 @@ function TeamForm({ row, leagues, onClose, onSaved }: {
       kit_secondary: kitS,
       kit_pattern: kitPat,
       avail_days: availDays,
-      not_before: nb,
-      not_after: na,
-      // Μέρες που ισχύει το χρονικό παράθυρο (κενό/όλες = κάθε μέρα → null)
-      not_before_days: (!nb && na == null) || nbDays.size === 0 || nbDays.size === 7 ? null : [...nbDays].sort((a, b) => a - b),
+      // Νέο μοντέλο: ώρες ανά μέρα. Καθαρίζουμε τα παλιά ενιαία πεδία.
+      day_windows,
+      not_before: null,
+      not_after: null,
+      not_before_days: null,
     }
     const { error } = row
       ? await supabase.from('teams').update(payload).eq('team_id', row.team_id)
@@ -333,54 +347,37 @@ function TeamForm({ row, leagues, onClose, onSaved }: {
         </p>
       </div>
 
-      {/* Χρονικό παράθυρο: όχι πριν / όχι μετά */}
+      {/* Ώρες ανά μέρα (από–έως). Κενό = ελεύθερα εκείνη τη μέρα. */}
       <div className="mt-1">
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <label className="block text-[8.5px] font-extrabold text-dim tracking-[0.12em] mb-1.5 pl-0.5">
-              ΟΧΙ ΠΡΙΝ ΑΠΟ</label>
-            <input type="time" value={notBefore} onChange={e => setNotBefore(e.target.value)}
-              className="w-full bg-chalk/[0.04] rounded-xl px-3 py-3 text-chalk text-sm
-                outline-none border border-chalk/[0.07] focus:border-lit/50" />
-          </div>
-          <div className="flex-1">
-            <label className="block text-[8.5px] font-extrabold text-dim tracking-[0.12em] mb-1.5 pl-0.5">
-              ΟΧΙ ΜΕΤΑ ΑΠΟ</label>
-            <input type="time" value={notAfter} onChange={e => setNotAfter(e.target.value)}
-              className="w-full bg-chalk/[0.04] rounded-xl px-3 py-3 text-chalk text-sm
-                outline-none border border-chalk/[0.07] focus:border-lit/50" />
-          </div>
-          {(notBefore || notAfter) && (
-            <button type="button" onClick={() => { setNotBefore(''); setNotAfter('') }}
-              className="self-end px-3 py-3 rounded-xl bg-chalk/[0.06] text-silver text-[11px] font-bold">✕</button>
+        <div className="flex items-center justify-between mb-1.5 pl-0.5">
+          <label className="text-[8.5px] font-extrabold text-dim tracking-[0.12em]">ΩΡΕΣ ΑΝΑ ΜΕΡΑ (από–έως)</label>
+          {Object.keys(dayWin).length > 0 && (
+            <button type="button" onClick={() => setDayWin({})}
+              className="text-[10px] font-bold text-dim">Καθαρισμός</button>
           )}
         </div>
-        <p className="text-[9.5px] text-off mt-1 pl-0.5">
-          Κενό = καμία. Π.χ. 21:00 – 23:00 → παίζει μόνο μέσα σε αυτό το διάστημα.
+        <div className="flex flex-col gap-1.5">
+          {[['Δε', 1], ['Τρ', 2], ['Τε', 3], ['Πε', 4], ['Πα', 5], ['Σα', 6], ['Κυ', 0]].map(([lbl, d]) => {
+            const dd = d as number
+            const active = days.has(dd)
+            return (
+              <div key={dd} className={`flex items-center gap-2 ${active ? '' : 'opacity-40'}`}>
+                <span className="w-7 text-[11px] font-extrabold text-silver shrink-0">{lbl}</span>
+                <input type="time" value={dayWin[dd]?.from ?? ''} onChange={e => setWin(dd, 'from', e.target.value)}
+                  className="flex-1 min-w-0 bg-chalk/[0.04] rounded-lg px-2.5 py-2 text-chalk text-[13px]
+                    outline-none border border-chalk/[0.07] focus:border-lit/50" />
+                <span className="text-dim text-[12px]">–</span>
+                <input type="time" value={dayWin[dd]?.to ?? ''} onChange={e => setWin(dd, 'to', e.target.value)}
+                  className="flex-1 min-w-0 bg-chalk/[0.04] rounded-lg px-2.5 py-2 text-chalk text-[13px]
+                    outline-none border border-chalk/[0.07] focus:border-lit/50" />
+              </div>
+            )
+          })}
+        </div>
+        <p className="text-[9.5px] text-off mt-1.5 pl-0.5">
+          Κενό = ελεύθερα εκείνη τη μέρα. Π.χ. Πα «22:00 –», Σα «19:00 –» → διαφορετική ώρα ανά μέρα.
+          Μόνο «από» = όχι πριν· μόνο «έως» = όχι μετά.
         </p>
-
-        {/* Το παράθυρο ισχύει μόνο τις επιλεγμένες μέρες (κενό = όλες) */}
-        {(notBefore || notAfter) && (
-          <div className="mt-2.5">
-            <label className="block text-[8.5px] font-extrabold text-dim tracking-[0.12em] mb-1.5 pl-0.5">
-              …ΜΟΝΟ ΤΙΣ ΜΕΡΕΣ (κενό = όλες)</label>
-            <div className="flex gap-1">
-              {[['Δε', 1], ['Τρ', 2], ['Τε', 3], ['Πε', 4], ['Πα', 5], ['Σα', 6], ['Κυ', 0]].map(([lbl, d]) => {
-                const on = nbDays.has(d as number)
-                return (
-                  <button key={d as number} type="button" onClick={() => toggleNbDay(d as number)}
-                    className={`flex-1 py-2 rounded-lg text-[11px] font-extrabold border
-                      ${on ? 'bg-lit/[0.15] border-lit/40 text-lit' : 'bg-chalk/[0.03] border-chalk/[0.06] text-off'}`}>
-                    {lbl}
-                  </button>
-                )
-              })}
-            </div>
-            <p className="text-[9.5px] text-off mt-1 pl-0.5">
-              Π.χ. διάλεξε μόνο «Πα» → το «όχι πριν» ισχύει μόνο Παρασκευή· το ΣΚ μένει ελεύθερο.
-            </p>
-          </div>
-        )}
       </div>
 
       <SaveBtn busy={busy} onClick={save} />
