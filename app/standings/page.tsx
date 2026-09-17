@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Watermark, Crest, Postponements, BottomNav, Empty, LiveDot, FieldBadge, Avatar, SectionLabel } from '../ui'
 import GraphicLink from '../graphic-link'
 import PlayoffBracket, { type BSide, type BTie } from '../playoff-bracket'
+import LiveRefresh from './live-refresh'
 import { fmtDay, fmtTime } from '@/lib/time'
 import type { League, Standing, PlayerStat } from '@/lib/types'
 
@@ -121,6 +122,7 @@ export default async function StandingsPage({
 
   return (
     <div className="min-h-screen bg-pitch pb-20">
+      <LiveRefresh />
       <header className="relative px-4 pt-6 pb-4 overflow-hidden">
         <div className="absolute -right-6 -top-4 w-32 h-36">
           <Watermark opacity={0.05} />
