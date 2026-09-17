@@ -255,6 +255,8 @@ export default function AdminFixtures() {
       const drawMissing: string[] = []  // πρωταθλήματα με ελλιπή κλήρωση (όταν useDraw)
       const availMap: Record<string, number[] | null> = {}  // team_id → διαθέσιμες μέρες (null = όλες)
       const nbMap: Record<string, number | null> = {}       // team_id → όχι πριν από (λεπτά)· null = καμία
+      const naMap: Record<string, number | null> = {}       // team_id → όχι μετά από (λεπτά)· null = καμία
+      const nbDaysMap: Record<string, number[] | null> = {} // team_id → μέρες που ισχύει το παράθυρο· null/κενό = όλες
       const nameById: Record<string, string> = {}           // team_id → όνομα (για μηνύματα)
 
       if (mode === 'new') {
@@ -277,11 +279,13 @@ export default function AdminFixtures() {
         if (!selected.size) throw new Error('Διάλεξε τουλάχιστον ένα πρωτάθλημα')
         for (const lid of selected) {
           const { data: ts } = await supabase.from('teams')
-            .select('team_id, name, avail_days, not_before').eq('league_id', lid).eq('active', true).order('name')
+            .select('team_id, name, avail_days, not_before, not_after, not_before_days').eq('league_id', lid).eq('active', true).order('name')
           let ids = (ts ?? []).map(t => t.team_id)
           for (const t of ts ?? []) {
             availMap[t.team_id] = (t as any).avail_days ?? null
             nbMap[t.team_id] = (t as any).not_before ?? null
+            naMap[t.team_id] = (t as any).not_after ?? null
+            nbDaysMap[t.team_id] = (t as any).not_before_days ?? null
             nameById[t.team_id] = (t as any).name ?? '—'
           }
 
@@ -330,8 +334,18 @@ export default function AdminFixtures() {
           for (const tid of t.teamIds) {
             const av = availMap[tid]
             const dayOkAny = !av || av.length === 0 || activeDows.some(d => av.includes(d))
-            const nb = nbMap[tid]
-            const timeOkAny = nb == null || allTmins.some(m => m >= nb)
+            const nb = nbMap[tid], na = naMap[tid]
+            const nbDays = nbDaysMap[tid]
+            // Ημέρες που μπορεί να παίξει η ομάδα
+            const playableDows = activeDows.filter(d => !av || av.length === 0 || av.includes(d))
+            // Υπάρχει έστω μία μέρα/ώρα μέσα στο παράθυρο; (ισχύει μόνο τις nbDays)
+            const timeOkAny = (nb == null && na == null) || playableDows.some(d => {
+              const applies = !nbDays || nbDays.length === 0 || nbDays.includes(d)
+              return !applies || (byDow[d] ?? []).some(t => {
+                const m = t.h * 60 + t.m
+                return (nb == null || m >= nb) && (na == null || m <= na)
+              })
+            })
             if (!dayOkAny) bad.push(`${nameById[tid] ?? tid} (${lname}): οι «διαθέσιμες μέρες» δεν περιλαμβάνουν καμία αγωνιστική μέρα`)
             else if (!timeOkAny) bad.push(`${nameById[tid] ?? tid} (${lname}): το «όχι πριν από» είναι μετά από όλες τις ώρες`)
           }
@@ -415,10 +429,16 @@ export default function AdminFixtures() {
         const av = availMap[teamId]
         return !av || av.length === 0 || av.includes(dow)
       }
-      // Ώρα ΟΚ: όχι πριν από το κατώφλι της ομάδας (ισχύει και για τους δύο)
-      const timeOk = (teamId: string, tmin: number) => {
-        const nb = nbMap[teamId]
-        return nb == null || tmin >= nb
+      // Ώρα ΟΚ: μέσα στο παράθυρο [όχι πριν, όχι μετά] — ισχύει ΜΟΝΟ τις μέρες nbDays (null/κενό = όλες)
+      const timeOk = (teamId: string, tmin: number, dow: number) => {
+        const nb = nbMap[teamId], na = naMap[teamId]
+        if (nb == null && na == null) return true
+        const nbDays = nbDaysMap[teamId]
+        const applies = !nbDays || nbDays.length === 0 || nbDays.includes(dow)
+        if (!applies) return true
+        if (nb != null && tmin < nb) return false
+        if (na != null && tmin > na) return false
+        return true
       }
       // Συμβατές μέρες; (κάποια χωρίς περιορισμό = συμβατές· αλλιώς πρέπει να τέμνονται)
       const compatibleDays = (a: string, b: string) => {
@@ -473,7 +493,7 @@ export default function AdminFixtures() {
             for (let j = 0; j < L.remaining.length; j++) {
               const [a, b] = L.remaining[j]
               if (used.has(a) || used.has(b)) continue
-              if (!(pairDayOk(a, b, dow) && timeOk(a, c.tmin) && timeOk(b, c.tmin))) continue
+              if (!(pairDayOk(a, b, dow) && timeOk(a, c.tmin, dow) && timeOk(b, c.tmin, dow))) continue
               const fl = pairFlex(a, b)
               if (fl < bestFlex) { bestFlex = fl; idx = j; if (fl <= 1) break }
             }
