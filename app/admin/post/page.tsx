@@ -351,7 +351,7 @@ export default function AdminPost() {
         leagueLogo: leagueObj.logo_url ?? null,
         groups: (type === 'schedule' || type === 'results') ? buildGroups(type) : [],
         standings: type === 'standings'
-          ? standings.slice(0, 10).map((t: any) => ({
+          ? standings.slice(0, 16).map((t: any) => ({
               position: t.position, name: t.team_name, logo: t.logo_url,
               played: t.played, wins: t.wins, draws: t.draws, losses: t.losses,
               gd: t.goal_diff, points: t.points,
