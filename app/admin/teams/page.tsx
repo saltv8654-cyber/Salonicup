@@ -281,7 +281,7 @@ function TeamForm({ row, leagues, onClose, onSaved }: {
       : await supabase.from('teams').insert(payload)
 
     setBusy(false)
-    if (error) return toast.error('Δεν αποθηκεύτηκε')
+    if (error) return toast.error('Δεν αποθηκεύτηκε: ' + error.message)
     toast.success('Αποθηκεύτηκε'); onSaved()
   }
 
