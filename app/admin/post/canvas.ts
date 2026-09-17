@@ -573,7 +573,7 @@ function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEl
 
 function drawStandings(ctx: any, d: PostData, L: (u: string | null) => HTMLImageElement | null, pal: Pal, bottom = S - 64) {
   const PAD = 60
-  const rows = d.standings.slice(0, 10)
+  const rows = d.standings.slice(0, 16)   // όλες οι ομάδες (έως 16· τα ύψη προσαρμόζονται)
   const colB = S - PAD - 24
   const colGD = colB - 78
   const colL = colGD - 78
@@ -616,8 +616,8 @@ function drawStandings(ctx: any, d: PostData, L: (u: string | null) => HTMLImage
     ctx.font = font(700, 34)
     ctx.textAlign = 'center'
     ctx.fillText(String(t.position), PAD + 22, cy)
-    // λογότυπο + όνομα
-    crest(ctx, L(t.logo), t.name, PAD + 84, cy, 46)
+    // λογότυπο + όνομα (το έμβλημα δεν ξεπερνά το ύψος γραμμής)
+    crest(ctx, L(t.logo), t.name, PAD + 84, cy, Math.min(46, rowH - 8))
     ctx.fillStyle = COL.white
     ctx.textAlign = 'left'
     ctx.fillText(fitFont(ctx, t.name, colA - (PAD + 116) - 20, 600, 32, 18), PAD + 116, cy)
