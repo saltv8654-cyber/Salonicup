@@ -25,25 +25,41 @@ const since = () => new Date(Date.now() - 86400000).toISOString()
 export default async function SchedulePage() {
   const supabase = createClient()
 
-  const [{ data: slots }, { data: matches }] = await Promise.all([
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const [{ data: slots }, { data: matches }, { data: prof }] = await Promise.all([
     supabase.from('slots')
       .select('slot_id, field, starts_at, venue:venue_id(name)')
       .gte('starts_at', since()).order('starts_at'),
     supabase.from('matches')
       .select(`match_id, match_date, field, match_status, placeholder_a, placeholder_b, team_a, team_b,
-        league:league_id(name), team_a_data:team_a(name), team_b_data:team_b(name)`)
+        league:league_id(name, format), team_a_data:team_a(name), team_b_data:team_b(name)`)
       .not('match_date', 'is', null)
       .gte('match_date', since()).order('match_date'),
+    user
+      ? supabase.from('profiles').select('team:team_id(league:league_id(format))').eq('id', user.id).maybeSingle()
+      : Promise.resolve({ data: null as any }),
   ])
+
+  // Format του πρωταθλήματος του captain (π.χ. 8x8 / 7x7) — null = admin/χωρίς ομάδα → βλέπει τα πάντα
+  const myFormat: string | null = ((prof as any)?.team?.league?.format) ?? null
+  // Ποιο format «ανήκει» σε κάθε γήπεδο (από τους προγραμματισμένους αγώνες)
+  const fieldFmt = new Map<string, string>()
+  for (const m of matches ?? []) {
+    const f = (m as any).field, fmt = (m as any).league?.format
+    if (f && fmt && !fieldFmt.has(f)) fieldFmt.set(f, fmt)
+  }
+  // Επιτρέπεται το γήπεδο για τον captain; (άγνωστο γήπεδο ή admin = ναι)
+  const allowFld = (f: string | null) => !myFormat || !f || !fieldFmt.has(f) || fieldFmt.get(f) === myFormat
 
   // «Κλεισμένα» κλειδιά: γήπεδο + ώρα (από τα πραγματικά ματς)
   const booked = new Set<string>()
   const key = (f: string | null, iso: string) => `${f ?? ''}|${new Date(iso).getTime()}`
   for (const m of matches ?? []) booked.add(key(m.field, m.match_date))
 
-  // Ελεύθερα slots (για την επιλογή «Αλλαγή ώρας» του captain)
+  // Ελεύθερα slots (για την επιλογή «Αλλαγή ώρας» του captain) — μόνο γήπεδα του format του
   const freeSlots = (slots ?? [])
-    .filter(s => !booked.has(key(s.field, s.starts_at)))
+    .filter(s => !booked.has(key(s.field, s.starts_at)) && allowFld(s.field))
     .map(s => ({ iso: s.starts_at, field: s.field, venue: (s.venue as any)?.name ?? null }))
 
   // Στοιχεία προς εμφάνιση: όλα τα ματς + όσα slots δεν έχουν ματς εκείνη την ώρα/γήπεδο
@@ -51,7 +67,7 @@ export default async function SchedulePage() {
   const items: Item[] = []
   for (const m of matches ?? []) items.push({ iso: m.match_date, field: m.field, match: m })
   for (const s of slots ?? []) {
-    if (!booked.has(key(s.field, s.starts_at)))
+    if (!booked.has(key(s.field, s.starts_at)) && allowFld(s.field))
       items.push({ iso: s.starts_at, field: s.field, venue: (s.venue as any)?.name })
   }
 
