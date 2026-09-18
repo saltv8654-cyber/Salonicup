@@ -49,6 +49,19 @@ export default function AdminUsers() {
 
   useEffect(() => { fetchRows() }, [])
 
+  async function setPassword(u: Profile) {
+    const pw = window.prompt(`Νέος κωδικός για ${u.full_name || u.email}\n(τουλάχιστον 6 χαρακτήρες):`)
+    if (pw == null) return
+    if (pw.length < 6) return toast.error('Τουλάχιστον 6 χαρακτήρες')
+    const res = await fetch('/api/admin/set-password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: u.id, password: pw }),
+    })
+    const j = await res.json().catch(() => null)
+    if (!res.ok || !j?.ok) return toast.error('Απέτυχε: ' + (j?.error || j?.reason || res.status))
+    toast.success('Ο κωδικός ορίστηκε ✅')
+  }
+
   async function changeRole(id: string, role: string) {
     // Καθαρίζουμε την ομάδα αν ο ρόλος δεν είναι πλέον αρχηγός
     const patch: any = { role }
@@ -154,12 +167,19 @@ export default function AdminUsers() {
                   </select>
                 )}
               </div>
-              <select value={u.role}
-                onChange={e => changeRole(u.id, e.target.value)}
-                className="bg-chalk/[0.05] rounded-lg px-2.5 py-2 text-silver
-                  text-[11px] font-bold outline-none border border-chalk/[0.06] shrink-0">
-                {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
+              <div className="flex flex-col items-end gap-1.5 shrink-0">
+                <select value={u.role}
+                  onChange={e => changeRole(u.id, e.target.value)}
+                  className="bg-chalk/[0.05] rounded-lg px-2.5 py-2 text-silver
+                    text-[11px] font-bold outline-none border border-chalk/[0.06]">
+                  {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                </select>
+                <button onClick={() => setPassword(u)}
+                  className="text-[10px] font-bold text-lit px-2 py-1 rounded-lg
+                    bg-lit/[0.1] border border-lit/25 active:bg-lit/20 whitespace-nowrap">
+                  🔑 Κωδικός
+                </button>
+              </div>
             </div>
           ))}
         </div>
