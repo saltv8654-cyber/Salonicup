@@ -31,18 +31,22 @@ export default function AdminFinance() {
   const [teams, setTeams] = useState<{ team_id: string; name: string; league_id: string; fee_paid: boolean }[]>([])
   const [partFee, setPartFee] = useState('40')
   const [showFees, setShowFees] = useState(true)
+  const [personNames, setPersonNames] = useState<Record<string, string>>({})
 
   async function fetchAll() {
-    const [r, l, m, p, e, t, s, inc] = await Promise.all([
+    const [r, l, m, p, e, t, s, inc, stf, prf] = await Promise.all([
       supabase.from('finance_rates').select('*').order('effective_from', { ascending: true }),
       supabase.from('leagues').select('league_id, name, format').order('sort_order'),
-      supabase.from('matches').select('match_date, league_id')
+      supabase.from('matches')
+        .select('match_date, league_id, team_a_data:team_a(name), team_b_data:team_b(name), league:league_id(name)')
         .in('match_status', ['Played', 'Live']).not('match_date', 'is', null),
-      supabase.from('staff_payments').select('day, amount'),
+      supabase.from('staff_payments').select('day, amount, person_type, person_id'),
       supabase.from('expenses').select('*').order('day', { ascending: false }),
       supabase.from('teams').select('team_id, name, league_id, fee_paid').eq('active', true).order('name'),
       supabase.from('app_settings').select('participation_fee').eq('id', 1).maybeSingle(),
       supabase.from('incomes').select('*').order('day', { ascending: false }),
+      supabase.from('staff').select('id, name'),
+      supabase.from('profiles').select('id, full_name'),
     ])
     setRates(r.data ?? [])
     setLeagues(l.data ?? [])
@@ -51,6 +55,10 @@ export default function AdminFinance() {
     setExpenses(e.data ?? [])
     setIncomes(inc.data ?? [])
     setTeams(t.data ?? [])
+    const pn: Record<string, string> = {}
+    for (const x of stf.data ?? []) pn[(x as any).id] = (x as any).name
+    for (const x of prf.data ?? []) pn[(x as any).id] = (x as any).full_name ?? pn[(x as any).id]
+    setPersonNames(pn)
     if (s.data?.participation_fee != null) setPartFee(String(s.data.participation_fee))
     setLoad(false)
   }
@@ -112,6 +120,27 @@ export default function AdminFinance() {
     const incTotal = inc + otherInc + sponsors
     return { inc, matchInc: inc, otherInc, sponsors, incTotal, field, salaries, other, exp, net: incTotal - exp, n8, n7, fee8sum, fee7sum, hosted }
   }, [matches, pays, expenses, incomes, rates, fmtMap, skipLeagues, from, to])
+
+  // Αναλυτικά ανά γραμμή (για το «άνοιγμα» με λεπτομέρειες)
+  const details = useMemo(() => {
+    const inc8: Detail[] = [], inc7: Detail[] = [], fields: Detail[] = []
+    for (const m of matches as any[]) {
+      if (skipLeagues.has(m.league_id)) continue
+      const day = athensDateKey(m.match_date)
+      if (day < from || day > to) continue
+      const r = rateAt(day); if (!r) continue
+      const fmt = fmtMap[m.league_id] ?? '8x8'
+      const fee = fmt === '7x7' ? Number(r.fee_7x7) : Number(r.fee_8x8)
+      const teams = `${m.team_a_data?.name ?? '—'} – ${m.team_b_data?.name ?? '—'}`
+      const sub = m.league?.name ?? ''
+      ;(fmt === '7x7' ? inc7 : inc8).push({ d: day, label: teams, sub, amount: fee * 2 })
+      fields.push({ d: day, label: teams, sub, amount: Number(r.field_cost) })
+    }
+    const salaries: Detail[] = pays.filter(p => p.day >= from && p.day <= to)
+      .map((p: any) => ({ d: p.day, label: personNames[p.person_id] ?? 'Προσωπικό', amount: Number(p.amount) }))
+      .sort((a, b) => b.d.localeCompare(a.d))
+    return { inc8, inc7, fields, salaries }
+  }, [matches, pays, rates, fmtMap, skipLeagues, personNames, from, to])
 
   // ── Ενέργειες ──
   async function saveRate(id: string, patch: Partial<Rate>) {
@@ -217,23 +246,29 @@ export default function AdminFinance() {
         </div>
       </div>
 
-      {/* Ανάλυση εσόδων */}
+      {/* Ανάλυση εσόδων — πάτα μια γραμμή για αναλυτικά */}
       <div className="bg-turf rounded-xl border border-chalk/[0.05] p-3.5">
         <p className="text-[12.5px] font-extrabold text-chalk mb-2.5">📈 Έσοδα · {calc.hosted} αγώνες</p>
-        <Line label={`8×8 — ${calc.n8} αγ. (×2 ομάδες)`} value={eur(calc.fee8sum)} />
-        <Line label={`7×7 — ${calc.n7} αγ. (×2 ομάδες)`} value={eur(calc.fee7sum)} />
-        {calc.otherInc > 0 && <Line label="Λοιπά έσοδα" value={eur(calc.otherInc)} />}
-        {calc.sponsors > 0 && <Line label="Χορηγίες" value={eur(calc.sponsors)} />}
+        <ExpandLine label={`8×8 — ${calc.n8} αγ. (×2 ομάδες)`} value={eur(calc.fee8sum)} items={details.inc8} />
+        <ExpandLine label={`7×7 — ${calc.n7} αγ. (×2 ομάδες)`} value={eur(calc.fee7sum)} items={details.inc7} />
+        {calc.otherInc > 0 && <ExpandLine label="Λοιπά έσοδα" value={eur(calc.otherInc)}
+          items={incomes.filter(x => x.kind !== 'sponsor' && x.day >= from && x.day <= to)
+            .map(x => ({ d: x.day, label: x.label, sub: x.note ?? undefined, amount: Number(x.amount) }))} />}
+        {calc.sponsors > 0 && <ExpandLine label="Χορηγίες" value={eur(calc.sponsors)}
+          items={incomes.filter(x => x.kind === 'sponsor' && x.day >= from && x.day <= to)
+            .map(x => ({ d: x.day, label: x.label, sub: x.note ?? undefined, amount: Number(x.amount) }))} />}
         <div className="h-px bg-chalk/[0.06] my-2" />
         <Line label="Σύνολο εσόδων" value={eur(calc.incTotal)} bold color="#2FA84F" />
       </div>
 
-      {/* Ανάλυση εξόδων */}
+      {/* Ανάλυση εξόδων — πάτα μια γραμμή για αναλυτικά */}
       <div className="bg-turf rounded-xl border border-chalk/[0.05] p-3.5">
         <p className="text-[12.5px] font-extrabold text-chalk mb-2.5">📉 Έξοδα</p>
-        <Line label={`Γήπεδα — ${calc.hosted} αγώνες`} value={eur(calc.field)} />
-        <Line label="Μισθοί προσωπικού" value={eur(calc.salaries)} />
-        <Line label="Λοιπά έξοδα" value={eur(calc.other)} />
+        <ExpandLine label={`Γήπεδα — ${calc.hosted} αγώνες`} value={eur(calc.field)} items={details.fields} />
+        <ExpandLine label="Μισθοί προσωπικού" value={eur(calc.salaries)} items={details.salaries} />
+        <ExpandLine label="Λοιπά έξοδα" value={eur(calc.other)}
+          items={expenses.filter(x => x.day >= from && x.day <= to)
+            .map(x => ({ d: x.day, label: x.label, sub: x.note ?? undefined, amount: Number(x.amount) }))} />
         <div className="h-px bg-chalk/[0.06] my-2" />
         <Line label="Σύνολο εξόδων" value={eur(calc.exp)} bold color="#D8483C" />
       </div>
@@ -395,6 +430,41 @@ function Line({ label, value, bold, color }: { label: string; value: string; bol
       <span className={`text-[12px] ${bold ? 'font-extrabold text-chalk' : 'text-silver'}`}>{label}</span>
       <span className={`text-[13px] tnum ${bold ? 'font-extrabold' : 'font-bold text-chalk'}`}
         style={color ? { color } : undefined}>{value}</span>
+    </div>
+  )
+}
+
+type Detail = { d: string; label: string; sub?: string; amount: number }
+/** Κλικαρίσιμη γραμμή σύνοψης που ανοίγει αναλυτική λίστα. */
+function ExpandLine({ label, value, color, items }: {
+  label: string; value: string; color?: string; items: Detail[]
+}) {
+  const [open, setOpen] = useState(false)
+  const has = items.length > 0
+  return (
+    <div className="border-b border-chalk/[0.04] last:border-0">
+      <button type="button" disabled={!has} onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between py-1.5 text-left disabled:opacity-100">
+        <span className="text-[12px] text-silver flex items-center gap-1.5">
+          {has && <span className="text-dim text-[10px] w-3">{open ? '▾' : '▸'}</span>}
+          {label}
+        </span>
+        <span className="text-[13px] tnum font-bold text-chalk" style={color ? { color } : undefined}>{value}</span>
+      </button>
+      {open && has && (
+        <div className="flex flex-col gap-0.5 pb-2 pl-4">
+          {items.map((it, i) => (
+            <div key={i} className="flex items-start justify-between gap-2 py-0.5">
+              <div className="min-w-0">
+                <span className="block text-[11px] text-chalk truncate">{it.label}</span>
+                <span className="block text-[9.5px] text-dim truncate">
+                  {it.d}{it.sub ? ` · ${it.sub}` : ''}</span>
+              </div>
+              <span className="text-[11.5px] tnum font-bold text-silver shrink-0">{eur(it.amount)}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
