@@ -83,16 +83,6 @@ function LoginForm() {
     }
   }
 
-  async function forgot() {
-    if (!email) { toast.error('Γράψε πρώτα το email σου πιο πάνω'); return }
-    setBusy(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/reset`,
-    })
-    setBusy(false)
-    if (error) { toast.error('Κάτι πήγε στραβά — ξαναδοκίμασε'); return }
-    toast.success('Σου στείλαμε email για επαναφορά κωδικού')
-  }
 
   // Ήδη συνδεδεμένος → κάρτα προφίλ με αποσύνδεση
   if (!loading && profile) {
@@ -258,10 +248,9 @@ function LoginForm() {
         </form>
 
         {mode === 'login' && (
-          <button type="button" onClick={forgot} disabled={busy}
-            className="w-full py-2.5 mt-2 text-[12.5px] font-semibold text-lit disabled:opacity-50">
-            Ξέχασες τον κωδικό;
-          </button>
+          <p className="w-full py-2.5 mt-2 text-center text-[11.5px] text-dim">
+            Ξέχασες τον κωδικό; Ζήτησε νέο από τον διαχειριστή.
+          </p>
         )}
 
         <button onClick={() => router.push('/')}
