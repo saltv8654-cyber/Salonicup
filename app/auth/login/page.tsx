@@ -156,8 +156,20 @@ function LoginForm() {
               ⚽ Στους αγώνες
             </button>
             <button
+              onClick={async () => {
+                const pw = window.prompt('Νέος κωδικός (τουλάχιστον 6 χαρακτήρες):')
+                if (pw == null) return
+                if (pw.length < 6) return toast.error('Τουλάχιστον 6 χαρακτήρες')
+                const { error } = await supabase.auth.updateUser({ password: pw })
+                if (error) return toast.error('Δεν άλλαξε: ' + error.message)
+                toast.success('Ο κωδικός άλλαξε ✅')
+              }}
+              className="w-full py-2.5 mt-1 text-lit font-bold text-[13px]">
+              Άλλαξε κωδικό
+            </button>
+            <button
               onClick={async () => { await signOut(); router.refresh() }}
-              className="w-full py-3 mt-1 text-dim font-semibold text-[13px]">
+              className="w-full py-3 text-dim font-semibold text-[13px]">
               Αποσύνδεση
             </button>
           </div>
