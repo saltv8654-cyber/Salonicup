@@ -539,7 +539,7 @@ export default function PublicMatch() {
 }
 
 // Σμίκρυνση + συμπίεση φωτο πριν το ανέβασμα (και HEIC→JPEG). Μειώνει ~10× το μέγεθος.
-async function compressImage(file: File, maxSide = 2560, quality = 0.85): Promise<{ blob: Blob; ext: string; type: string }> {
+async function compressImage(file: File, maxSide = 2048, quality = 0.85): Promise<{ blob: Blob; ext: string; type: string }> {
   if (!file.type.startsWith('image/')) return { blob: file, ext: file.name.split('.').pop() || 'jpg', type: file.type }
   const url = URL.createObjectURL(file)
   try {
@@ -549,9 +549,15 @@ async function compressImage(file: File, maxSide = 2560, quality = 0.85): Promis
     const w = Math.round(img.width * scale), h = Math.round(img.height * scale)
     const canvas = document.createElement('canvas')
     canvas.width = w; canvas.height = h
-    canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
-    const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/jpeg', quality))
-    if (blob) return { blob, ext: 'jpg', type: 'image/jpeg' }
+    const ctx = canvas.getContext('2d')!
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(img, 0, 0, w, h)
+    const toBlob = (t: string) => new Promise<Blob | null>(r => canvas.toBlob(r, t, quality))
+    // WebP (πολύ μικρότερο, ίδια ποιότητα)· αν δεν υποστηρίζεται → JPEG
+    const webp = await toBlob('image/webp')
+    if (webp && webp.type === 'image/webp') return { blob: webp, ext: 'webp', type: 'image/webp' }
+    const jpg = await toBlob('image/jpeg')
+    if (jpg) return { blob: jpg, ext: 'jpg', type: 'image/jpeg' }
   } catch { /* fallback στο πρωτότυπο */ } finally { URL.revokeObjectURL(url) }
   return { blob: file, ext: file.name.split('.').pop() || 'jpg', type: file.type }
 }
