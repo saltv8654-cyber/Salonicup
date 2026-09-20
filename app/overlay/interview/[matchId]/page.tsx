@@ -39,10 +39,20 @@ export default function InterviewOverlay() {
         transform: show ? 'translateX(0)' : 'translateX(-140%)',
         opacity: show ? 1 : 0, transition: 'transform .5s cubic-bezier(.2,.9,.2,1), opacity .4s',
       }}>
-        {/* FLASH INTERVIEW */}
-        <div style={{ fontSize: 74, fontWeight: 900, color: '#fff', lineHeight: 0.98, letterSpacing: '-1px',
-          textShadow: '0 6px 24px rgba(0,0,0,.6)' }}>
-          FLASH<br />INTERVIEW
+        {/* Κορυφή: FLASH INTERVIEW (kicker) + κόκκινο ΖΩΝΤΑΝΑ */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
+          <span style={{ fontSize: 40, fontWeight: 900, color: '#fff', letterSpacing: '1px',
+            textShadow: '0 4px 18px rgba(0,0,0,.6)' }}>
+            FLASH INTERVIEW
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8,
+            background: 'rgba(10,10,16,.82)', padding: '7px 14px', borderRadius: 6 }}>
+            <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff2d2d',
+              boxShadow: '0 0 12px #ff2d2d' }} />
+            <span style={{ fontSize: 22, fontWeight: 900, color: '#ff2d2d', letterSpacing: '2px' }}>
+              ΖΩΝΤΑΝΑ
+            </span>
+          </span>
         </div>
 
         {/* Μπάρα: όνομα παίκτη (μεγάλο) + ομάδα από κάτω */}
