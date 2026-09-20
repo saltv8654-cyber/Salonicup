@@ -62,7 +62,10 @@ export default function InterviewOverlay() {
 
   const scene = (
     <div style={{ position: 'absolute', top: 0, left: 0, width: REF_W, height: REF_H, fontFamily: 'system-ui, sans-serif' }}>
-      <style>{`@keyframes ovMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
+      <style>{`
+        @keyframes ovMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+        @keyframes mvpShine{0%{background-position:0% 50%}100%{background-position:220% 50%}}
+      `}</style>
 
       {/* Κάτω κέντρο→δεξιά: κυλιόμενοι χορηγοί (POWERED BY) — διπλάσιο μέγεθος */}
       {sponsors.length > 0 && (
@@ -120,8 +123,13 @@ export default function InterviewOverlay() {
         {guest?.logo_url && <img src={guest.logo_url} alt="" width={62} height={62} style={{ width: 62, height: 62, objectFit: 'contain' }} />}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {mvp && (
-            <span style={{ fontSize: 26, fontWeight: 900, color: '#E8B923', letterSpacing: '4px',
-              lineHeight: 1, textShadow: '0 2px 10px rgba(232,185,35,.4)' }}>MVP</span>
+            <span style={{ fontSize: 78, fontWeight: 900, letterSpacing: '10px', lineHeight: 1, marginBottom: 6,
+              backgroundImage: 'linear-gradient(100deg, #C8901A 0%, #F7DE7A 20%, #FFF6D0 34%, #E8B923 50%, #B8860B 62%, #FBE99A 80%, #C8901A 100%)',
+              backgroundSize: '220% 100%',
+              WebkitBackgroundClip: 'text', backgroundClip: 'text',
+              WebkitTextFillColor: 'transparent', color: 'transparent',
+              filter: 'drop-shadow(0 3px 10px rgba(232,185,35,.5))',
+              animation: 'mvpShine 3.5s linear infinite' }}>MVP</span>
           )}
           <span style={{ fontSize: player ? 46 : 40, fontWeight: 800, color: '#fff', textTransform: 'uppercase',
             letterSpacing: '.5px', whiteSpace: 'nowrap', lineHeight: 1 }}>
