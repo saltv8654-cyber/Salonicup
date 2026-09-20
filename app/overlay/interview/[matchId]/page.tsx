@@ -27,8 +27,8 @@ export default function InterviewOverlay() {
   const { match } = useLiveMatch(matchId)
   const preview = params.get('preview') != null
 
-  const [userScale, setUserScale] = useState(parseFloat(params.get('scale') || '1') || 1)
-  const [pos, setPos] = useState(params.get('pos') || 'bl')
+  const [userScale, setUserScale] = useState(parseFloat(params.get('scale') || '1.5') || 1.5)
+  const [pos, setPos] = useState(params.get('pos') || 'tl')
   const [copied, setCopied] = useState(false)
 
   // Μέτρηση πλάτους του 16:9 stage → κλίμακα προεπισκόπησης
@@ -46,13 +46,14 @@ export default function InterviewOverlay() {
 
   const th = leagueTheme(match.league?.name)
   const side: string | null = match.interview_side ?? null
-  const guest = side === 'a' ? match.team_a_data : side === 'b' ? match.team_b_data : null
+  const a = match.team_a_data, b = match.team_b_data
+  const guest = side === 'a' ? a : side === 'b' ? b : null
   const player: string | null = (match.interview_name && String(match.interview_name).trim()) || null
   const show = !!guest
 
   const right = pos === 'tr' || pos === 'br'
-  const corner: any = pos === 'tl' ? { top: 70, left: 90 }
-    : pos === 'tr' ? { top: 70, right: 90 }
+  const corner: any = pos === 'tl' ? { top: 210, left: 90 }
+    : pos === 'tr' ? { top: 210, right: 90 }
     : pos === 'br' ? { bottom: 90, right: 90 }
     : { bottom: 90, left: 90 }
   const tOrigin = pos === 'tl' ? 'top left' : pos === 'tr' ? 'top right'
@@ -62,6 +63,27 @@ export default function InterviewOverlay() {
   const scene = (
     <div style={{ position: 'absolute', top: 0, left: 0, width: REF_W, height: REF_H,
       fontFamily: 'system-ui, sans-serif' }}>
+
+      {/* Πάνω-κέντρο: ποιος με ποιον + πρωτάθλημα + αγωνιστική */}
+      <div style={{ position: 'absolute', top: 44, left: 0, right: 0, display: 'flex', justifyContent: 'center',
+        opacity: show ? 1 : 0, transition: 'opacity .4s' }}>
+        <div style={{ background: 'rgba(10,10,16,.85)', borderTop: `4px solid ${th.pink}`, borderRadius: 10,
+          padding: '12px 34px', textAlign: 'center', boxShadow: '0 12px 40px rgba(0,0,0,.5)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+            {a?.logo_url && <img src={a.logo_url} alt="" width={40} height={40} style={{ width: 40, height: 40, objectFit: 'contain' }} />}
+            <span style={{ fontSize: 34, fontWeight: 800, color: '#fff', textTransform: 'uppercase',
+              letterSpacing: '.5px', whiteSpace: 'nowrap' }}>
+              {a?.name ?? '—'} <span style={{ color: th.pink }}>–</span> {b?.name ?? '—'}
+            </span>
+            {b?.logo_url && <img src={b.logo_url} alt="" width={40} height={40} style={{ width: 40, height: 40, objectFit: 'contain' }} />}
+          </div>
+          <div style={{ fontSize: 19, fontWeight: 700, color: 'rgba(255,255,255,.72)', marginTop: 4,
+            textTransform: 'uppercase', letterSpacing: '1px', whiteSpace: 'nowrap' }}>
+            {match.league?.name ?? ''}{match.round ? ` · Αγωνιστική ${match.round}` : ''}
+          </div>
+        </div>
+      </div>
+
       <div style={{ position: 'absolute', ...corner, display: 'flex', flexDirection: 'column',
         alignItems: right ? 'flex-end' : 'flex-start',
         transform: `scale(${userScale})`, transformOrigin: tOrigin,
