@@ -951,8 +951,8 @@ export default function SpeakerPanel() {
                 <span className="text-[11px] font-extrabold text-chalk">🎤 Συνέντευξη</span>
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => window.open(`${window.location.origin}/overlay/interview/${match.match_id}`, '_blank')}
-                    className="text-[10px] font-bold text-silver">👁 Προεπισκόπηση</button>
+                    onClick={() => window.open(`${window.location.origin}/overlay/interview/${match.match_id}?preview=1`, '_blank')}
+                    className="text-[10px] font-bold text-silver">👁 Προεπισκόπηση & μέγεθος</button>
                   <button
                     onClick={() => {
                       navigator.clipboard?.writeText(`${window.location.origin}/overlay/interview/${match.match_id}`)
@@ -993,16 +993,9 @@ export default function SpeakerPanel() {
                   ))}
                 </select>
               )}
-
-              {/* Inline προεπισκόπηση 16:9 (όπως το scoreboard) */}
-              <p className="text-[9px] font-extrabold text-dim tracking-[0.12em] mt-3 mb-1.5">
-                ΠΡΟΕΠΙΣΚΟΠΗΣΗ · ΟΠΩΣ ΘΑ ΦΑΙΝΕΤΑΙ ΣΤΗΝ ΟΘΟΝΗ
+              <p className="text-[9.5px] text-dim leading-snug mt-2">
+                Διάλεξε ομάδα/παίκτη εδώ. Για μέγεθος/θέση & OBS link πάτα «👁 Προεπισκόπηση & μέγεθος».
               </p>
-              <div className="w-full rounded-xl overflow-hidden border border-chalk/[0.08] bg-pitch"
-                style={{ aspectRatio: '16 / 9' }}>
-                <iframe src={`/overlay/interview/${match.match_id}`} title="Προεπισκόπηση συνέντευξης"
-                  className="w-full h-full" style={{ border: 0 }} />
-              </div>
             </div>
             <button
               onClick={() => { const n = !obsAuto; setObsAuto(n); sendFlash('AUTO', { on: n }); toast.success(n ? '🤖 Αυτόματα γραφικά ON — σχολίασε ελεύθερα' : 'Αυτόματα γραφικά OFF') }}
