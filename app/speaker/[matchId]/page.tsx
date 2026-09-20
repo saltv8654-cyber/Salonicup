@@ -979,6 +979,12 @@ export default function SpeakerPanel() {
                     ${!match.interview_side ? 'bg-chalk/[0.05] border-chalk/[0.07] text-silver' : 'bg-danger/15 border-danger/40 text-danger'}`}>
                   Κρύψε
                 </button>
+                <button onClick={() => supabase.from('matches').update({ interview_mvp: !match.interview_mvp }).eq('match_id', match.match_id).then(() => {}, () => {})}
+                  className={`px-3 py-2.5 rounded-lg text-[12px] font-extrabold border shrink-0
+                    ${match.interview_mvp ? 'text-[#0b0b0e] border-[#E8B923]' : 'bg-chalk/[0.05] border-chalk/[0.07] text-[#E8B923]'}`}
+                  style={match.interview_mvp ? { background: '#E8B923' } : undefined}>
+                  🏆 MVP
+                </button>
               </div>
               {match.interview_side && (
                 <select value={match.interview_name ?? ''}

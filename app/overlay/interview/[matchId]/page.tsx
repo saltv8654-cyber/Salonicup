@@ -56,6 +56,7 @@ export default function InterviewOverlay() {
   const a = match.team_a_data, b = match.team_b_data
   const guest = side === 'a' ? a : side === 'b' ? b : null
   const player: string | null = (match.interview_name && String(match.interview_name).trim()) || null
+  const mvp = !!match.interview_mvp
   const show = !!guest
   const fade = { opacity: show ? 1 : 0, transition: 'opacity .4s' } as const
 
@@ -118,6 +119,10 @@ export default function InterviewOverlay() {
         padding: '14px 34px 14px 22px', borderRadius: 8, boxShadow: '0 12px 40px rgba(0,0,0,.5)', ...fade }}>
         {guest?.logo_url && <img src={guest.logo_url} alt="" width={62} height={62} style={{ width: 62, height: 62, objectFit: 'contain' }} />}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {mvp && (
+            <span style={{ fontSize: 26, fontWeight: 900, color: '#E8B923', letterSpacing: '4px',
+              lineHeight: 1, textShadow: '0 2px 10px rgba(232,185,35,.4)' }}>MVP</span>
+          )}
           <span style={{ fontSize: player ? 46 : 40, fontWeight: 800, color: '#fff', textTransform: 'uppercase',
             letterSpacing: '.5px', whiteSpace: 'nowrap', lineHeight: 1 }}>
             {player ?? guest?.name ?? ''}
@@ -160,6 +165,7 @@ export default function InterviewOverlay() {
         {btn(side === 'a', a?.name ?? 'Ομάδα Α', () => setSide('a'))}
         {btn(side === 'b', b?.name ?? 'Ομάδα Β', () => setSide('b'))}
         {btn(!side, 'Κρύψε', () => setSide(null))}
+        {btn(mvp, '🏆 MVP', () => supabase.from('matches').update({ interview_mvp: !mvp }).eq('match_id', matchId).then(() => {}, () => {}))}
       </div>
 
       <div ref={setStage} style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9',
