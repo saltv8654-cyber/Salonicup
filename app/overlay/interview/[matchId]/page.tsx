@@ -1,4 +1,5 @@
 'use client'
+import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useLiveMatch } from '@/lib/hooks/useLiveMatch'
 
@@ -21,6 +22,16 @@ function leagueTheme(name?: string | null): T {
 export default function InterviewOverlay() {
   const { matchId } = useParams<{ matchId: string }>()
   const { match } = useLiveMatch(matchId)
+
+  // Κλιμάκωση ώστε το 1920×1080 να χωρά στο viewport (OBS 1920×1080 → scale 1)
+  const [scale, setScale] = useState(1)
+  useEffect(() => {
+    const calc = () => setScale(Math.min(window.innerWidth / 1920, window.innerHeight / 1080) || 1)
+    calc()
+    window.addEventListener('resize', calc)
+    return () => window.removeEventListener('resize', calc)
+  }, [])
+
   if (!match) return null
 
   const side: string | null = match.interview_side ?? null   // 'a' | 'b' | null
@@ -32,9 +43,10 @@ export default function InterviewOverlay() {
   const show = !!guest
 
   return (
-    <div style={{ position: 'fixed', inset: 0, display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
-    <div style={{ width: 1920, height: 1080, position: 'relative', flex: 'none', fontFamily: 'system-ui, sans-serif',
-      transformOrigin: 'center', transform: 'scale(min(calc(100vw / 1920), calc(100vh / 1080)))' }}>
+    <div style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
+    <div style={{ width: 1920, height: 1080, position: 'absolute', left: '50%', top: '50%',
+      fontFamily: 'system-ui, sans-serif',
+      transformOrigin: 'center', transform: `translate(-50%, -50%) scale(${scale})` }}>
       {/* Lower-third κάτω-αριστερά — εμφανίζεται/κρύβεται με slide */}
       <div style={{
         position: 'absolute', left: 90, bottom: 90, display: 'flex', flexDirection: 'column', gap: 0,
