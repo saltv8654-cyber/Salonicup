@@ -151,6 +151,15 @@ export default function SpeakerPanel() {
     toast.success('Συνθέσεις στο overlay')
   }
 
+  // Σκηνή συνέντευξης: ποια ομάδα δίνει συνέντευξη (a/b) ή κρύψιμο (null)
+  async function setInterview(side: 'a' | 'b' | null) {
+    if (!match) return
+    const { error } = await supabase.from('matches')
+      .update({ interview_side: side }).eq('match_id', match.match_id)
+    if (error) return toast.error('Δεν στάλθηκε: ' + error.message)
+    toast.success(side ? '🎤 Συνέντευξη στο overlay' : 'Έκρυψα τη συνέντευξη')
+  }
+
   async function saveStream(url: string) {
     if (!match) return
     const { error } = await supabase.from('matches')
@@ -934,6 +943,38 @@ export default function SpeakerPanel() {
                   bg-chalk/[0.05] border border-chalk/[0.07]">
                 📺 Αντιγραφή link
               </button>
+            </div>
+
+            {/* ── Σκηνή Συνέντευξης (διαφανές overlay) ── */}
+            <div className="rounded-xl border border-chalk/[0.08] bg-chalk/[0.03] p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-extrabold text-chalk">🎤 Συνέντευξη</span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard?.writeText(`${window.location.origin}/overlay/interview/${match.match_id}`)
+                    toast.success('Αντιγράφηκε το link σκηνής συνέντευξης')
+                  }}
+                  className="text-[10px] font-bold text-lit">📺 Αντιγραφή link σκηνής</button>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setInterview('a')}
+                  className={`flex-1 py-2.5 rounded-lg text-[12px] font-extrabold border truncate
+                    ${match.interview_side === 'a' ? 'bg-brand text-chalk border-brand'
+                      : 'bg-chalk/[0.05] border-chalk/[0.07] text-silver'}`}>
+                  {match.team_a_data?.name ?? 'Ομάδα Α'}
+                </button>
+                <button onClick={() => setInterview('b')}
+                  className={`flex-1 py-2.5 rounded-lg text-[12px] font-extrabold border truncate
+                    ${match.interview_side === 'b' ? 'bg-brand text-chalk border-brand'
+                      : 'bg-chalk/[0.05] border-chalk/[0.07] text-silver'}`}>
+                  {match.team_b_data?.name ?? 'Ομάδα Β'}
+                </button>
+                <button onClick={() => setInterview(null)}
+                  className={`px-3 py-2.5 rounded-lg text-[12px] font-bold border shrink-0
+                    ${!match.interview_side ? 'bg-chalk/[0.05] border-chalk/[0.07] text-silver' : 'bg-danger/15 border-danger/40 text-danger'}`}>
+                  Κρύψε
+                </button>
+              </div>
             </div>
             <button
               onClick={() => { const n = !obsAuto; setObsAuto(n); sendFlash('AUTO', { on: n }); toast.success(n ? '🤖 Αυτόματα γραφικά ON — σχολίασε ελεύθερα' : 'Αυτόματα γραφικά OFF') }}
