@@ -151,11 +151,11 @@ export default function SpeakerPanel() {
     toast.success('Συνθέσεις στο overlay')
   }
 
-  // Σκηνή συνέντευξης: ποια ομάδα δίνει συνέντευξη (a/b) ή κρύψιμο (null)
-  async function setInterview(side: 'a' | 'b' | null) {
+  // Σκηνή συνέντευξης: ομάδα (a/b) + όνομα παίκτη· null = κρύψιμο
+  async function setInterview(side: 'a' | 'b' | null, name?: string | null) {
     if (!match) return
     const { error } = await supabase.from('matches')
-      .update({ interview_side: side }).eq('match_id', match.match_id)
+      .update({ interview_side: side, interview_name: side ? (name ?? null) : null }).eq('match_id', match.match_id)
     if (error) return toast.error('Δεν στάλθηκε: ' + error.message)
     toast.success(side ? '🎤 Συνέντευξη στο overlay' : 'Έκρυψα τη συνέντευξη')
   }
@@ -949,21 +949,26 @@ export default function SpeakerPanel() {
             <div className="rounded-xl border border-chalk/[0.08] bg-chalk/[0.03] p-3">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-extrabold text-chalk">🎤 Συνέντευξη</span>
-                <button
-                  onClick={() => {
-                    navigator.clipboard?.writeText(`${window.location.origin}/overlay/interview/${match.match_id}`)
-                    toast.success('Αντιγράφηκε το link σκηνής συνέντευξης')
-                  }}
-                  className="text-[10px] font-bold text-lit">📺 Αντιγραφή link σκηνής</button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => window.open(`${window.location.origin}/overlay/interview/${match.match_id}`, '_blank')}
+                    className="text-[10px] font-bold text-silver">👁 Προεπισκόπηση</button>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard?.writeText(`${window.location.origin}/overlay/interview/${match.match_id}`)
+                      toast.success('Αντιγράφηκε το link σκηνής συνέντευξης')
+                    }}
+                    className="text-[10px] font-bold text-lit">📺 Αντιγραφή link</button>
+                </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => setInterview('a')}
+                <button onClick={() => setInterview('a', match.interview_side === 'a' ? match.interview_name : null)}
                   className={`flex-1 py-2.5 rounded-lg text-[12px] font-extrabold border truncate
                     ${match.interview_side === 'a' ? 'bg-brand text-chalk border-brand'
                       : 'bg-chalk/[0.05] border-chalk/[0.07] text-silver'}`}>
                   {match.team_a_data?.name ?? 'Ομάδα Α'}
                 </button>
-                <button onClick={() => setInterview('b')}
+                <button onClick={() => setInterview('b', match.interview_side === 'b' ? match.interview_name : null)}
                   className={`flex-1 py-2.5 rounded-lg text-[12px] font-extrabold border truncate
                     ${match.interview_side === 'b' ? 'bg-brand text-chalk border-brand'
                       : 'bg-chalk/[0.05] border-chalk/[0.07] text-silver'}`}>
@@ -975,6 +980,19 @@ export default function SpeakerPanel() {
                   Κρύψε
                 </button>
               </div>
+              {match.interview_side && (
+                <select value={match.interview_name ?? ''}
+                  onChange={e => setInterview(match.interview_side, e.target.value || null)}
+                  className="mt-2 w-full bg-chalk/[0.05] rounded-lg px-2.5 py-2 text-silver text-[12px]
+                    font-bold outline-none border border-chalk/[0.07]">
+                  <option value="">— Μόνο ομάδα (χωρίς παίκτη) —</option>
+                  {(match.interview_side === 'a' ? rosterA : rosterB).map(p => (
+                    <option key={p.player_id} value={p.full_name}>
+                      {p.number != null ? `${p.number} · ` : ''}{p.full_name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
             <button
               onClick={() => { const n = !obsAuto; setObsAuto(n); sendFlash('AUTO', { on: n }); toast.success(n ? '🤖 Αυτόματα γραφικά ON — σχολίασε ελεύθερα' : 'Αυτόματα γραφικά OFF') }}

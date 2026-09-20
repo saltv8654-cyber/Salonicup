@@ -29,6 +29,7 @@ export default function InterviewOverlay() {
   const th = leagueTheme(match.league?.name)
 
   const guest = side === 'a' ? a : side === 'b' ? b : null
+  const player: string | null = (match.interview_name && String(match.interview_name).trim()) || null
   const show = !!guest
 
   return (
@@ -45,19 +46,27 @@ export default function InterviewOverlay() {
           FLASH<br />INTERVIEW
         </div>
 
-        {/* Μπάρα ονόματος ομάδας συνέντευξης */}
+        {/* Μπάρα: όνομα παίκτη (μεγάλο) + ομάδα από κάτω */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginTop: 16,
           background: 'rgba(10,10,16,.82)', borderLeft: `10px solid ${th.pink}`,
-          padding: '16px 30px 16px 22px', borderRadius: 8, alignSelf: 'flex-start',
+          padding: '14px 34px 14px 22px', borderRadius: 8, alignSelf: 'flex-start',
           boxShadow: '0 12px 40px rgba(0,0,0,.5)' }}>
           {guest?.logo_url && (
-            <img src={guest.logo_url} alt="" width={56} height={56}
-              style={{ width: 56, height: 56, objectFit: 'contain' }} />
+            <img src={guest.logo_url} alt="" width={62} height={62}
+              style={{ width: 62, height: 62, objectFit: 'contain' }} />
           )}
-          <span style={{ fontSize: 40, fontWeight: 800, color: '#fff', textTransform: 'uppercase',
-            letterSpacing: '.5px', whiteSpace: 'nowrap' }}>
-            {guest?.name ?? ''}
-          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontSize: player ? 46 : 40, fontWeight: 800, color: '#fff',
+              textTransform: 'uppercase', letterSpacing: '.5px', whiteSpace: 'nowrap', lineHeight: 1 }}>
+              {player ?? guest?.name ?? ''}
+            </span>
+            {player && (
+              <span style={{ fontSize: 24, fontWeight: 700, color: th.pink, textTransform: 'uppercase',
+                letterSpacing: '1px', whiteSpace: 'nowrap' }}>
+                {guest?.name ?? ''}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Σκορ box */}
