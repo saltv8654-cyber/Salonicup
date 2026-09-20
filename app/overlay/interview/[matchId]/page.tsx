@@ -26,7 +26,7 @@ export default function InterviewOverlay() {
   const { match } = useLiveMatch(matchId)
   const preview = params.get('preview') != null
 
-  const [userScale, setUserScale] = useState(parseFloat(params.get('scale') || '1.5') || 1.5)
+  const [userScale, setUserScale] = useState(parseFloat(params.get('scale') || '1.1') || 1.1)
   const [copied, setCopied] = useState(false)
 
   // Χορηγοί: από URL (?sponsors=) αλλιώς από app_settings (ίδια πηγή με scoreboard)
@@ -70,7 +70,8 @@ export default function InterviewOverlay() {
       {/* Κάτω κέντρο→δεξιά: κυλιόμενοι χορηγοί (POWERED BY) — διπλάσιο μέγεθος */}
       {sponsors.length > 0 && (
         <div style={{ position: 'absolute', bottom: 44, left: 700, right: 60, display: 'flex', alignItems: 'center', gap: 22,
-          background: 'rgba(0,0,0,.6)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 14, padding: '14px 26px', ...fade }}>
+          background: 'rgba(0,0,0,.6)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 14, padding: '14px 26px',
+          transform: `scale(${userScale})`, transformOrigin: 'bottom right', ...fade }}>
           <span style={{ fontSize: 26, fontWeight: 800, letterSpacing: '.14em', color: 'rgba(255,255,255,.7)', whiteSpace: 'nowrap' }}>POWERED BY</span>
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <div style={{ display: 'flex', gap: 44, width: 'max-content',
@@ -89,7 +90,8 @@ export default function InterviewOverlay() {
       {/* Πάνω-κέντρο: ομάδες + πρωτάθλημα + αγωνιστική */}
       <div style={{ position: 'absolute', top: 44, left: 0, right: 0, display: 'flex', justifyContent: 'center', ...fade }}>
         <div style={{ background: 'rgba(10,10,16,.85)', borderTop: `4px solid ${th.pink}`, borderRadius: 10,
-          padding: '12px 34px', textAlign: 'center', boxShadow: '0 12px 40px rgba(0,0,0,.5)' }}>
+          padding: '12px 34px', textAlign: 'center', boxShadow: '0 12px 40px rgba(0,0,0,.5)',
+          transform: `scale(${userScale})`, transformOrigin: 'top center' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
             {a?.logo_url && <img src={a.logo_url} alt="" width={40} height={40} style={{ width: 40, height: 40, objectFit: 'contain' }} />}
             <span style={{ fontSize: 34, fontWeight: 800, color: '#fff', textTransform: 'uppercase', letterSpacing: '.5px', whiteSpace: 'nowrap' }}>
