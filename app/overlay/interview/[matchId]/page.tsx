@@ -29,6 +29,16 @@ export default function InterviewOverlay() {
   const [userScale, setUserScale] = useState(parseFloat(params.get('scale') || '1.5') || 1.5)
   const [copied, setCopied] = useState(false)
 
+  // Χορηγοί: από URL (?sponsors=) αλλιώς από app_settings (ίδια πηγή με scoreboard)
+  const urlSponsors = (params.get('sponsors') || '').split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean)
+  const [dbSponsors, setDbSponsors] = useState<string[]>([])
+  useEffect(() => {
+    if (urlSponsors.length) return
+    createClient().from('app_settings').select('sponsors').eq('id', 1).maybeSingle()
+      .then(({ data }: any) => setDbSponsors(data?.sponsors ?? []))
+  }, [urlSponsors.length])
+  const sponsors = urlSponsors.length ? urlSponsors : dbSponsors
+
   const [stage, setStage] = useState<HTMLDivElement | null>(null)
   const [pscale, setPscale] = useState(0.3)
   useEffect(() => {
@@ -51,6 +61,26 @@ export default function InterviewOverlay() {
 
   const scene = (
     <div style={{ position: 'absolute', top: 0, left: 0, width: REF_W, height: REF_H, fontFamily: 'system-ui, sans-serif' }}>
+      <style>{`@keyframes ovMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
+
+      {/* Κάτω κέντρο-δεξιά: κυλιόμενοι χορηγοί (POWERED BY) */}
+      {sponsors.length > 0 && (
+        <div style={{ position: 'absolute', bottom: 44, right: 110, display: 'flex', alignItems: 'center', gap: 16,
+          background: 'rgba(0,0,0,.6)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 12, padding: '10px 20px', ...fade }}>
+          <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '.14em', color: 'rgba(255,255,255,.7)', whiteSpace: 'nowrap' }}>POWERED BY</span>
+          <div style={{ width: 340, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', gap: 26, width: 'max-content',
+              animation: `ovMarquee ${Math.max(10, sponsors.length * 6)}s linear infinite` }}>
+              {[...sponsors, ...sponsors].map((u, i) => (
+                <span key={i} style={{ background: '#fff', borderRadius: 8, padding: '6px 12px', display: 'inline-flex' }}>
+                  <img src={u} alt="" style={{ height: 42, display: 'block' }} />
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* Πάνω-κέντρο: ομάδες + πρωτάθλημα + αγωνιστική */}
       <div style={{ position: 'absolute', top: 44, left: 0, right: 0, display: 'flex', justifyContent: 'center', ...fade }}>
