@@ -32,7 +32,9 @@ export default function InterviewOverlay() {
   const show = !!guest
 
   return (
-    <div style={{ width: 1920, height: 1080, position: 'relative', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ position: 'fixed', inset: 0, display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
+    <div style={{ width: 1920, height: 1080, position: 'relative', flex: 'none', fontFamily: 'system-ui, sans-serif',
+      transformOrigin: 'center', transform: 'scale(min(calc(100vw / 1920), calc(100vh / 1080)))' }}>
       {/* Lower-third κάτω-αριστερά — εμφανίζεται/κρύβεται με slide */}
       <div style={{
         position: 'absolute', left: 90, bottom: 90, display: 'flex', flexDirection: 'column', gap: 0,
@@ -79,6 +81,7 @@ export default function InterviewOverlay() {
         </div>
 
       </div>
+    </div>
     </div>
   )
 }
