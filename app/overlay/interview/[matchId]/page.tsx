@@ -26,7 +26,7 @@ export default function InterviewOverlay() {
   const { match } = useLiveMatch(matchId)
   const preview = params.get('preview') != null
 
-  const [userScale, setUserScale] = useState(parseFloat(params.get('scale') || '1.1') || 1.1)
+  const [userScale, setUserScale] = useState(parseFloat(params.get('scale') || '0.85') || 0.85)
   const [copied, setCopied] = useState(false)
 
   // Χορηγοί: από URL (?sponsors=) αλλιώς από app_settings (ίδια πηγή με scoreboard)

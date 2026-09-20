@@ -1,6 +1,6 @@
 /* Salonicup service worker — installability + offline shell.
    Προσοχή: τα live δεδομένα (Supabase, API) ΔΕΝ γίνονται cache. */
-const CACHE = 'salonicup-v288'
+const CACHE = 'salonicup-v289'
 const IMG_CACHE = 'salonicup-img-v1'   // λογότυπα/φωτό από Supabase Storage (μείωση egress)
 const ASSETS = [
   '/', '/manifest.json',
