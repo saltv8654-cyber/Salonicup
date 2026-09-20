@@ -63,17 +63,17 @@ export default function InterviewOverlay() {
     <div style={{ position: 'absolute', top: 0, left: 0, width: REF_W, height: REF_H, fontFamily: 'system-ui, sans-serif' }}>
       <style>{`@keyframes ovMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
 
-      {/* Κάτω κέντρο-δεξιά: κυλιόμενοι χορηγοί (POWERED BY) */}
+      {/* Κάτω κέντρο→δεξιά: κυλιόμενοι χορηγοί (POWERED BY) — διπλάσιο μέγεθος */}
       {sponsors.length > 0 && (
-        <div style={{ position: 'absolute', bottom: 44, right: 110, display: 'flex', alignItems: 'center', gap: 16,
-          background: 'rgba(0,0,0,.6)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 12, padding: '10px 20px', ...fade }}>
-          <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '.14em', color: 'rgba(255,255,255,.7)', whiteSpace: 'nowrap' }}>POWERED BY</span>
-          <div style={{ width: 340, overflow: 'hidden' }}>
-            <div style={{ display: 'flex', gap: 26, width: 'max-content',
-              animation: `ovMarquee ${Math.max(10, sponsors.length * 6)}s linear infinite` }}>
+        <div style={{ position: 'absolute', bottom: 44, left: 700, right: 60, display: 'flex', alignItems: 'center', gap: 22,
+          background: 'rgba(0,0,0,.6)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 14, padding: '14px 26px', ...fade }}>
+          <span style={{ fontSize: 26, fontWeight: 800, letterSpacing: '.14em', color: 'rgba(255,255,255,.7)', whiteSpace: 'nowrap' }}>POWERED BY</span>
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', gap: 44, width: 'max-content',
+              animation: `ovMarquee ${Math.max(12, sponsors.length * 7)}s linear infinite` }}>
               {[...sponsors, ...sponsors].map((u, i) => (
-                <span key={i} style={{ background: '#fff', borderRadius: 8, padding: '6px 12px', display: 'inline-flex' }}>
-                  <img src={u} alt="" style={{ height: 42, display: 'block' }} />
+                <span key={i} style={{ background: '#fff', borderRadius: 10, padding: '10px 18px', display: 'inline-flex' }}>
+                  <img src={u} alt="" style={{ height: 84, display: 'block' }} />
                 </span>
               ))}
             </div>
