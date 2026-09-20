@@ -25,7 +25,6 @@ export default function InterviewOverlay() {
 
   const side: string | null = match.interview_side ?? null   // 'a' | 'b' | null
   const a = match.team_a_data, b = match.team_b_data
-  const ga = match.goals_team_a ?? 0, gb = match.goals_team_b ?? 0
   const th = leagueTheme(match.league?.name)
 
   const guest = side === 'a' ? a : side === 'b' ? b : null
@@ -69,31 +68,7 @@ export default function InterviewOverlay() {
           </div>
         </div>
 
-        {/* Σκορ box */}
-        <div style={{ display: 'flex', alignItems: 'stretch', marginTop: 12, alignSelf: 'flex-start',
-          borderRadius: 8, overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,.5)' }}>
-          <div style={{ background: th.pink, display: 'flex', alignItems: 'center', padding: '0 16px' }}>
-            <span style={{ fontSize: 18, fontWeight: 900, color: '#0b0b0e', letterSpacing: '1px' }}>LIVE</span>
-          </div>
-          <div style={{ background: 'rgba(10,10,16,.9)', padding: '10px 20px', display: 'flex',
-            flexDirection: 'column', gap: 3 }}>
-            <ScoreRow name={a?.name} goals={ga} lead={side === 'a'} pink={th.pink} />
-            <ScoreRow name={b?.name} goals={gb} lead={side === 'b'} pink={th.pink} />
-          </div>
-        </div>
       </div>
-    </div>
-  )
-}
-
-function ScoreRow({ name, goals, lead, pink }: { name?: string; goals: number; lead: boolean; pink: string }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 320 }}>
-      <span style={{ width: 6, height: 22, background: lead ? pink : 'transparent', borderRadius: 3 }} />
-      <span style={{ flex: 1, fontSize: 26, fontWeight: 700, color: '#fff', textTransform: 'uppercase',
-        whiteSpace: 'nowrap' }}>{name ?? '—'}</span>
-      <span style={{ fontSize: 30, fontWeight: 900, color: '#fff', minWidth: 34, textAlign: 'right',
-        fontVariantNumeric: 'tabular-nums' }}>{goals}</span>
     </div>
   )
 }
