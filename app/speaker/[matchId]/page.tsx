@@ -993,6 +993,16 @@ export default function SpeakerPanel() {
                   ))}
                 </select>
               )}
+
+              {/* Inline προεπισκόπηση 16:9 (όπως το scoreboard) */}
+              <p className="text-[9px] font-extrabold text-dim tracking-[0.12em] mt-3 mb-1.5">
+                ΠΡΟΕΠΙΣΚΟΠΗΣΗ · ΟΠΩΣ ΘΑ ΦΑΙΝΕΤΑΙ ΣΤΗΝ ΟΘΟΝΗ
+              </p>
+              <div className="w-full rounded-xl overflow-hidden border border-chalk/[0.08] bg-pitch"
+                style={{ aspectRatio: '16 / 9' }}>
+                <iframe src={`/overlay/interview/${match.match_id}`} title="Προεπισκόπηση συνέντευξης"
+                  className="w-full h-full" style={{ border: 0 }} />
+              </div>
             </div>
             <button
               onClick={() => { const n = !obsAuto; setObsAuto(n); sendFlash('AUTO', { on: n }); toast.success(n ? '🤖 Αυτόματα γραφικά ON — σχολίασε ελεύθερα' : 'Αυτόματα γραφικά OFF') }}
