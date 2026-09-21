@@ -61,17 +61,25 @@ export default async function SchedulePage() {
   const key = (f: string | null, iso: string) => `${f ?? ''}|${new Date(iso).getTime()}`
   for (const m of matches ?? []) booked.add(key(m.field, m.match_date))
 
-  // Ελεύθερα slots (για την επιλογή «Αλλαγή ώρας» του captain) — μόνο γήπεδα του format του
-  const freeSlots = (slots ?? [])
-    .filter(s => !booked.has(key(s.field, s.starts_at)) && allowFld(s.field))
+  // Ελεύθερα (μη κλεισμένα) slots
+  const unbooked = (slots ?? []).filter(s => !booked.has(key(s.field, s.starts_at)))
+  // Fail-safe: εφάρμοσε το φίλτρο format ΜΟΝΟ αν αφήνει τουλάχιστον ένα ελεύθερο γήπεδο.
+  // Αλλιώς (π.χ. δεν υπάρχουν ακόμη προγραμματισμένα ματς του format του captain για να
+  // «ταυτοποιηθούν» τα γήπεδα) δείξε ΟΛΑ τα ελεύθερα — να μη μένει ποτέ ο captain χωρίς επιλογές.
+  const applyFilter = !!myFormat && unbooked.some(s => allowFld(s.field))
+  const slotOk = (f: string | null) => !applyFilter || allowFld(f)
+
+  // Ελεύθερα slots (για την επιλογή «Αλλαγή ώρας» του captain)
+  const freeSlots = unbooked
+    .filter(s => slotOk(s.field))
     .map(s => ({ iso: s.starts_at, field: s.field, venue: (s.venue as any)?.name ?? null }))
 
   // Στοιχεία προς εμφάνιση: όλα τα ματς + όσα slots δεν έχουν ματς εκείνη την ώρα/γήπεδο
   type Item = { iso: string; field: string | null; match?: any; venue?: string }
   const items: Item[] = []
   for (const m of matches ?? []) items.push({ iso: m.match_date, field: m.field, match: m })
-  for (const s of slots ?? []) {
-    if (!booked.has(key(s.field, s.starts_at)) && allowFld(s.field))
+  for (const s of unbooked) {
+    if (slotOk(s.field))
       items.push({ iso: s.starts_at, field: s.field, venue: (s.venue as any)?.name })
   }
 
