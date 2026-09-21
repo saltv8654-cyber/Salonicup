@@ -1,8 +1,26 @@
 import { createClient } from '@/lib/supabase/server'
-import { Empty, Postponements } from '@/app/ui'
+import { Empty } from '@/app/ui'
 import { MAX_POSTPONEMENTS } from '@/lib/match'
 
 export const dynamic = 'force-dynamic'
+
+/** Χρυσο-κίτρινες κάρτες αναβολών (σαν κίτρινες κάρτες). */
+function Cards({ n }: { n: number }) {
+  return (
+    <div className="flex items-center gap-1.5 shrink-0">
+      <div className="flex items-center gap-1">
+        {Array.from({ length: MAX_POSTPONEMENTS }).map((_, i) => (
+          <span key={i} className="w-[13px] h-[19px] rounded-[3px]"
+            style={i < n
+              ? { background: 'linear-gradient(180deg,#FDE08A,#E8B923 55%,#C8901A)', boxShadow: '0 1px 5px rgba(232,185,35,.55)' }
+              : { background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)' }} />
+        ))}
+      </div>
+      <span className="text-[13px] font-black tnum w-6 text-right"
+        style={{ color: n >= MAX_POSTPONEMENTS ? '#E8B923' : n > 0 ? '#E8B923' : '#6b6b73' }}>{n}</span>
+    </div>
+  )
+}
 
 export default async function AdminPostponements() {
   const supabase = createClient()
@@ -42,7 +60,7 @@ export default async function AdminPostponements() {
                     <div key={t.team_id}
                       className={`flex items-center justify-between px-3.5 py-2.5 ${i ? 'border-t border-chalk/[0.05]' : ''}`}>
                       <span className="text-[13px] font-semibold text-chalk truncate">{t.name}</span>
-                      <Postponements n={t.postponements ?? 0} max={MAX_POSTPONEMENTS} />
+                      <Cards n={t.postponements ?? 0} />
                     </div>
                   ))}
                 </div>
