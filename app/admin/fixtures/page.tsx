@@ -142,6 +142,7 @@ export default function AdminFixtures() {
   const [venueId, setVenueId] = useState('')
 
   const [busy, setBusy] = useState(false)
+  const [slotBusy, setSlotBusy] = useState(false)
   const [doneInfo, setDoneInfo] = useState<{ matches: number } | null>(null)
   const [dupBusy, setDupBusy] = useState(false)
   const [dupRes, setDupRes] = useState<{ pairs: string[]; slots: string[] } | null>(null)
@@ -591,6 +592,76 @@ export default function AdminFixtures() {
     }
   }
 
+  // Ξαναφτιάχνει ΜΟΝΟ τα ελεύθερα γήπεδα (slots) από τη ρύθμιση (γήπεδο/μέρες/ώρες/
+  // «γήπεδα ανά μέρα») — ΧΩΡΙΣ να δημιουργεί ή να σβήνει αγώνες. Χρήσιμο όταν οι
+  // αγωνιστικές έχουν ήδη βγει και θέλουμε απλώς να επανέλθουν τα «ΕΛΕΥΘΕΡΟ».
+  async function rebuildFreeSlots() {
+    if (!venueId) return toast.error('Διάλεξε γήπεδο (φορτώνει και τα ελεύθερα)')
+    const fieldList = fields.split(',').map(s => s.trim()).filter(Boolean)
+    if (!fieldList.length) return toast.error('Βάλε γήπεδα')
+    if (!startDate) return toast.error('Βάλε ημερομηνία έναρξης')
+    const byDow = parseSlots()
+    if (!Object.keys(byDow).length) return toast.error('Δεν διάβασα μέρες/ώρες — έλεγξε τη μορφή')
+
+    setSlotBusy(true)
+    try {
+      // Ορίζοντας: μέχρι τον τελευταίο υπάρχοντα αγώνα σε αυτές τις πίστες (αλλιώς +120 μέρες)
+      const { data: lastM } = await supabase.from('matches')
+        .select('match_date').not('match_date', 'is', null).in('field', fieldList)
+        .order('match_date', { ascending: false }).limit(1)
+      const [Y, M, D] = startDate.split('-').map(Number)
+      const start = new Date(Y, M - 1, D)
+      const end = lastM?.[0]?.match_date ? new Date(lastM[0].match_date) : addDays(start, 120)
+
+      const dayFields = parseDayFields(dayFieldsText)
+      const blackout = parseBlackout(blackoutText)
+      const isBlackout = (d: Date) => blackout.some(([s, e]) => d >= s && d <= e)
+      const norm = (s: string) => s.toLowerCase().replace(/[.\s]/g, '')
+
+      const entries: { iso: string; field: string }[] = []
+      for (let off = 0; off < 500; off++) {
+        const date = addDays(start, off)
+        if (date > end) break
+        if (isBlackout(date)) continue
+        const times = byDow[date.getDay()]
+        if (!times) continue
+        const flds = dayFields[date.getDay()]
+          ? dayFields[date.getDay()].map(f => fieldList.find(ff => norm(ff) === norm(f))).filter((f): f is string => !!f)
+          : fieldList
+        const useFlds = flds.length ? flds : fieldList
+        for (const t of times) {
+          const dt = new Date(date.getFullYear(), date.getMonth(), date.getDate(), t.h, t.m)
+          for (const f of useFlds) entries.push({ iso: dt.toISOString(), field: f })
+        }
+      }
+      if (!entries.length) throw new Error('Δεν προέκυψαν ελεύθερα — έλεγξε μέρες/ώρες')
+
+      // Καθάρισε ΜΟΝΟ τις πίστες αυτής της ρύθμισης (δεν πειράζει άλλες κατηγορίες)
+      await supabase.from('slots').delete().eq('venue_id', venueId).in('field', fieldList)
+      // Σύνδεσε match_id όπου υπάρχει ήδη αγώνας (για συνέπεια· η εμφάνιση «πιασμένο» βγαίνει ούτως ή άλλως από τους αγώνες)
+      const { data: exist } = await supabase.from('matches')
+        .select('match_id, field, match_date').not('match_date', 'is', null).in('field', fieldList)
+      const mMap = new Map<string, string>()
+      for (const m of exist ?? []) if (m.field) mMap.set(`${new Date(m.match_date).getTime()}|${m.field}`, m.match_id)
+
+      const rows = entries.map(e => ({
+        venue_id: venueId, field: e.field, starts_at: e.iso,
+        match_id: mMap.get(`${new Date(e.iso).getTime()}|${e.field}`) ?? null,
+      }))
+      for (let i = 0; i < rows.length; i += 200) {
+        const { error } = await supabase.from('slots')
+          .upsert(rows.slice(i, i + 200), { onConflict: 'venue_id,field,starts_at' })
+        if (error) throw new Error(error.message)
+      }
+      const freeCount = rows.filter(r => !r.match_id).length
+      toast.success(`Ανανεώθηκαν τα ελεύθερα (Γήπ.: ${fieldList.join(', ')}) — ${freeCount} ελεύθερα, χωρίς αλλαγή αγώνων`)
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Κάτι πήγε στραβά')
+    } finally {
+      setSlotBusy(false)
+    }
+  }
+
   if (load) return <Loading />
 
   return (
@@ -741,6 +812,21 @@ export default function AdminFixtures() {
       </div>
 
       <SaveBtn busy={busy} onClick={generate} label="Δημιουργία αγωνιστικών" />
+
+      {/* Ανανέωση μόνο των ελεύθερων γηπέδων — χωρίς να πειραχτούν οι αγώνες */}
+      <div className="bg-turf rounded-xl p-3.5 border border-lit/20 flex flex-col gap-2">
+        <button onClick={rebuildFreeSlots} disabled={slotBusy}
+          className="w-full py-3 rounded-xl bg-lit/[0.12] border border-lit/35
+            text-lit font-extrabold text-[13.5px] disabled:opacity-50">
+          {slotBusy ? 'Ανανέωση…' : '🟢 Ανανέωση ελεύθερων (χωρίς αλλαγή αγώνων)'}
+        </button>
+        <p className="text-[10.5px] text-off leading-relaxed">
+          Αν οι αγωνιστικές έχουν ήδη βγει και δεν φαίνονται τα «ΕΛΕΥΘΕΡΟ», πάτα εδώ:
+          ξαναφτιάχνει τα ελεύθερα από το γήπεδο/μέρες/ώρες που έχεις πιο πάνω, <b>χωρίς</b> να
+          δημιουργεί ή να σβήνει αγώνες. Για κάθε κατηγορία διάλεξε τις δικές της πίστες
+          (π.χ. 8×8 → «Γήπ. 4, Γήπ. 3» · 7×7 → «Γήπ. 5») και τις μέρες/ώρες της, και πάτησέ το.
+        </p>
+      </div>
 
       {doneInfo && (
         <div className="bg-lit/[0.08] border border-lit/25 rounded-xl p-4 text-center">
