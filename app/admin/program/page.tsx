@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { FieldBadge, Empty } from '@/app/ui'
 import { fmtTime, fmtDay, athensDateKey } from '@/lib/time'
 import WeekAccordion, { type Week } from '@/app/schedule/week-accordion'
-import { computeFreeSlots } from '@/lib/freeslots'
+import { computeFreeFromAvailability, DEFAULT_AVAILABILITY } from '@/lib/freeslots'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,13 +32,14 @@ function Pill({ s }: { s: string }) {
 
 export default async function AdminProgram() {
   const supabase = createClient()
-  const [{ data: matches }, { data: venues }, { data: resp }, { data: postponed }] = await Promise.all([
+  const [{ data: matches }, { data: venues }, { data: settings }, { data: resp }, { data: postponed }] = await Promise.all([
     supabase.from('matches')
       .select(`match_id, match_date, field, match_status, goals_team_a, goals_team_b,
         team_a, team_b, placeholder_a, placeholder_b,
         league:league_id(name), team_a_data:team_a(name), team_b_data:team_b(name)`)
       .not('match_date', 'is', null).gte('match_date', since()).order('match_date'),
     supabase.from('venues').select('name, fields'),
+    supabase.from('app_settings').select('availability').eq('id', 1).maybeSingle(),
     supabase.from('match_responses').select('match_id, team_id, status, note'),
     supabase.from('matches')
       .select(`match_id, round, placeholder_a, placeholder_b, postpone_by,
@@ -57,8 +58,9 @@ export default async function AdminProgram() {
     respBy.get(r.match_id)![side] = r
   }
 
-  // Ελεύθερα γήπεδα — αυτόματα από τους υπάρχοντες αγώνες (ανά μέρα: ενεργές πίστες × ώρες)
-  const free = computeFreeSlots(matches ?? [], (venues ?? []) as any)
+  // Ελεύθερα γήπεδα — από την εβδομαδιαία διαθεσιμότητα (Admin → Ελεύθερα) μείον τους αγώνες
+  const availText: string = ((settings as any)?.availability) || DEFAULT_AVAILABILITY
+  const free = computeFreeFromAvailability(availText, matches ?? [], (venues ?? []) as any)
 
   type Item = { iso: string; field: string | null; match?: any; venue?: string }
   const items: Item[] = []

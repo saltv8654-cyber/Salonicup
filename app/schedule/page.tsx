@@ -7,7 +7,7 @@ import MatchResponse from './match-response'
 import ChangeBanner from './change-banner'
 import WeekAccordion, { type Week } from './week-accordion'
 import { fmtTime, fmtDay, athensDateKey } from '@/lib/time'
-import { computeFreeSlots } from '@/lib/freeslots'
+import { computeFreeFromAvailability, DEFAULT_AVAILABILITY } from '@/lib/freeslots'
 
 const GRMON = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαΐ', 'Ιουν', 'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ']
 const weekLabel = (iso: string) => {
@@ -28,17 +28,19 @@ export default async function SchedulePage() {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: matches }, { data: venues }, { data: prof }] = await Promise.all([
+  const [{ data: matches }, { data: venues }, { data: settings }, { data: prof }] = await Promise.all([
     supabase.from('matches')
       .select(`match_id, match_date, field, match_status, placeholder_a, placeholder_b, team_a, team_b,
         league:league_id(name, format), team_a_data:team_a(name), team_b_data:team_b(name)`)
       .not('match_date', 'is', null)
       .gte('match_date', since()).order('match_date'),
     supabase.from('venues').select('name, fields'),
+    supabase.from('app_settings').select('availability').eq('id', 1).maybeSingle(),
     user
       ? supabase.from('profiles').select('team:team_id(league:league_id(format))').eq('id', user.id).maybeSingle()
       : Promise.resolve({ data: null as any }),
   ])
+  const availText: string = ((settings as any)?.availability) || DEFAULT_AVAILABILITY
 
   // Format του πρωταθλήματος του captain (π.χ. 8x8 / 7x7) — null = admin/χωρίς ομάδα → βλέπει τα πάντα
   const myFormat: string | null = ((prof as any)?.team?.league?.format) ?? null
@@ -55,8 +57,8 @@ export default async function SchedulePage() {
   const allowFld = (f: string | null) =>
     !myFormat || !f || !fieldFmt.has(f) || fieldFmt.get(f)!.has(myFormat)
 
-  // Ελεύθερα γήπεδα — αυτόματα από τους υπάρχοντες αγώνες (ανά μέρα: ενεργές πίστες × ώρες)
-  const free = computeFreeSlots(matches ?? [], (venues ?? []) as any)
+  // Ελεύθερα γήπεδα — από την εβδομαδιαία διαθεσιμότητα (Admin → Ελεύθερα) μείον τους αγώνες
+  const free = computeFreeFromAvailability(availText, matches ?? [], (venues ?? []) as any)
   // Fail-safe: εφάρμοσε το φίλτρο format ΜΟΝΟ αν αφήνει τουλάχιστον ένα ελεύθερο γήπεδο.
   const applyFilter = !!myFormat && free.some(s => allowFld(s.field))
   const slotOk = (f: string | null) => !applyFilter || allowFld(f)
