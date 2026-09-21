@@ -564,8 +564,10 @@ export default function AdminFixtures() {
 
       // Δημιουργία slots (ελεύθερα γήπεδα) — μόνο αν επιλέχθηκε γήπεδο
       if (venueId && slotEntries.length) {
-        // καθάρισε ΟΛΑ τα παλιά slots του γηπέδου (πλήρης αντικατάσταση, χωρίς ορφανά)
-        await supabase.from('slots').delete().eq('venue_id', venueId)
+        // Καθάρισε τα παλιά slots ΜΟΝΟ για τις πίστες αυτής της γεννήτριας (fieldList).
+        // Έτσι μια γεννήτρια για το 7x7 (Γήπ.5) ΔΕΝ σβήνει τα ελεύθερα του 8x8 (Γήπ.3/4)
+        // στο ίδιο γήπεδο — κάθε κατηγορία «κρατάει» τη δική της κάνναβο.
+        await supabase.from('slots').delete().eq('venue_id', venueId).in('field', fieldList)
         const key = (iso: string, f: string) => `${new Date(iso).getTime()}|${f}`
         const mMap = new Map<string, string>()
         for (const m of inserted) mMap.set(key(m.match_date, m.field), m.match_id)

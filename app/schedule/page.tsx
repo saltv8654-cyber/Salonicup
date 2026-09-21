@@ -7,7 +7,6 @@ import MatchResponse from './match-response'
 import ChangeBanner from './change-banner'
 import WeekAccordion, { type Week } from './week-accordion'
 import { fmtTime, fmtDay, athensDateKey } from '@/lib/time'
-import { computeFreeSlots } from '@/lib/freeslots'
 
 const GRMON = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαΐ', 'Ιουν', 'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ']
 const weekLabel = (iso: string) => {
@@ -28,7 +27,7 @@ export default async function SchedulePage() {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: slots }, { data: matches }, { data: venues }, { data: prof }] = await Promise.all([
+  const [{ data: slots }, { data: matches }, { data: prof }] = await Promise.all([
     supabase.from('slots')
       .select('slot_id, field, starts_at, venue:venue_id(name)')
       .gte('starts_at', since()).order('starts_at'),
@@ -37,7 +36,6 @@ export default async function SchedulePage() {
         league:league_id(name, format), team_a_data:team_a(name), team_b_data:team_b(name)`)
       .not('match_date', 'is', null)
       .gte('match_date', since()).order('match_date'),
-    supabase.from('venues').select('name, fields'),
     user
       ? supabase.from('profiles').select('team:team_id(league:league_id(format))').eq('id', user.id).maybeSingle()
       : Promise.resolve({ data: null as any }),
@@ -58,27 +56,30 @@ export default async function SchedulePage() {
   const allowFld = (f: string | null) =>
     !myFormat || !f || !fieldFmt.has(f) || fieldFmt.get(f)!.has(myFormat)
 
-  // Ελεύθερα γήπεδα — αυτόματα από το πρόγραμμα (+ χειροκίνητα slots)
-  const free = computeFreeSlots(matches ?? [], (slots ?? []) as any, (venues ?? []) as any)
+  // «Κλεισμένα» κλειδιά: γήπεδο + ώρα (από τα πραγματικά ματς)
+  const booked = new Set<string>()
+  const key = (f: string | null, iso: string) => `${f ?? ''}|${new Date(iso).getTime()}`
+  for (const m of matches ?? []) booked.add(key(m.field, m.match_date))
 
+  // Ελεύθερα (μη κλεισμένα) slots — από τον πίνακα «slots» (τα φτιάχνει η Γεννήτρια
+  // σεβόμενη τα «γήπεδα ανά μέρα», π.χ. Πέμπτη μόνο Γήπ.4).
+  const unbooked = (slots ?? []).filter(s => !booked.has(key(s.field, s.starts_at)))
   // Fail-safe: εφάρμοσε το φίλτρο format ΜΟΝΟ αν αφήνει τουλάχιστον ένα ελεύθερο γήπεδο.
-  // Αλλιώς (π.χ. δεν έχουν ταυτοποιηθεί ακόμη τα γήπεδα του format του captain)
-  // δείξε ΟΛΑ τα ελεύθερα — να μη μένει ποτέ ο captain χωρίς επιλογές.
-  const applyFilter = !!myFormat && free.some(s => allowFld(s.field))
+  const applyFilter = !!myFormat && unbooked.some(s => allowFld(s.field))
   const slotOk = (f: string | null) => !applyFilter || allowFld(f)
 
   // Ελεύθερα slots (για την επιλογή «Αλλαγή ώρας» του captain)
-  const freeSlots = free
+  const freeSlots = unbooked
     .filter(s => slotOk(s.field))
-    .map(s => ({ iso: s.iso, field: s.field, venue: s.venue ?? null }))
+    .map(s => ({ iso: s.starts_at, field: s.field, venue: (s.venue as any)?.name ?? null }))
 
-  // Στοιχεία προς εμφάνιση: όλα τα ματς + τα ελεύθερα γήπεδα
+  // Στοιχεία προς εμφάνιση: όλα τα ματς + όσα slots δεν έχουν ματς εκείνη την ώρα/γήπεδο
   type Item = { iso: string; field: string | null; match?: any; venue?: string }
   const items: Item[] = []
   for (const m of matches ?? []) items.push({ iso: m.match_date, field: m.field, match: m })
-  for (const s of free) {
+  for (const s of unbooked) {
     if (slotOk(s.field))
-      items.push({ iso: s.iso, field: s.field, venue: s.venue ?? undefined })
+      items.push({ iso: s.starts_at, field: s.field, venue: (s.venue as any)?.name })
   }
 
   // Ομαδοποίηση ανά ημέρα
