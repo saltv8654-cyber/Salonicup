@@ -43,14 +43,18 @@ export default async function SchedulePage() {
 
   // Format του πρωταθλήματος του captain (π.χ. 8x8 / 7x7) — null = admin/χωρίς ομάδα → βλέπει τα πάντα
   const myFormat: string | null = ((prof as any)?.team?.league?.format) ?? null
-  // Ποιο format «ανήκει» σε κάθε γήπεδο (από τους προγραμματισμένους αγώνες)
-  const fieldFmt = new Map<string, string>()
+  // Ποια format «παίζουν» σε κάθε γήπεδο (από ΟΛΟΥΣ τους προγραμματισμένους αγώνες).
+  // Σημ.: ένα γήπεδο μπορεί να φιλοξενεί περισσότερα από ένα format (π.χ. ένας
+  // μεμονωμένος αγώνας άλλης κατηγορίας) — γι' αυτό κρατάμε ΟΛΑ τα format, όχι μόνο το πρώτο.
+  const fieldFmt = new Map<string, Set<string>>()
   for (const m of matches ?? []) {
     const f = (m as any).field, fmt = (m as any).league?.format
-    if (f && fmt && !fieldFmt.has(f)) fieldFmt.set(f, fmt)
+    if (f && fmt) { if (!fieldFmt.has(f)) fieldFmt.set(f, new Set()); fieldFmt.get(f)!.add(fmt) }
   }
-  // Επιτρέπεται το γήπεδο για τον captain; (άγνωστο γήπεδο ή admin = ναι)
-  const allowFld = (f: string | null) => !myFormat || !f || !fieldFmt.has(f) || fieldFmt.get(f) === myFormat
+  // Επιτρέπεται το γήπεδο για τον captain; (admin/χωρίς format ή άγνωστο γήπεδο ή
+  // παίζει το format του captain σε αυτό = ναι)
+  const allowFld = (f: string | null) =>
+    !myFormat || !f || !fieldFmt.has(f) || fieldFmt.get(f)!.has(myFormat)
 
   // «Κλεισμένα» κλειδιά: γήπεδο + ώρα (από τα πραγματικά ματς)
   const booked = new Set<string>()
