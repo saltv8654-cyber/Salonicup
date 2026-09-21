@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { FieldBadge, Empty } from '@/app/ui'
 import { fmtTime, fmtDay, athensDateKey } from '@/lib/time'
 import WeekAccordion, { type Week } from '@/app/schedule/week-accordion'
+import { computeFreeSlots } from '@/lib/freeslots'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +18,6 @@ const weekLabel = (iso: string) => {
 }
 
 const since = () => new Date(Date.now() - 86400000).toISOString()
-const key = (f: string | null, iso: string) => `${f ?? ''}|${new Date(iso).getTime()}`
 
 const RESP: Record<string, { t: string; bg: string; fg: string }> = {
   ok:         { t: 'ΟΚ',           bg: 'rgba(47,168,79,0.16)',  fg: '#2FA84F' },
@@ -32,13 +32,14 @@ function Pill({ s }: { s: string }) {
 
 export default async function AdminProgram() {
   const supabase = createClient()
-  const [{ data: matches }, { data: slots }, { data: resp }, { data: postponed }] = await Promise.all([
+  const [{ data: matches }, { data: slots }, { data: venues }, { data: resp }, { data: postponed }] = await Promise.all([
     supabase.from('matches')
       .select(`match_id, match_date, field, match_status, goals_team_a, goals_team_b,
         team_a, team_b, placeholder_a, placeholder_b,
         league:league_id(name), team_a_data:team_a(name), team_b_data:team_b(name)`)
       .not('match_date', 'is', null).gte('match_date', since()).order('match_date'),
     supabase.from('slots').select('field, starts_at, venue:venue_id(name)').gte('starts_at', since()).order('starts_at'),
+    supabase.from('venues').select('name, fields'),
     supabase.from('match_responses').select('match_id, team_id, status, note'),
     supabase.from('matches')
       .select(`match_id, round, placeholder_a, placeholder_b, postpone_by,
@@ -57,15 +58,13 @@ export default async function AdminProgram() {
     respBy.get(r.match_id)![side] = r
   }
 
-  // Ελεύθερα slots (όσα δεν έχουν ματς εκείνη την ώρα/γήπεδο)
-  const booked = new Set<string>()
-  for (const m of matches ?? []) booked.add(key(m.field, m.match_date))
+  // Ελεύθερα γήπεδα — αυτόματα από το πρόγραμμα (+ χειροκίνητα slots)
+  const free = computeFreeSlots(matches ?? [], (slots ?? []) as any, (venues ?? []) as any)
 
   type Item = { iso: string; field: string | null; match?: any; venue?: string }
   const items: Item[] = []
   for (const m of matches ?? []) items.push({ iso: m.match_date, field: m.field, match: m })
-  for (const s of slots ?? []) if (!booked.has(key(s.field, s.starts_at)))
-    items.push({ iso: s.starts_at, field: s.field, venue: (s.venue as any)?.name })
+  for (const s of free) items.push({ iso: s.iso, field: s.field, venue: s.venue ?? undefined })
 
   const byDay = new Map<string, Item[]>()
   for (const it of items) {
