@@ -14,6 +14,7 @@ const NAV = [
   { href: '/admin/teams',    label: 'Ομάδες',        icon: '👕' },
   { href: '/admin/players',  label: 'Παίκτες',       icon: '👤' },
   { href: '/admin/matches',  label: 'Αγώνες',        icon: '⚽' },
+  { href: '/admin/postponements', label: 'Αναβολές',  icon: '⛔' },
   { href: '/admin/program',  label: 'Ημερολόγιο',    icon: '📆' },
   { href: '/admin/cup',      label: 'Κύπελλο',       icon: '🥇' },
   { href: '/admin/draw',     label: 'Κλήρωση',       icon: '🎬' },
