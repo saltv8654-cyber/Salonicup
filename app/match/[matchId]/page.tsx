@@ -539,6 +539,18 @@ export default function PublicMatch() {
 }
 
 // Σμίκρυνση + συμπίεση φωτο πριν το ανέβασμα (και HEIC→JPEG). Μειώνει ~10× το μέγεθος.
+// Λογότυπο για watermark (φορτώνεται μία φορά)
+let _logoP: Promise<HTMLImageElement | null> | null = null
+function loadLogo() {
+  if (!_logoP) _logoP = new Promise(res => {
+    const im = new Image()
+    im.onload = () => res(im)
+    im.onerror = () => res(null)
+    im.src = '/logo.png'
+  })
+  return _logoP
+}
+
 async function compressImage(file: File, maxSide = 2048, quality = 0.85): Promise<{ blob: Blob; ext: string; type: string }> {
   if (!file.type.startsWith('image/')) return { blob: file, ext: file.name.split('.').pop() || 'jpg', type: file.type }
   const url = URL.createObjectURL(file)
@@ -552,6 +564,20 @@ async function compressImage(file: File, maxSide = 2048, quality = 0.85): Promis
     const ctx = canvas.getContext('2d')!
     ctx.imageSmoothingQuality = 'high'
     ctx.drawImage(img, 0, 0, w, h)
+    // Watermark: λογότυπο πάνω-δεξιά
+    try {
+      const logo = await loadLogo()
+      if (logo && logo.width) {
+        const lw = Math.round(w * 0.15)
+        const lh = Math.round(lw * (logo.height / logo.width))
+        const pad = Math.round(w * 0.022)
+        ctx.save()
+        ctx.globalAlpha = 0.92
+        ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = Math.round(w * 0.008)
+        ctx.drawImage(logo, w - lw - pad, pad, lw, lh)
+        ctx.restore()
+      }
+    } catch { /* χωρίς watermark αν αποτύχει */ }
     const toBlob = (t: string) => new Promise<Blob | null>(r => canvas.toBlob(r, t, quality))
     // WebP (πολύ μικρότερο, ίδια ποιότητα)· αν δεν υποστηρίζεται → JPEG
     const webp = await toBlob('image/webp')
