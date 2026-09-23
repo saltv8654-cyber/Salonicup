@@ -43,8 +43,12 @@ export default function MatchResponse({ match, freeSlots = [] }: { match: any; f
   const [modal, setModal] = useState<null | 'reschedule' | 'postpone'>(null)
 
   const isAdmin = profile?.role === 'admin'
-  const myTeam = profile?.team_id ?? null
-  const mySide: 'a' | 'b' | null = myTeam === match.team_a ? 'a' : myTeam === match.team_b ? 'b' : null
+  // Ένας αρχηγός μπορεί να έχει έως δύο ομάδες (team_id + team_id_2)
+  const myTeams = [profile?.team_id, (profile as any)?.team_id_2].filter(Boolean) as string[]
+  const mySide: 'a' | 'b' | null =
+    myTeams.includes(match.team_a) ? 'a' : myTeams.includes(match.team_b) ? 'b' : null
+  // Η ομάδα ΜΟΥ που παίζει σε αυτόν τον αγώνα (για σωστή καταχώρηση απάντησης)
+  const myTeam = mySide === 'a' ? match.team_a : mySide === 'b' ? match.team_b : null
   const show = isAdmin || !!mySide
   // Μόνο ελεύθερα της ΙΔΙΑΣ εβδομάδας με τον αγώνα
   const weekSlots = match.match_date

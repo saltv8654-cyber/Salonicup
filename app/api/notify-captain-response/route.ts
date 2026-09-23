@@ -27,8 +27,8 @@ export async function POST(req: Request) {
     auth: { persistSession: false },
   })
 
-  // Ποια ομάδα (του χρήστη) + λεπτομέρειες αγώνα
-  const { data: prof } = await admin.from('profiles').select('team_id, full_name').eq('id', user.id).maybeSingle()
+  // Ποια ομάδα (του χρήστη) + λεπτομέρειες αγώνα — ο αρχηγός μπορεί να έχει δύο ομάδες
+  const { data: prof } = await admin.from('profiles').select('team_id, team_id_2, full_name').eq('id', user.id).maybeSingle()
   const { data: m } = await admin.from('matches')
     .select('match_date, team_a, team_b, team_a_data:team_a(name), team_b_data:team_b(name), league:league_id(name)')
     .eq('match_id', match_id).maybeSingle()
@@ -40,13 +40,17 @@ export async function POST(req: Request) {
   const who = (prof?.full_name || 'Captain')
 
   // Παραλήπτες: admins (→ /admin/matches) + ο αρχηγός της ΑΝΤΙΠΑΛΗΣ ομάδας (→ /schedule)
-  const myTeam = prof?.team_id ?? null
-  const oppTeam = m ? (myTeam === m.team_a ? m.team_b : myTeam === m.team_b ? m.team_a : null) : null
+  const myTeams = [prof?.team_id, (prof as any)?.team_id_2].filter(Boolean) as string[]
+  const oppTeam = m
+    ? (myTeams.includes(m.team_a) ? m.team_b : myTeams.includes(m.team_b) ? m.team_a : null)
+    : null
 
   const [{ data: admins }, { data: opps }] = await Promise.all([
     admin.from('profiles').select('id').eq('role', 'admin'),
-    oppTeam ? admin.from('profiles').select('id').eq('role', 'captain').eq('team_id', oppTeam)
-            : Promise.resolve({ data: [] as any[] }),
+    oppTeam
+      ? admin.from('profiles').select('id').eq('role', 'captain')
+          .or(`team_id.eq.${oppTeam},team_id_2.eq.${oppTeam}`)
+      : Promise.resolve({ data: [] as any[] }),
   ])
   const adminIds = (admins ?? []).map((a: any) => a.id)
   const oppIds   = (opps ?? []).map((a: any) => a.id)

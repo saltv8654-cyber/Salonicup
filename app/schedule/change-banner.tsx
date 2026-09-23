@@ -19,14 +19,14 @@ export default function ChangeBanner() {
   }, [])
 
   useEffect(() => {
-    const tid = profile?.team_id
-    if (!tid) return
+    const tids = [profile?.team_id, (profile as any)?.team_id_2].filter(Boolean) as string[]
+    if (!tids.length) return
     const since = new Date(Date.now() - 10 * 86400000).toISOString()
     supabase.from('match_notices').select('id, body, created_at')
-      .eq('team_id', tid).gte('created_at', since)
+      .in('team_id', tids).gte('created_at', since)
       .order('created_at', { ascending: false }).limit(10)
       .then(({ data }) => setRows(data ?? []))
-  }, [profile?.team_id])
+  }, [profile?.team_id, (profile as any)?.team_id_2])
 
   const shown = rows.filter(r => !seen.includes(r.id))
   if (!shown.length) return null

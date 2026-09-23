@@ -65,7 +65,7 @@ export default function AdminUsers() {
   async function changeRole(id: string, role: string) {
     // Καθαρίζουμε την ομάδα αν ο ρόλος δεν είναι πλέον αρχηγός
     const patch: any = { role }
-    if (role !== 'captain') patch.team_id = null
+    if (role !== 'captain') { patch.team_id = null; patch.team_id_2 = null }
     const { error } = await supabase.from('profiles').update(patch).eq('id', id)
     if (error) return toast.error('Δεν άλλαξε')
     toast.success('Ενημερώθηκε'); fetchRows()
@@ -77,6 +77,14 @@ export default function AdminUsers() {
     if (error) return toast.error('Δεν αποθηκεύτηκε')
     setRows(prev => prev.map(u => u.id === id ? { ...u, team_id: team_id || null } : u))
     toast.success('Η ομάδα ορίστηκε')
+  }
+
+  async function changeTeam2(id: string, team_id_2: string) {
+    const { error } = await supabase.from('profiles')
+      .update({ team_id_2: team_id_2 || null }).eq('id', id)
+    if (error) return toast.error('Δεν αποθηκεύτηκε: ' + error.message)
+    setRows(prev => prev.map(u => u.id === id ? { ...u, team_id_2: team_id_2 || null } : u) as any)
+    toast.success('Η 2η ομάδα ορίστηκε')
   }
 
   async function saveName(id: string) {
@@ -154,17 +162,30 @@ export default function AdminUsers() {
                 )}
                 <p className="text-[10.5px] text-dim truncate">{u.email}</p>
                 {u.role === 'captain' && (
-                  <select value={(u as any).team_id ?? ''}
-                    onChange={e => changeTeam(u.id, e.target.value)}
-                    className={`mt-1.5 w-full bg-chalk/[0.05] rounded-lg px-2 py-1.5 text-[11px] font-bold
-                      outline-none border ${(u as any).team_id ? 'text-silver border-chalk/[0.06]' : 'text-lit border-lit/40'}`}>
-                    <option value="">⚠ Διάλεξε ομάδα…</option>
-                    {teamGroups.map(g => (
-                      <optgroup key={g.league} label={g.league}>
-                        {g.teams.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                      </optgroup>
-                    ))}
-                  </select>
+                  <>
+                    <select value={(u as any).team_id ?? ''}
+                      onChange={e => changeTeam(u.id, e.target.value)}
+                      className={`mt-1.5 w-full bg-chalk/[0.05] rounded-lg px-2 py-1.5 text-[11px] font-bold
+                        outline-none border ${(u as any).team_id ? 'text-silver border-chalk/[0.06]' : 'text-lit border-lit/40'}`}>
+                      <option value="">⚠ Διάλεξε ομάδα…</option>
+                      {teamGroups.map(g => (
+                        <optgroup key={g.league} label={g.league}>
+                          {g.teams.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                        </optgroup>
+                      ))}
+                    </select>
+                    <select value={(u as any).team_id_2 ?? ''}
+                      onChange={e => changeTeam2(u.id, e.target.value)}
+                      className="mt-1 w-full bg-chalk/[0.05] rounded-lg px-2 py-1.5 text-[11px] font-bold
+                        outline-none border text-dim border-chalk/[0.06]">
+                      <option value="">+ 2η ομάδα (προαιρετικό)…</option>
+                      {teamGroups.map(g => (
+                        <optgroup key={g.league} label={g.league}>
+                          {g.teams.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </>
                 )}
               </div>
               <div className="flex flex-col items-end gap-1.5 shrink-0">

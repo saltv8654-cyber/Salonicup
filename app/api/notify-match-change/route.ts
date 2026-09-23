@@ -43,8 +43,11 @@ export async function POST(req: Request) {
     teamIds.map(tid => ({ match_id, team_id: tid, body: `${fixture}: ${when}` }))
   ).then(() => {}, () => {})  // αν λείπει ο πίνακας, αγνόησε
 
-  const { data: caps } = await admin.from('profiles').select('id').eq('role', 'captain').in('team_id', teamIds)
-  const ids = (caps ?? []).map((c: any) => c.id)
+  // Αρχηγοί που έχουν κάποια από τις δύο ομάδες (team_id ή team_id_2)
+  const inList = `(${teamIds.join(',')})`
+  const { data: caps } = await admin.from('profiles').select('id')
+    .eq('role', 'captain').or(`team_id.in.${inList},team_id_2.in.${inList}`)
+  const ids = [...new Set((caps ?? []).map((c: any) => c.id))]
   if (!ids.length) return NextResponse.json({ ok: true, sent: 0 })
 
   const { data: subs } = await admin.from('push_subscriptions').select('*').in('user_id', ids)

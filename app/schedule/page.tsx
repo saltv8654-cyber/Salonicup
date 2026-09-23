@@ -37,13 +37,18 @@ export default async function SchedulePage() {
     supabase.from('venues').select('name, fields'),
     supabase.from('app_settings').select('availability').eq('id', 1).maybeSingle(),
     user
-      ? supabase.from('profiles').select('team:team_id(league:league_id(format))').eq('id', user.id).maybeSingle()
+      ? supabase.from('profiles')
+          .select('team:team_id(league:league_id(format)), team2:team_id_2(league:league_id(format))')
+          .eq('id', user.id).maybeSingle()
       : Promise.resolve({ data: null as any }),
   ])
   const availText: string = ((settings as any)?.availability) || DEFAULT_AVAILABILITY
 
-  // Format του πρωταθλήματος του captain (π.χ. 8x8 / 7x7) — null = admin/χωρίς ομάδα → βλέπει τα πάντα
-  const myFormat: string | null = ((prof as any)?.team?.league?.format) ?? null
+  // Format(s) του captain (π.χ. 8x8 / 7x7) — μπορεί να έχει έως δύο ομάδες.
+  // Κενό σύνολο = admin/χωρίς ομάδα → βλέπει τα πάντα.
+  const myFormats = new Set<string>(
+    [((prof as any)?.team?.league?.format), ((prof as any)?.team2?.league?.format)].filter(Boolean) as string[]
+  )
   // Ποια format «παίζουν» σε κάθε γήπεδο (από ΟΛΟΥΣ τους προγραμματισμένους αγώνες).
   // Σημ.: ένα γήπεδο μπορεί να φιλοξενεί περισσότερα από ένα format (π.χ. ένας
   // μεμονωμένος αγώνας άλλης κατηγορίας) — γι' αυτό κρατάμε ΟΛΑ τα format, όχι μόνο το πρώτο.
@@ -53,14 +58,15 @@ export default async function SchedulePage() {
     if (f && fmt) { if (!fieldFmt.has(f)) fieldFmt.set(f, new Set()); fieldFmt.get(f)!.add(fmt) }
   }
   // Επιτρέπεται το γήπεδο για τον captain; (admin/χωρίς format ή άγνωστο γήπεδο ή
-  // παίζει το format του captain σε αυτό = ναι)
+  // παίζει κάποιο από τα format του captain σε αυτό = ναι)
   const allowFld = (f: string | null) =>
-    !myFormat || !f || !fieldFmt.has(f) || fieldFmt.get(f)!.has(myFormat)
+    !myFormats.size || !f || !fieldFmt.has(f) ||
+    [...fieldFmt.get(f)!].some(fmt => myFormats.has(fmt))
 
   // Ελεύθερα γήπεδα — από την εβδομαδιαία διαθεσιμότητα (Admin → Ελεύθερα) μείον τους αγώνες
   const free = computeFreeFromAvailability(availText, matches ?? [], (venues ?? []) as any)
   // Fail-safe: εφάρμοσε το φίλτρο format ΜΟΝΟ αν αφήνει τουλάχιστον ένα ελεύθερο γήπεδο.
-  const applyFilter = !!myFormat && free.some(s => allowFld(s.field))
+  const applyFilter = myFormats.size > 0 && free.some(s => allowFld(s.field))
   const slotOk = (f: string | null) => !applyFilter || allowFld(f)
 
   // Ελεύθερα slots (για την επιλογή «Αλλαγή ώρας» του captain)

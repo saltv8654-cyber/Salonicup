@@ -7,7 +7,7 @@ export type EventType  =
 
 export interface Profile {
   id: string; email: string | null; full_name: string | null
-  role: Role; team_id: string | null
+  role: Role; team_id: string | null; team_id_2?: string | null
 }
 
 export interface League {
