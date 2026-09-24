@@ -21,10 +21,18 @@ drop policy if exists mr_write on match_responses;
 create policy mr_read on match_responses
   for select using (auth.role() = 'authenticated');
 
--- Γράψιμο: μόνο για τη ΔΙΚΗ σου ομάδα (ή admin)
+-- Γράψιμο: μόνο για ΔΙΚΗ σου ομάδα (μία από τις έως δύο ομάδες σου) ή admin
 create policy mr_write on match_responses
   for all
-  using (is_admin() or team_id = (select team_id from profiles where id = auth.uid()))
-  with check (is_admin() or team_id = (select team_id from profiles where id = auth.uid()));
+  using (is_admin() or team_id in (
+    select team_id   from profiles where id = auth.uid()
+    union
+    select team_id_2 from profiles where id = auth.uid()
+  ))
+  with check (is_admin() or team_id in (
+    select team_id   from profiles where id = auth.uid()
+    union
+    select team_id_2 from profiles where id = auth.uid()
+  ));
 
 notify pgrst, 'reload schema';
