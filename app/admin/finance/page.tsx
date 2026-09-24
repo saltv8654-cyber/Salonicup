@@ -77,6 +77,14 @@ export default function AdminFinance() {
     if (error) return toast.error('Δεν αποθηκεύτηκε: ' + error.message)
     setTeams(prev => prev.map(t => t.team_id === id ? { ...t, fee_paid_at: when } : t))
   }
+  // Δήλωσε ημερομηνία είσπραξης σε εκκρεμή ομάδα → μαρκάρεται «πληρωμένη» με αυτή την ημερομηνία
+  async function markPaidWithDate(id: string, day: string) {
+    if (!day) return
+    const { error } = await supabase.from('teams').update({ fee_paid: true, fee_paid_at: day }).eq('team_id', id)
+    if (error) return toast.error('Δεν αποθηκεύτηκε: ' + error.message)
+    setTeams(prev => prev.map(t => t.team_id === id ? { ...t, fee_paid: true, fee_paid_at: day } : t))
+    toast.success('Καταχωρήθηκε η είσπραξη')
+  }
   async function savePartFee(v: string) {
     const n = parseFloat(v.replace(',', '.'))
     if (isNaN(n)) return
@@ -355,8 +363,12 @@ export default function AdminFinance() {
                                   className="bg-transparent text-[#2FA84F] text-[11.5px] font-extrabold tnum outline-none text-right" />
                               </div>
                             ) : (
-                              <button onClick={() => toggleTeamPaid(t.team_id, true)}
-                                className="text-[11.5px] font-extrabold text-dim shrink-0">Εκκρεμεί</button>
+                              <label className="flex flex-col items-end shrink-0 cursor-pointer">
+                                <span className="text-[10px] font-bold text-lit leading-none mb-0.5">Δήλωσε είσπραξη</span>
+                                <input type="date" value="" onChange={e => markPaidWithDate(t.team_id, e.target.value)}
+                                  className="bg-chalk/[0.05] rounded-md px-1.5 py-0.5 text-dim text-[11px] font-bold tnum
+                                    outline-none border border-chalk/[0.08]" />
+                              </label>
                             )}
                           </div>
                         ))}
