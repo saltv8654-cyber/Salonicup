@@ -102,12 +102,14 @@ export default function AdminSchedule() {
     ]).finally(() => setLoad(false))
   }, [])
 
+  const weekEnd = useMemo(() => addDaysStr(weekStart, 6), [weekStart])
   const days = useMemo(() => {
-    const todayKey = athensDateKey(new Date().toISOString())
     const byDay = new Map<string, any[]>()
     for (const m of rows) {
       const k = athensDateKey(m.match_date)
-      if (!showPast && k < todayKey) continue
+      // Προεπιλογή: ΜΟΝΟ η βδομάδα που διάλεξες πάνω (ίδια με την εικόνα).
+      // Με το κουμπί «Όλες οι βδομάδες» βλέπεις όλο το πρόγραμμα.
+      if (!showPast && (k < weekStart || k > weekEnd)) continue
       if (!byDay.has(k)) byDay.set(k, [])
       byDay.get(k)!.push(m)
     }
@@ -117,7 +119,7 @@ export default function AdminSchedule() {
         label: fmtDay(ms[0].match_date),
         matches: ms.slice().sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? '')),
       }))
-  }, [rows, showPast])
+  }, [rows, showPast, weekStart, weekEnd])
 
   function copyDay(d: { label: string; matches: any[] }) {
     const lines = d.matches.map(m => {
@@ -234,7 +236,7 @@ export default function AdminSchedule() {
           </button>
           <button onClick={() => setShowPast(v => !v)}
             className="px-3 py-2 rounded-lg bg-turf border border-chalk/[0.08] text-silver text-[11px] font-bold">
-            {showPast ? 'Μόνο επόμενα' : 'Όλα'}
+            {showPast ? 'Επιλεγμένη βδομάδα' : 'Όλες οι βδομάδες'}
           </button>
         </div>
       </div>
@@ -305,7 +307,16 @@ export default function AdminSchedule() {
         </p>
       </div>
 
-      {!days.length ? <Empty>Δεν υπάρχουν προγραμματισμένοι αγώνες.</Empty> : (
+      {!showPast && (
+        <div className="flex items-center gap-2 px-1 -mb-1">
+          <span className="text-[12px] font-extrabold text-lit">📅 Βδομάδα {dm(weekStart)} – {dm(weekEnd)}</span>
+          <span className="text-[10px] text-dim font-bold">(ίδια με την εικόνα · άλλαξέ τη με ◀ ▶ πάνω)</span>
+        </div>
+      )}
+
+      {!days.length ? (
+        <Empty>{showPast ? 'Δεν υπάρχουν προγραμματισμένοι αγώνες.' : 'Δεν υπάρχουν αγώνες αυτή τη βδομάδα — άλλαξε βδομάδα με ◀ ▶ ή δες «Όλες οι βδομάδες».'}</Empty>
+      ) : (
         <div className="flex flex-col gap-4">
           {days.map(d => {
             const photogs = staff.filter(s => s.kind === 'photographer')
