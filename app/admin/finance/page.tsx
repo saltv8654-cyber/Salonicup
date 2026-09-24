@@ -28,7 +28,7 @@ export default function AdminFinance() {
   const [incomes, setIncomes] = useState<Income[]>([])
   const [showSettings, setShowSettings] = useState(false)
   // Συμμετοχές ομάδων
-  const [teams, setTeams] = useState<{ team_id: string; name: string; league_id: string; fee_paid: boolean }[]>([])
+  const [teams, setTeams] = useState<{ team_id: string; name: string; league_id: string; fee_paid: boolean; fee_paid_at?: string | null }[]>([])
   const [partFee, setPartFee] = useState('40')
   const [showFees, setShowFees] = useState(true)
   const [personNames, setPersonNames] = useState<Record<string, string>>({})
@@ -42,7 +42,7 @@ export default function AdminFinance() {
         .in('match_status', ['Played', 'Live']).not('match_date', 'is', null),
       supabase.from('staff_payments').select('day, amount, person_type, person_id'),
       supabase.from('expenses').select('*').order('day', { ascending: false }),
-      supabase.from('teams').select('team_id, name, league_id, fee_paid').eq('active', true).order('name'),
+      supabase.from('teams').select('team_id, name, league_id, fee_paid, fee_paid_at').eq('active', true).order('name'),
       supabase.from('app_settings').select('participation_fee').eq('id', 1).maybeSingle(),
       supabase.from('incomes').select('*').order('day', { ascending: false }),
       supabase.from('staff').select('id, name'),
@@ -65,9 +65,17 @@ export default function AdminFinance() {
   useEffect(() => { fetchAll() }, [])
 
   async function toggleTeamPaid(id: string, paid: boolean) {
-    const { error } = await supabase.from('teams').update({ fee_paid: paid }).eq('team_id', id)
-    if (error) return toast.error('Δεν αποθηκεύτηκε')
-    setTeams(prev => prev.map(t => t.team_id === id ? { ...t, fee_paid: paid } : t))
+    // Όταν σημειώνεται «πλήρωσε» → κράτα ΚΑΙ την ημερομηνία είσπραξης (σήμερα)· αλλιώς καθάρισέ την
+    const when = paid ? todayKey() : null
+    const { error } = await supabase.from('teams').update({ fee_paid: paid, fee_paid_at: when }).eq('team_id', id)
+    if (error) return toast.error('Δεν αποθηκεύτηκε: ' + error.message)
+    setTeams(prev => prev.map(t => t.team_id === id ? { ...t, fee_paid: paid, fee_paid_at: when } : t))
+  }
+  async function setFeeDate(id: string, day: string) {
+    const when = day || todayKey()
+    const { error } = await supabase.from('teams').update({ fee_paid_at: when }).eq('team_id', id)
+    if (error) return toast.error('Δεν αποθηκεύτηκε: ' + error.message)
+    setTeams(prev => prev.map(t => t.team_id === id ? { ...t, fee_paid_at: when } : t))
   }
   async function savePartFee(v: string) {
     const n = parseFloat(v.replace(',', '.'))
@@ -328,18 +336,29 @@ export default function AdminFinance() {
                       </div>
                       <div className="flex flex-col gap-1.5">
                         {lteams.map(t => (
-                          <button key={t.team_id} onClick={() => toggleTeamPaid(t.team_id, !t.fee_paid)}
-                            className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 border active:opacity-80
+                          <div key={t.team_id}
+                            className={`flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 border
                               ${t.fee_paid ? 'bg-[#2FA84F]/[0.12] border-[#2FA84F]/40' : 'bg-chalk/[0.03] border-chalk/[0.06]'}`}>
-                            <span className={`w-6 h-6 rounded-md grid place-items-center text-[13px] font-extrabold shrink-0
-                              ${t.fee_paid ? 'bg-[#2FA84F] text-white' : 'bg-chalk/[0.08] text-dim'}`}>
-                              {t.fee_paid ? '✓' : ''}
-                            </span>
-                            <span className="flex-1 text-left text-[13px] font-bold text-chalk truncate">{t.name}</span>
-                            <span className={`text-[11.5px] font-extrabold ${t.fee_paid ? 'text-[#2FA84F]' : 'text-dim'}`}>
-                              {t.fee_paid ? 'Πλήρωσε' : 'Εκκρεμεί'}
-                            </span>
-                          </button>
+                            <button onClick={() => toggleTeamPaid(t.team_id, !t.fee_paid)}
+                              className="flex items-center gap-3 flex-1 min-w-0 text-left active:opacity-80">
+                              <span className={`w-6 h-6 rounded-md grid place-items-center text-[13px] font-extrabold shrink-0
+                                ${t.fee_paid ? 'bg-[#2FA84F] text-white' : 'bg-chalk/[0.08] text-dim'}`}>
+                                {t.fee_paid ? '✓' : ''}
+                              </span>
+                              <span className="flex-1 min-w-0 text-[13px] font-bold text-chalk truncate">{t.name}</span>
+                            </button>
+                            {t.fee_paid ? (
+                              <div className="flex flex-col items-end shrink-0">
+                                <span className="text-[10px] font-bold text-[#2FA84F] leading-none mb-0.5">Εισπράχθηκε</span>
+                                <input type="date" value={(t.fee_paid_at ?? '').slice(0, 10)}
+                                  onChange={e => setFeeDate(t.team_id, e.target.value)}
+                                  className="bg-transparent text-[#2FA84F] text-[11.5px] font-extrabold tnum outline-none text-right" />
+                              </div>
+                            ) : (
+                              <button onClick={() => toggleTeamPaid(t.team_id, true)}
+                                className="text-[11.5px] font-extrabold text-dim shrink-0">Εκκρεμεί</button>
+                            )}
+                          </div>
                         ))}
                       </div>
                     </div>
