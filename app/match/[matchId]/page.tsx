@@ -572,7 +572,7 @@ async function compressImage(file: File, maxSide = 2048, quality = 0.85): Promis
         const lh = Math.round(lw * (logo.height / logo.width))
         const pad = Math.round(w * 0.022)
         ctx.save()
-        ctx.globalAlpha = 0.92
+        ctx.globalAlpha = 0.70
         ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = Math.round(w * 0.008)
         ctx.drawImage(logo, w - lw - pad, pad, lw, lh)
         ctx.restore()
