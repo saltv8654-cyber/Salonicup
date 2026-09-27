@@ -127,6 +127,22 @@ export default function SpeakerPanel() {
     }
   }
 
+  // Διόρθωση χρόνου: όρισε ημίχρονο (Α΄/Β΄/Παράταση) + τρέχον λεπτό.
+  // Ρυθμίζει το clock_started_at ώστε το ρολόι να δείχνει ΑΚΡΙΒΩΣ το λεπτό που δηλώνει ο σπίκερ.
+  async function setClockMinute(cp: 'H1' | 'H2' | 'ET', minute: number) {
+    if (!match) return
+    const BASE: Record<string, number> = { H1: 0, H2: 30, ET: 60 }
+    const elapsedSec = Math.max(0, (minute - (BASE[cp] ?? 0))) * 60
+    const startedAt = new Date(Date.now() - elapsedSec * 1000).toISOString()
+    setClockBusy(true)
+    const payload: any = { clock_period: cp, clock_started_at: startedAt }
+    if (match.match_status === 'Scheduled') payload.match_status = 'Live'
+    const { error } = await supabase.from('matches').update(payload).eq('match_id', match.match_id)
+    setClockBusy(false)
+    if (error) return toast.error('Δεν ενημερώθηκε το χρονόμετρο')
+    toast.success(`Ρολόι: ${cp === 'H1' ? 'Α΄' : cp === 'H2' ? 'Β΄' : 'Παρ.'} ${minute}′`)
+  }
+
   // Σχόλια παικτών (μόνο γι' αυτό το ματς) — αρχικοποίηση μία φορά ανά ματς
   useEffect(() => {
     if (match) setNotes(match.player_notes ?? {})
@@ -590,7 +606,7 @@ export default function SpeakerPanel() {
         <>
           <div className="px-3.5 pt-3.5 shrink-0">
             <ClockBar cp={match.clock_period} startedAt={match.clock_started_at}
-              now={now} busy={clockBusy} onSet={setClock} />
+              now={now} busy={clockBusy} onSet={setClock} onSetMinute={setClockMinute} />
           </div>
           <div className="px-3.5 pt-3 pb-3 shrink-0">
             {/* Περίοδος */}
@@ -1216,12 +1232,18 @@ function EditEventSheet({ ev, roster, teamName, onClose, onSave, onAddAssist, on
 
 /* ── Ομάδα στο scoreboard ── */
 /* ── Χρονόμετρο αγώνα ── */
-function ClockBar({ cp, startedAt, now, busy, onSet }: {
+function ClockBar({ cp, startedAt, now, busy, onSet, onSetMinute }: {
   cp: string | null; startedAt: string | null; now: number; busy: boolean
   onSet: (cp: string | null, started: boolean) => void
+  onSetMinute: (cp: 'H1' | 'H2' | 'ET', minute: number) => void
 }) {
   const label = clockLabel(cp, startedAt, now)
   const running = isRunning(cp)
+  const [fix, setFix] = useState(false)
+  // Προεπιλογή ημιχρόνου στη διόρθωση: το τρέχον (ή Α΄)
+  const [fixHalf, setFixHalf] = useState<'H1' | 'H2' | 'ET'>(
+    cp === 'H2' ? 'H2' : cp === 'ET' ? 'ET' : 'H1')
+  const [fixMin, setFixMin] = useState('')
 
   const Big = ({ children, onClick, tone = 'go' }: {
     children: React.ReactNode; onClick: () => void; tone?: 'go' | 'stop' | 'soft'
@@ -1235,34 +1257,74 @@ function ClockBar({ cp, startedAt, now, busy, onSet }: {
     </button>
   )
 
+  const applyFix = () => {
+    const m = parseInt(fixMin)
+    if (isNaN(m) || m < 0) return toast.error('Βάλε λεπτό (π.χ. 18)')
+    onSetMinute(fixHalf, m)
+    setFix(false); setFixMin('')
+  }
+
   return (
-    <div className="flex items-center gap-2 rounded-xl bg-turf border border-chalk/[0.06] p-2">
-      {/* Ένδειξη */}
-      <div className="shrink-0 w-[74px] text-center">
-        {running ? (
-          <div className="flex items-center justify-center gap-1.5">
-            <LiveDot />
-            <span className="text-[18px] font-extrabold text-chalk tnum leading-none">{label}</span>
-          </div>
-        ) : (
-          <span className="text-[12px] font-extrabold text-dim tracking-[0.12em]">
-            {label ?? '—'}
-          </span>
-        )}
+    <div className="flex flex-col gap-2 rounded-xl bg-turf border border-chalk/[0.06] p-2">
+      <div className="flex items-center gap-2">
+        {/* Ένδειξη */}
+        <div className="shrink-0 w-[74px] text-center">
+          {running ? (
+            <div className="flex items-center justify-center gap-1.5">
+              <LiveDot />
+              <span className="text-[18px] font-extrabold text-chalk tnum leading-none">{label}</span>
+            </div>
+          ) : (
+            <span className="text-[12px] font-extrabold text-dim tracking-[0.12em]">
+              {label ?? '—'}
+            </span>
+          )}
+        </div>
+
+        {/* Κουμπιά ανάλογα με τη φάση */}
+        <div className="flex-1 flex gap-2">
+          {!cp && <Big onClick={() => onSet('H1', true)}>▶ Έναρξη Α΄</Big>}
+          {cp === 'H1' && <Big tone="stop" onClick={() => onSet('HT', false)}>⏸ Ημίχρονο</Big>}
+          {cp === 'HT' && <>
+            <Big tone="soft" onClick={() => onSet('H1', true)}>↺ Πίσω στο Α΄</Big>
+            <Big onClick={() => onSet('H2', true)}>▶ Έναρξη Β΄</Big>
+          </>}
+          {cp === 'H2' && <>
+            <Big tone="soft" onClick={() => onSet('ET', true)}>Παράταση</Big>
+            <Big tone="stop" onClick={() => onSet('FT', false)}>⏹ Λήξη</Big>
+          </>}
+          {cp === 'ET' && <Big tone="stop" onClick={() => onSet('FT', false)}>⏹ Λήξη</Big>}
+          {cp === 'FT' && <Big tone="soft" onClick={() => onSet(null, false)}>↺ Επαναφορά</Big>}
+        </div>
+
+        {/* Άνοιγμα διόρθωσης χρόνου */}
+        <button onClick={() => setFix(v => !v)} disabled={busy}
+          className="shrink-0 w-9 h-9 rounded-lg bg-chalk/[0.05] border border-chalk/[0.08]
+            text-silver text-[13px] disabled:opacity-50" title="Διόρθωση λεπτού">⏱</button>
       </div>
 
-      {/* Κουμπιά ανάλογα με τη φάση */}
-      <div className="flex-1 flex gap-2">
-        {!cp && <Big onClick={() => onSet('H1', true)}>▶ Έναρξη Α΄</Big>}
-        {cp === 'H1' && <Big tone="stop" onClick={() => onSet('HT', false)}>⏸ Ημίχρονο</Big>}
-        {cp === 'HT' && <Big onClick={() => onSet('H2', true)}>▶ Έναρξη Β΄</Big>}
-        {cp === 'H2' && <>
-          <Big tone="soft" onClick={() => onSet('ET', true)}>Παράταση</Big>
-          <Big tone="stop" onClick={() => onSet('FT', false)}>⏹ Λήξη</Big>
-        </>}
-        {cp === 'ET' && <Big tone="stop" onClick={() => onSet('FT', false)}>⏹ Λήξη</Big>}
-        {cp === 'FT' && <Big tone="soft" onClick={() => onSet(null, false)}>↺ Επαναφορά</Big>}
-      </div>
+      {/* Διόρθωση: ημίχρονο + τρέχον λεπτό */}
+      {fix && (
+        <div className="flex items-center gap-2 pt-1 border-t border-chalk/[0.06]">
+          <div className="flex bg-chalk/[0.04] rounded-lg p-[3px] border border-chalk/[0.07]">
+            {(['H1', 'H2', 'ET'] as const).map(h => (
+              <button key={h} onClick={() => setFixHalf(h)}
+                className={`px-2.5 py-1.5 rounded-md text-[11px] font-extrabold
+                  ${fixHalf === h ? 'bg-brand text-chalk' : 'text-dim'}`}>
+                {h === 'H1' ? 'Α΄' : h === 'H2' ? 'Β΄' : 'Παρ.'}
+              </button>
+            ))}
+          </div>
+          <input inputMode="numeric" value={fixMin} onChange={e => setFixMin(e.target.value)}
+            placeholder="λεπτό"
+            className="w-[70px] bg-chalk/[0.04] rounded-lg px-2.5 py-2 text-chalk text-[13px] font-bold
+              tnum outline-none border border-chalk/[0.07] focus:border-lit/50 placeholder:text-off" />
+          <button onClick={applyFix} disabled={busy}
+            className="flex-1 py-2 rounded-lg bg-brand text-chalk text-[12.5px] font-extrabold disabled:opacity-50">
+            ✓ Όρισε &amp; συνέχισε
+          </button>
+        </div>
+      )}
     </div>
   )
 }
