@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { FieldBadge, Empty } from '@/app/ui'
 import { fmtTime, fmtDay, athensDateKey } from '@/lib/time'
 import WeekAccordion, { type Week } from '@/app/schedule/week-accordion'
-import { computeFreeFromAvailability, DEFAULT_AVAILABILITY } from '@/lib/freeslots'
+import { computeFreeFromAvailability, DEFAULT_AVAILABILITY, parseExcluded } from '@/lib/freeslots'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,7 +39,7 @@ export default async function AdminProgram() {
         league:league_id(name), team_a_data:team_a(name), team_b_data:team_b(name)`)
       .not('match_date', 'is', null).gte('match_date', since()).order('match_date'),
     supabase.from('venues').select('name, fields'),
-    supabase.from('app_settings').select('availability').eq('id', 1).maybeSingle(),
+    supabase.from('app_settings').select('availability, availability_excl').eq('id', 1).maybeSingle(),
     supabase.from('match_responses').select('match_id, team_id, status, note'),
     supabase.from('matches')
       .select(`match_id, round, placeholder_a, placeholder_b, postpone_by,
@@ -60,7 +60,8 @@ export default async function AdminProgram() {
 
   // Ελεύθερα γήπεδα — από την εβδομαδιαία διαθεσιμότητα (Admin → Ελεύθερα) μείον τους αγώνες
   const availText: string = ((settings as any)?.availability) || DEFAULT_AVAILABILITY
-  const free = computeFreeFromAvailability(availText, matches ?? [], (venues ?? []) as any)
+  const excluded = parseExcluded((settings as any)?.availability_excl)
+  const free = computeFreeFromAvailability(availText, matches ?? [], (venues ?? []) as any, excluded)
 
   type Item = { iso: string; field: string | null; match?: any; venue?: string }
   const items: Item[] = []

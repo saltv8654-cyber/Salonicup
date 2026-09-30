@@ -18,6 +18,9 @@ const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,
 const normField = (s: string) => fold(s).replace(/[.\s]/g, '')
 const key = (f: string | null, iso: string) => `${f ?? ''}|${new Date(iso).getTime()}`
 
+/** Σταθερό κλειδί ενός ελεύθερου (γήπεδο+ώρα) — για εξαιρέσεις («σβήσιμο» ελεύθερου). */
+export const slotKey = (f: string | null, iso: string) => key(f, iso)
+
 export function parseAvailability(text: string): Rule[] {
   const rules: Rule[] = []
   for (const raw of (text || '').split('\n')) {
@@ -61,6 +64,7 @@ const addDaysKey = (k: string, days: number) =>
 /** Ελεύθερα γήπεδα από τη διαθεσιμότητα, μείον τους υπάρχοντες αγώνες. */
 export function computeFreeFromAvailability(
   availText: string, matches: MatchLite[], venues: VenueLite[],
+  excluded: Set<string> = new Set(),
 ): FreeSlot[] {
   const rules = parseAvailability(availText)
   if (!rules.length) return []
@@ -97,13 +101,20 @@ export function computeFreeFromAvailability(
         for (const t of r.times) {
           const iso = athensInstant(Y, Mo - 1, D, t.h, t.m).toISOString()
           const kk = key(f, iso)
-          if (!booked.has(kk) && !out.has(kk))
+          if (!booked.has(kk) && !excluded.has(kk) && !out.has(kk))
             out.set(kk, { iso, field: f, venue: fieldVenue.get(f) ?? null })
         }
       }
     }
   }
   return [...out.values()]
+}
+
+/** Διαβάζει τις εξαιρέσεις (σβησμένα ελεύθερα) από αποθηκευμένο JSON κείμενο. */
+export function parseExcluded(text: string | null | undefined): Set<string> {
+  if (!text) return new Set()
+  try { const a = JSON.parse(text); return new Set(Array.isArray(a) ? a.map(String) : []) }
+  catch { return new Set() }
 }
 
 /** Προεπιλεγμένη διαθεσιμότητα (ό,τι δήλωσε ο χρήστης για το 8×8). */

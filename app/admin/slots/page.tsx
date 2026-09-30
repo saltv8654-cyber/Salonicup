@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Loading, Empty, FieldBadge } from '@/app/ui'
 import { SaveBtn } from '../ui'
 import { fmtTime, fmtDay, athensDateKey } from '@/lib/time'
-import { computeFreeFromAvailability, DEFAULT_AVAILABILITY } from '@/lib/freeslots'
+import { computeFreeFromAvailability, DEFAULT_AVAILABILITY, parseExcluded, slotKey } from '@/lib/freeslots'
 import toast from 'react-hot-toast'
 
 type MatchLite = { field: string | null; match_date: string | null }
@@ -19,23 +19,42 @@ export default function AdminSlots() {
   const [text, setText] = useState(DEFAULT_AVAILABILITY)
   const [venues, setVenues] = useState<VenueLite[]>([])
   const [matches, setMatches] = useState<MatchLite[]>([])
+  const [excl, setExcl] = useState<Set<string>>(new Set())  // σβησμένα ελεύθερα (εξαιρέσεις)
 
   async function fetchAll() {
     const [{ data: st }, { data: vs }, { data: ms }] = await Promise.all([
-      supabase.from('app_settings').select('availability').eq('id', 1).maybeSingle(),
+      supabase.from('app_settings').select('availability, availability_excl').eq('id', 1).maybeSingle(),
       supabase.from('venues').select('name, fields').order('name'),
       supabase.from('matches').select('field, match_date').not('match_date', 'is', null).gte('match_date', since()),
     ])
     setText(((st as any)?.availability as string) || DEFAULT_AVAILABILITY)
+    setExcl(parseExcluded((st as any)?.availability_excl))
     setVenues(vs ?? [])
     setMatches((ms ?? []) as MatchLite[])
     setLoad(false)
   }
   useEffect(() => { fetchAll() }, [])
 
+  // Αποθήκευσε τις εξαιρέσεις (σβησμένα ελεύθερα)
+  async function saveExcl(next: Set<string>) {
+    setExcl(next)
+    const { error } = await supabase.from('app_settings')
+      .upsert({ id: 1, availability_excl: JSON.stringify([...next]), updated_at: new Date().toISOString() }, { onConflict: 'id' })
+    if (error) toast.error('Δεν αποθηκεύτηκε: ' + error.message)
+  }
+  function hideSlot(field: string | null, iso: string) {
+    const next = new Set(excl); next.add(slotKey(field, iso)); saveExcl(next)
+    toast.success('Το ελεύθερο σβήστηκε')
+  }
+  function clearExcl() {
+    if (!excl.size) return
+    if (!confirm(`Επαναφορά ${excl.size} σβησμένων ελεύθερων;`)) return
+    saveExcl(new Set())
+  }
+
   // Ζωντανή προεπισκόπηση ελεύθερων (ίδιος υπολογισμός με captain/ημερολόγιο)
   const days = useMemo(() => {
-    const free = computeFreeFromAvailability(text, matches, venues)
+    const free = computeFreeFromAvailability(text, matches, venues, excl)
     const byDay = new Map<string, typeof free>()
     for (const s of free) {
       const k = athensDateKey(s.iso)
@@ -47,7 +66,7 @@ export default function AdminSlots() {
       label: fmtDay(list[0].iso),
       list: list.sort((a, b) => a.iso.localeCompare(b.iso) || (a.field ?? '').localeCompare(b.field ?? '')),
     }))
-  }, [text, matches, venues])
+  }, [text, matches, venues, excl])
 
   async function save() {
     setBusy(true)
@@ -92,9 +111,17 @@ export default function AdminSlots() {
 
       {/* Ζωντανή προεπισκόπηση */}
       <div>
-        <div className="flex items-center justify-between mb-2 px-1">
+        <div className="flex items-center justify-between mb-1 px-1">
           <p className="text-[12.5px] font-extrabold text-chalk">Προεπισκόπηση ελεύθερων</p>
           <span className="text-[10px] text-dim font-bold">{totalFree} ελεύθερα</span>
+        </div>
+        <div className="flex items-center justify-between mb-2 px-1">
+          <p className="text-[10px] text-off">Πάτα ✕ σε ένα ελεύθερο για να το σβήσεις (δεν θα φαίνεται σε captains/Ημερολόγιο).</p>
+          {excl.size > 0 && (
+            <button onClick={clearExcl} className="text-[10px] font-bold text-lit shrink-0 ml-2 whitespace-nowrap">
+              ↺ Επαναφορά {excl.size}
+            </button>
+          )}
         </div>
         {!days.length ? (
           <Empty>Δεν προκύπτουν ελεύθερα — έλεγξε μέρες/πίστες/ώρες ή πρόσθεσε αγώνες.</Empty>
@@ -113,6 +140,9 @@ export default function AdminSlots() {
                       <div className="shrink-0"><FieldBadge field={s.field} size="xs" /></div>
                       <span className="flex-1 min-w-0 text-[11px] text-off truncate">{s.venue ?? ''}</span>
                       <span className="text-[10.5px] font-extrabold text-lit shrink-0">ΕΛΕΥΘΕΡΟ</span>
+                      <button onClick={() => hideSlot(s.field, s.iso)}
+                        className="shrink-0 w-7 h-7 rounded-lg bg-danger/15 text-danger text-[12px] font-bold
+                          grid place-items-center active:bg-danger/25" title="Σβήσε αυτό το ελεύθερο">✕</button>
                     </div>
                   ))}
                 </div>

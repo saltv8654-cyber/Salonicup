@@ -7,7 +7,7 @@ import MatchResponse from './match-response'
 import ChangeBanner from './change-banner'
 import WeekAccordion, { type Week } from './week-accordion'
 import { fmtTime, fmtDay, athensDateKey } from '@/lib/time'
-import { computeFreeFromAvailability, DEFAULT_AVAILABILITY } from '@/lib/freeslots'
+import { computeFreeFromAvailability, DEFAULT_AVAILABILITY, parseExcluded } from '@/lib/freeslots'
 
 const GRMON = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαΐ', 'Ιουν', 'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ']
 const weekLabel = (iso: string) => {
@@ -35,7 +35,7 @@ export default async function SchedulePage() {
       .not('match_date', 'is', null)
       .gte('match_date', since()).order('match_date'),
     supabase.from('venues').select('name, fields'),
-    supabase.from('app_settings').select('availability').eq('id', 1).maybeSingle(),
+    supabase.from('app_settings').select('availability, availability_excl').eq('id', 1).maybeSingle(),
     user
       ? supabase.from('profiles')
           .select('team:team_id(league:league_id(format)), team2:team_id_2(league:league_id(format))')
@@ -43,6 +43,7 @@ export default async function SchedulePage() {
       : Promise.resolve({ data: null as any }),
   ])
   const availText: string = ((settings as any)?.availability) || DEFAULT_AVAILABILITY
+  const excluded = parseExcluded((settings as any)?.availability_excl)
 
   // Format(s) του captain (π.χ. 8x8 / 7x7) — μπορεί να έχει έως δύο ομάδες.
   // Κενό σύνολο = admin/χωρίς ομάδα → βλέπει τα πάντα.
@@ -64,7 +65,7 @@ export default async function SchedulePage() {
     [...fieldFmt.get(f)!].some(fmt => myFormats.has(fmt))
 
   // Ελεύθερα γήπεδα — από την εβδομαδιαία διαθεσιμότητα (Admin → Ελεύθερα) μείον τους αγώνες
-  const free = computeFreeFromAvailability(availText, matches ?? [], (venues ?? []) as any)
+  const free = computeFreeFromAvailability(availText, matches ?? [], (venues ?? []) as any, excluded)
   // Fail-safe: εφάρμοσε το φίλτρο format ΜΟΝΟ αν αφήνει τουλάχιστον ένα ελεύθερο γήπεδο.
   const applyFilter = myFormats.size > 0 && free.some(s => allowFld(s.field))
   const slotOk = (f: string | null) => !applyFilter || allowFld(f)
