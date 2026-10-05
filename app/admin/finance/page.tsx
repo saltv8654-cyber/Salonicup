@@ -6,7 +6,7 @@ import { athensDateKey, fmtDay } from '@/lib/time'
 import toast from 'react-hot-toast'
 
 type Rate = { id: string; effective_from: string; fee_8x8: number; fee_7x7: number; field_cost: number }
-type Expense = { id: string; day: string; label: string; amount: number; note?: string | null }
+type Expense = { id: string; day: string; label: string; amount: number; note?: string | null; from_fees?: boolean | null }
 type Income = { id: string; day: string; kind: string; label: string; amount: number; note?: string | null }
 type Lg = { league_id: string; name: string; format: string }
 
@@ -17,6 +17,7 @@ const eur = (n: number) => `${n % 1 === 0 ? n : n.toFixed(2)}€`
 export default function AdminFinance() {
   const supabase = createClient()
   const [load, setLoad] = useState(true)
+  const [tab, setTab] = useState<'matches' | 'fees'>('matches')
   const [from, setFrom] = useState(monthStart())
   const [to, setTo] = useState(todayKey())
 
@@ -125,7 +126,8 @@ export default function AdminFinance() {
     }
     const salaries = pays.filter(p => p.day >= from && p.day <= to)
       .reduce((s, p) => s + Number(p.amount), 0)
-    const other = expenses.filter(x => x.day >= from && x.day <= to)
+    // «Λοιπά έξοδα» του pot «Αγώνες» = όσα ΔΕΝ πληρώθηκαν από συμμετοχές
+    const other = expenses.filter(x => x.day >= from && x.day <= to && !x.from_fees)
       .reduce((s, x) => s + Number(x.amount), 0)
     const inPeriod = (x: Income) => x.day >= from && x.day <= to
     const otherInc = incomes.filter(x => inPeriod(x) && x.kind !== 'sponsor')
@@ -186,9 +188,9 @@ export default function AdminFinance() {
     if (error) return toast.error('Δεν άλλαξε')
     setLeagues(prev => prev.map(l => l.league_id === id ? { ...l, format } : l))
   }
-  async function addExpense(day: string, label: string, amount: number, note?: string) {
+  async function addExpense(day: string, label: string, amount: number, note?: string, fromFees?: boolean) {
     const { data, error } = await supabase.from('expenses')
-      .insert({ day, label, amount, note: note || null }).select().single()
+      .insert({ day, label, amount, note: note || null, from_fees: !!fromFees }).select().single()
     if (error) return toast.error(error.message)
     setExpenses(prev => [data as Expense, ...prev])
   }
@@ -197,10 +199,11 @@ export default function AdminFinance() {
     if (error) return toast.error('Απέτυχε')
     setExpenses(prev => prev.filter(x => x.id !== id))
   }
-  async function editExpense(id: string, day: string, label: string, amount: number, note?: string) {
-    const { error } = await supabase.from('expenses').update({ day, label, amount, note: note || null }).eq('id', id)
+  async function editExpense(id: string, day: string, label: string, amount: number, note?: string, fromFees?: boolean) {
+    const { error } = await supabase.from('expenses')
+      .update({ day, label, amount, note: note || null, from_fees: !!fromFees }).eq('id', id)
     if (error) return toast.error('Δεν αποθηκεύτηκε')
-    setExpenses(prev => prev.map(x => x.id === id ? { ...x, day, label, amount, note: note || null } : x))
+    setExpenses(prev => prev.map(x => x.id === id ? { ...x, day, label, amount, note: note || null, from_fees: !!fromFees } : x))
     toast.success('Αποθηκεύτηκε')
   }
   async function addIncome(kind: string, day: string, label: string, amount: number, note?: string) {
@@ -229,6 +232,20 @@ export default function AdminFinance() {
     <div className="p-4 max-w-2xl mx-auto flex flex-col gap-4">
       <h1 className="text-lg font-extrabold text-chalk">Οικονομικά</h1>
 
+      {/* Tabs: Αγώνες / Συμμετοχές */}
+      <div className="flex gap-1.5">
+        <button onClick={() => setTab('matches')}
+          className={`flex-1 py-2.5 rounded-xl text-[12.5px] font-extrabold border
+            ${tab === 'matches' ? 'bg-brand text-chalk border-lit' : 'bg-turf text-dim border-chalk/[0.06]'}`}>
+          ⚽ Αγώνες
+        </button>
+        <button onClick={() => setTab('fees')}
+          className={`flex-1 py-2.5 rounded-xl text-[12.5px] font-extrabold border
+            ${tab === 'fees' ? 'bg-brand text-chalk border-lit' : 'bg-turf text-dim border-chalk/[0.06]'}`}>
+          🎟 Συμμετοχές
+        </button>
+      </div>
+
       {/* Περίοδος */}
       <div className="bg-turf rounded-xl border border-chalk/[0.05] p-3.5 flex items-center gap-2 flex-wrap">
         <div className="flex-1 min-w-[130px]">
@@ -245,6 +262,7 @@ export default function AdminFinance() {
         </div>
       </div>
 
+      {tab === 'matches' && (<>
       {/* Σύνοψη */}
       <div className="grid grid-cols-3 gap-2">
         <div className="bg-turf rounded-xl border border-chalk/[0.05] p-3 text-center">
@@ -276,7 +294,9 @@ export default function AdminFinance() {
         <div className="h-px bg-chalk/[0.06] my-2" />
         <Line label="Σύνολο εσόδων" value={eur(calc.incTotal)} bold color="#2FA84F" />
       </div>
+      </>)}
 
+      {tab === 'fees' && (<>
       {/* Συμμετοχές ανά ημέρα είσπραξης (μέσα στο εύρος) */}
       {(() => {
         const fee = parseFloat(partFee.replace(',', '.')) || 0
@@ -291,6 +311,9 @@ export default function AdminFinance() {
         }
         const rows = [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0]))
         const total = rows.reduce((s, [, c]) => s + c * fee, 0)
+        // Έξοδα που πληρώθηκαν ΑΠΟ τις συμμετοχές (μέσα στο εύρος)
+        const feeExp = expenses.filter(x => x.from_fees && x.day >= from && x.day <= to)
+        const covered = feeExp.reduce((s, x) => s + Number(x.amount), 0)
         return (
           <div className="bg-turf rounded-xl border border-chalk/[0.05] p-3.5">
             <p className="text-[12.5px] font-extrabold text-chalk mb-2.5">🎟 Συμμετοχές ανά ημέρα</p>
@@ -301,6 +324,22 @@ export default function AdminFinance() {
             ))}
             <div className="h-px bg-chalk/[0.06] my-2" />
             <Line label="Σύνολο συμμετοχών" value={eur(total)} bold color="#2FA84F" />
+
+            {/* Έξοδα που καλύφθηκαν από τις συμμετοχές */}
+            {covered > 0 && (
+              <>
+                <div className="mt-2.5 mb-1 text-[10.5px] font-extrabold text-dim tracking-[0.08em] uppercase">
+                  Πληρώθηκαν από συμμετοχές
+                </div>
+                {feeExp.sort((a, b) => a.day.localeCompare(b.day)).map(x => (
+                  <Line key={x.id} label={`${fmtDay(`${x.day}T12:00:00`)} · ${x.label}`}
+                    value={`−${eur(Number(x.amount))}`} color="#D8483C" />
+                ))}
+                <div className="h-px bg-chalk/[0.06] my-2" />
+                <Line label="Υπόλοιπο συμμετοχών" value={eur(total - covered)} bold
+                  color={total - covered >= 0 ? '#e8b923' : '#D8483C'} />
+              </>
+            )}
             {noDate > 0 && (
               <p className="text-[10px] text-off mt-1.5">
                 ⚠ {noDate} {noDate === 1 ? 'ομάδα πλήρωσε' : 'ομάδες πλήρωσαν'} χωρίς ημερομηνία —
@@ -311,13 +350,21 @@ export default function AdminFinance() {
         )
       })()}
 
+      {/* Έξοδα που πληρώνονται ΑΠΟ τις συμμετοχές */}
+      <LedgerList title="🧾 Έξοδα από συμμετοχές"
+        list={expenses.filter(x => x.from_fees && x.day >= from && x.day <= to)}
+        onAdd={(d, l, a, n) => addExpense(d, l, a, n, true)} onDel={delExpense}
+        onEdit={(id, d, l, a, n) => editExpense(id, d, l, a, n, true)} />
+      </>)}
+
+      {tab === 'matches' && (<>
       {/* Ανάλυση εξόδων — πάτα μια γραμμή για αναλυτικά */}
       <div className="bg-turf rounded-xl border border-chalk/[0.05] p-3.5">
         <p className="text-[12.5px] font-extrabold text-chalk mb-2.5">📉 Έξοδα</p>
         <ExpandLine label={`Γήπεδα — ${calc.hosted} αγώνες`} value={eur(calc.field)} items={details.fields} />
         <ExpandLine label="Μισθοί προσωπικού" value={eur(calc.salaries)} items={details.salaries} />
         <ExpandLine label="Λοιπά έξοδα" value={eur(calc.other)}
-          items={expenses.filter(x => x.day >= from && x.day <= to)
+          items={expenses.filter(x => x.day >= from && x.day <= to && !x.from_fees)
             .map(x => ({ d: x.day, label: x.label, sub: x.note ?? undefined, amount: Number(x.amount) }))} />
         <div className="h-px bg-chalk/[0.06] my-2" />
         <Line label="Σύνολο εξόδων" value={eur(calc.exp)} bold color="#D8483C" />
@@ -333,11 +380,14 @@ export default function AdminFinance() {
         list={incomes.filter(x => x.kind === 'sponsor' && x.day >= from && x.day <= to)}
         onAdd={(d, l, a, n) => addIncome('sponsor', d, l, a, n)} onDel={delIncome} onEdit={editIncome} />
 
-      {/* Λοιπά έξοδα — καταχώρηση */}
+      {/* Λοιπά έξοδα — καταχώρηση (όχι από συμμετοχές) */}
       <LedgerList title="🧾 Λοιπά έξοδα"
-        list={expenses.filter(x => x.day >= from && x.day <= to)}
-        onAdd={(d, l, a, n) => addExpense(d, l, a, n)} onDel={delExpense} onEdit={editExpense} />
+        list={expenses.filter(x => x.day >= from && x.day <= to && !x.from_fees)}
+        onAdd={(d, l, a, n) => addExpense(d, l, a, n, false)} onDel={delExpense}
+        onEdit={(id, d, l, a, n) => editExpense(id, d, l, a, n, false)} />
+      </>)}
 
+      {tab === 'fees' && (<>
       {/* Συμμετοχές ομάδων (ανά πρωτάθλημα) */}
       {(() => {
         const fee = parseFloat(partFee.replace(',', '.')) || 0
@@ -415,7 +465,9 @@ export default function AdminFinance() {
           </div>
         )
       })()}
+      </>)}
 
+      {tab === 'matches' && (<>
       {/* Ρυθμίσεις χρεώσεων */}
       <div className="bg-turf rounded-xl border border-chalk/[0.05] p-3.5">
         <button onClick={() => setShowSettings(v => !v)}
@@ -485,6 +537,7 @@ export default function AdminFinance() {
           </div>
         )}
       </div>
+      </>)}
     </div>
   )
 }
