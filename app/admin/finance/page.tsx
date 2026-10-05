@@ -297,6 +297,34 @@ export default function AdminFinance() {
       </>)}
 
       {tab === 'fees' && (<>
+      {/* Σύνοψη συμμετοχών */}
+      {(() => {
+        const fee = parseFloat(partFee.replace(',', '.')) || 0
+        const collected = teams.filter(t => {
+          const d = (t.fee_paid_at ?? '').slice(0, 10)
+          return t.fee_paid && d && d >= from && d <= to
+        }).length * fee
+        const covered = expenses.filter(x => x.from_fees && x.day >= from && x.day <= to)
+          .reduce((s, x) => s + Number(x.amount), 0)
+        const net = collected - covered
+        return (
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-turf rounded-xl border border-chalk/[0.05] p-3 text-center">
+              <p className="text-[9.5px] font-extrabold text-dim tracking-[0.1em] mb-1">ΕΣΟΔΑ</p>
+              <p className="text-[18px] font-extrabold text-[#2FA84F] tnum leading-none">{eur(collected)}</p>
+            </div>
+            <div className="bg-turf rounded-xl border border-chalk/[0.05] p-3 text-center">
+              <p className="text-[9.5px] font-extrabold text-dim tracking-[0.1em] mb-1">ΕΞΟΔΑ</p>
+              <p className="text-[18px] font-extrabold text-[#D8483C] tnum leading-none">{eur(covered)}</p>
+            </div>
+            <div className="bg-turf rounded-xl border border-chalk/[0.05] p-3 text-center">
+              <p className="text-[9.5px] font-extrabold text-dim tracking-[0.1em] mb-1">ΚΑΘΑΡΟ</p>
+              <p className={`text-[18px] font-extrabold tnum leading-none ${net >= 0 ? 'text-lit' : 'text-[#D8483C]'}`}>{eur(net)}</p>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Συμμετοχές ανά ημέρα είσπραξης (μέσα στο εύρος) */}
       {(() => {
         const fee = parseFloat(partFee.replace(',', '.')) || 0
