@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Loading } from '@/app/ui'
-import { athensDateKey } from '@/lib/time'
+import { athensDateKey, fmtDay } from '@/lib/time'
 import toast from 'react-hot-toast'
 
 type Rate = { id: string; effective_from: string; fee_8x8: number; fee_7x7: number; field_cost: number }
@@ -276,6 +276,40 @@ export default function AdminFinance() {
         <div className="h-px bg-chalk/[0.06] my-2" />
         <Line label="Σύνολο εσόδων" value={eur(calc.incTotal)} bold color="#2FA84F" />
       </div>
+
+      {/* Συμμετοχές ανά ημέρα είσπραξης (μέσα στο εύρος) */}
+      {(() => {
+        const fee = parseFloat(partFee.replace(',', '.')) || 0
+        const byDay = new Map<string, number>()  // ημέρα → πλήθος ομάδων
+        let noDate = 0
+        for (const t of teams) {
+          if (!t.fee_paid) continue
+          const d = (t.fee_paid_at ?? '').slice(0, 10)
+          if (!d) { noDate++; continue }
+          if (d < from || d > to) continue
+          byDay.set(d, (byDay.get(d) ?? 0) + 1)
+        }
+        const rows = [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+        const total = rows.reduce((s, [, c]) => s + c * fee, 0)
+        return (
+          <div className="bg-turf rounded-xl border border-chalk/[0.05] p-3.5">
+            <p className="text-[12.5px] font-extrabold text-chalk mb-2.5">🎟 Συμμετοχές ανά ημέρα</p>
+            {!rows.length ? (
+              <p className="text-[11px] text-dim">Καμία είσπραξη συμμετοχής σε αυτό το εύρος.</p>
+            ) : rows.map(([d, c]) => (
+              <Line key={d} label={`${fmtDay(`${d}T12:00:00`)} — ${c} ομ.`} value={eur(c * fee)} />
+            ))}
+            <div className="h-px bg-chalk/[0.06] my-2" />
+            <Line label="Σύνολο συμμετοχών" value={eur(total)} bold color="#2FA84F" />
+            {noDate > 0 && (
+              <p className="text-[10px] text-off mt-1.5">
+                ⚠ {noDate} {noDate === 1 ? 'ομάδα πλήρωσε' : 'ομάδες πλήρωσαν'} χωρίς ημερομηνία —
+                βάλε ημερομηνία στις «Συμμετοχές ομάδων» για να μετρηθούν εδώ.
+              </p>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Ανάλυση εξόδων — πάτα μια γραμμή για αναλυτικά */}
       <div className="bg-turf rounded-xl border border-chalk/[0.05] p-3.5">
