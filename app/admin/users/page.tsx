@@ -24,6 +24,7 @@ export default function AdminUsers() {
   const [load, setLoad] = useState(true)
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState<string>('all')  // φίλτρο ρόλου
+  const [q, setQ] = useState('')                        // αναζήτηση ονόματος/email
   // Επεξεργασία εμφανιζόμενου ονόματος (inline)
   const [editId, setEditId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
@@ -101,7 +102,11 @@ export default function AdminUsers() {
   const count = (v: string) => rows.filter(u => u.role === v).length
   const tabs = [{ value: 'all', label: 'Όλοι' }, ...ROLES]
   const ts = (u: any) => new Date((u as any).created_at ?? 0).getTime()
+  // Αναζήτηση χωρίς τόνους/κεφαλαία (π.χ. «παπαζ» βρίσκει «Παπαζήσης»)
+  const fold = (s: string) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  const qf = fold(q.trim())
   const shown = (filter === 'all' ? rows : rows.filter(u => u.role === filter))
+    .filter(u => !qf || fold(u.full_name ?? '').includes(qf) || fold(u.email ?? '').includes(qf))
     .slice().sort((a, b) => ts(b) - ts(a))  // νεότεροι πάνω-πάνω
 
   return (
@@ -111,6 +116,19 @@ export default function AdminUsers() {
         <button onClick={() => setOpen(true)}
           className="px-4 py-2 rounded-lg bg-gradient-to-b from-lit to-brand
             text-white text-[12.5px] font-extrabold">+ Speaker</button>
+      </div>
+
+      {/* Αναζήτηση */}
+      <div className="relative mb-3">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dim text-[13px]">🔍</span>
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Αναζήτηση ονόματος ή email…"
+          className="w-full bg-turf rounded-xl pl-9 pr-9 py-2.5 text-chalk text-[13px]
+            outline-none border border-chalk/[0.07] focus:border-lit/50 placeholder:text-off" />
+        {q && (
+          <button onClick={() => setQ('')} aria-label="Καθαρισμός"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg bg-chalk/[0.06]
+              text-dim text-[12px] grid place-items-center">✕</button>
+        )}
       </div>
 
       {/* Φίλτρο ανά ρόλο */}
@@ -129,7 +147,7 @@ export default function AdminUsers() {
         })}
       </div>
 
-      {!shown.length ? <Empty>Δεν υπάρχουν χρήστες.</Empty> : (
+      {!shown.length ? <Empty>{q ? `Κανένας χρήστης για «${q}».` : 'Δεν υπάρχουν χρήστες.'}</Empty> : (
         <div className="flex flex-col gap-1.5">
           {shown.map(u => (
             <div key={u.id}
