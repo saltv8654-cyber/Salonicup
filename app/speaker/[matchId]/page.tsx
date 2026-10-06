@@ -262,6 +262,9 @@ export default function SpeakerPanel() {
   const hasPens = pens.a > 0 || pens.b > 0
 
   if (loading || authLoading || !match) return <Loading />
+  // Μόνο Speaker/Admin βλέπουν/επεξεργάζονται (8άδα, σκορ, χρονόμετρο).
+  // Οι υπόλοιποι ανακατευθύνονται — μη δείξεις ΠΟΤΕ την οθόνη (ούτε για μια στιγμή).
+  if (!isSpeaker) return <Loading />
 
   const activeA = rosterA.filter(p => inA.has(p.player_id))
   const activeB = rosterB.filter(p => inB.has(p.player_id))
