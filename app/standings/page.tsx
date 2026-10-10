@@ -29,10 +29,21 @@ export default async function StandingsPage({
   const active: League | undefined =
     leagues?.find(l => l.league_id === searchParams.league) ?? leagues?.[0]
 
-  const { data: rows } = active
-    ? await supabase.from('standings').select('*')
+  // Δημόσια βαθμολογία = ΖΩΝΤΑΝΗ (μετράει και τους live αγώνες). Τα υπόλοιπα
+  // (playoff seeding, εικόνες, scoreboard) χρησιμοποιούν το βασικό «standings».
+  // Fallback στο «standings» αν δεν έχει δημιουργηθεί ακόμη το «standings_live».
+  let rows: Standing[] = []
+  if (active) {
+    const live = await supabase.from('standings_live').select('*')
+      .eq('league_id', active.league_id).order('position')
+    if (live.error) {
+      const base = await supabase.from('standings').select('*')
         .eq('league_id', active.league_id).order('position')
-    : { data: [] as Standing[] }
+      rows = (base.data ?? []) as Standing[]
+    } else {
+      rows = (live.data ?? []) as Standing[]
+    }
+  }
 
   // Αγωνιστικές (μόνο στην αντίστοιχη καρτέλα)
   const { data: fixtures } = active && view === 'fixtures'
