@@ -607,9 +607,15 @@ export default function SpeakerPanel() {
         </>
       ) : (
         <>
-          <div className="px-3.5 pt-3.5 shrink-0">
-            <ClockBar cp={match.clock_period} startedAt={match.clock_started_at}
-              now={now} busy={clockBusy} onSet={setClock} onSetMinute={setClockMinute} />
+          <div className="px-3.5 pt-3.5 shrink-0 flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <ClockBar cp={match.clock_period} startedAt={match.clock_started_at}
+                now={now} busy={clockBusy} onSet={setClock} onSetMinute={setClockMinute} />
+            </div>
+            <button onClick={() => setPhase('squad')}
+              className="shrink-0 h-[44px] px-3 rounded-xl border border-lit/35 bg-lit/[0.10]
+                text-lit text-[12px] font-extrabold flex items-center gap-1 active:opacity-90"
+              title="Επεξεργασία 8άδας">✏️ 8άδα</button>
           </div>
           <div className="px-3.5 pt-3 pb-3 shrink-0">
             {/* Περίοδος */}
@@ -1079,8 +1085,9 @@ export default function SpeakerPanel() {
               </button>
             </div>
             <button onClick={() => setPhase('squad')}
-              className="w-full py-2.5 rounded-xl text-dim font-semibold text-[12.5px]">
-              Αλλαγή συμμετοχών
+              className="w-full py-3 rounded-xl border border-lit/35 bg-lit/[0.10] text-lit
+                font-extrabold text-[13px] flex items-center justify-center gap-1.5 active:opacity-90">
+              ✏️ Επεξεργασία 8άδας / συμμετοχών
             </button>
           </div>
         </>
