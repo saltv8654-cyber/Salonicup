@@ -489,6 +489,38 @@ export default function AdminFinance() {
                     </div>
                   )
                 })}
+
+                {/* Ανενεργές ομάδες που έχουν πληρώσει (π.χ. ομάδες που αντικαταστάθηκαν) */}
+                {(() => {
+                  const inactivePaid = teams.filter(t => t.active === false && t.fee_paid)
+                  if (!inactivePaid.length) return null
+                  return (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2 px-0.5">
+                        <span className="text-[12.5px] font-extrabold text-dim">Ανενεργές που πλήρωσαν</span>
+                        <span className="text-[10px] text-dim font-bold tnum">{inactivePaid.length} · {eur(inactivePaid.length * fee)}</span>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        {inactivePaid.map(t => (
+                          <div key={t.team_id}
+                            className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 border bg-chalk/[0.03] border-chalk/[0.06]">
+                            <span className="flex-1 min-w-0 text-[13px] font-bold text-silver truncate">
+                              {t.name} <span className="text-[10px] text-off">(ανενεργή)</span>
+                            </span>
+                            <div className="flex flex-col items-end shrink-0">
+                              <span className="text-[10px] font-bold text-[#2FA84F] leading-none mb-0.5">Εισπράχθηκε</span>
+                              <input type="date" value={(t.fee_paid_at ?? '').slice(0, 10)}
+                                onChange={e => setFeeDate(t.team_id, e.target.value)}
+                                className="bg-transparent text-[#2FA84F] text-[11.5px] font-extrabold tnum outline-none text-right" />
+                            </div>
+                            <button onClick={() => toggleTeamPaid(t.team_id, false)} title="Ακύρωση πληρωμής"
+                              className="shrink-0 w-7 h-7 rounded-lg bg-danger/15 text-danger text-[12px] grid place-items-center">✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             )}
           </div>
