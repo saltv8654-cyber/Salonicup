@@ -29,7 +29,7 @@ export default function AdminFinance() {
   const [incomes, setIncomes] = useState<Income[]>([])
   const [showSettings, setShowSettings] = useState(false)
   // Συμμετοχές ομάδων
-  const [teams, setTeams] = useState<{ team_id: string; name: string; league_id: string; fee_paid: boolean; fee_paid_at?: string | null }[]>([])
+  const [teams, setTeams] = useState<{ team_id: string; name: string; league_id: string; fee_paid: boolean; fee_paid_at?: string | null; active?: boolean }[]>([])
   const [partFee, setPartFee] = useState('40')
   const [showFees, setShowFees] = useState(true)
   const [personNames, setPersonNames] = useState<Record<string, string>>({})
@@ -43,7 +43,7 @@ export default function AdminFinance() {
         .in('match_status', ['Played', 'Live']).not('match_date', 'is', null),
       supabase.from('staff_payments').select('day, amount, person_type, person_id'),
       supabase.from('expenses').select('*').order('day', { ascending: false }),
-      supabase.from('teams').select('team_id, name, league_id, fee_paid, fee_paid_at').eq('active', true).order('name'),
+      supabase.from('teams').select('team_id, name, league_id, fee_paid, fee_paid_at, active').order('name'),
       supabase.from('app_settings').select('participation_fee').eq('id', 1).maybeSingle(),
       supabase.from('incomes').select('*').order('day', { ascending: false }),
       supabase.from('staff').select('id, name'),
@@ -416,10 +416,11 @@ export default function AdminFinance() {
       </>)}
 
       {tab === 'fees' && (<>
-      {/* Συμμετοχές ομάδων (ανά πρωτάθλημα) */}
+      {/* Συμμετοχές ομάδων (ανά πρωτάθλημα) — μόνο ΕΝΕΡΓΕΣ ομάδες στη διαχείριση */}
       {(() => {
         const fee = parseFloat(partFee.replace(',', '.')) || 0
-        const paidCount = teams.filter(t => t.fee_paid).length
+        const activeTeams = teams.filter(t => t.active !== false)
+        const paidCount = activeTeams.filter(t => t.fee_paid).length
         return (
           <div className="bg-turf rounded-xl border border-chalk/[0.05] p-3.5">
             <button onClick={() => setShowFees(v => !v)} className="w-full flex items-center justify-between">
@@ -439,14 +440,14 @@ export default function AdminFinance() {
               </div>
               <div className="text-right">
                 <p className="text-[15px] font-extrabold text-[#2FA84F] tnum leading-none">{eur(paidCount * fee)}</p>
-                <p className="text-[10px] text-dim mt-0.5">{paidCount}/{teams.length} πλήρωσαν · υπόλοιπο {eur((teams.length - paidCount) * fee)}</p>
+                <p className="text-[10px] text-dim mt-0.5">{paidCount}/{activeTeams.length} πλήρωσαν · υπόλοιπο {eur((activeTeams.length - paidCount) * fee)}</p>
               </div>
             </div>
 
             {showFees && (
               <div className="flex flex-col gap-4 mt-3">
-                {leagues.filter(l => teams.some(t => t.league_id === l.league_id)).map(l => {
-                  const lteams = teams.filter(t => t.league_id === l.league_id)
+                {leagues.filter(l => activeTeams.some(t => t.league_id === l.league_id)).map(l => {
+                  const lteams = activeTeams.filter(t => t.league_id === l.league_id)
                   const paid = lteams.filter(t => t.fee_paid).length
                   return (
                     <div key={l.league_id}>
