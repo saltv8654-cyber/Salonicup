@@ -48,6 +48,40 @@ export default function AdminTeams() {
     toast.success('Διαγράφηκε'); fetchRows()
   }
 
+  /** Αντικατάσταση ομάδας: νέα ομάδα στη θέση της· η παλιά γίνεται ΑΝΕΝΕΡΓΗ (κρατάει το 40€),
+   *  σβήνονται οι παλιοί παίκτες και (προαιρετικά) περνούν οι μελλοντικοί αγώνες στη νέα. */
+  async function replaceTeam(t: any) {
+    const name = window.prompt(`Αντικατάσταση «${t.name}» με νέα ομάδα.\nΌνομα νέας ομάδας:`)
+    if (name == null) return
+    const nm = name.trim()
+    if (!nm) return toast.error('Βάλε όνομα')
+    if (!confirm(
+      `Θα γίνει:\n• «${t.name}» → ΑΝΕΝΕΡΓΗ (κρατάει το 40€ στα Οικονομικά)\n`
+      + `• Νέα ομάδα «${nm}» (ίδιο πρωτάθλημα)\n• Σβήσιμο των παικτών της «${t.name}»\n\nΣυνέχεια;`)) return
+
+    // 1) Νέα ομάδα (ίδιο πρωτάθλημα, απλήρωτη)
+    const { data: nt, error: e1 } = await supabase.from('teams')
+      .insert({ name: nm, league_id: t.league_id, active: true, fee_paid: false, fee_paid_at: null })
+      .select('team_id').single()
+    if (e1 || !nt) return toast.error('Δεν δημιουργήθηκε η νέα ομάδα: ' + (e1?.message ?? ''))
+
+    // 2) Προαιρετικά: μελλοντικοί (προγραμματισμένοι) αγώνες → νέα ομάδα
+    if (confirm('Να περάσουν οι ΜΕΛΛΟΝΤΙΚΟΙ (προγραμματισμένοι) αγώνες της παλιάς ομάδας στη νέα;')) {
+      await supabase.from('matches').update({ team_a: nt.team_id }).eq('team_a', t.team_id).eq('match_status', 'Scheduled')
+      await supabase.from('matches').update({ team_b: nt.team_id }).eq('team_b', t.team_id).eq('match_status', 'Scheduled')
+    }
+
+    // 3) Παλιά ομάδα → ανενεργή (ΔΕΝ διαγράφεται, για να μείνει το 40€ στα βιβλία)
+    const { error: e2 } = await supabase.from('teams').update({ active: false }).eq('team_id', t.team_id)
+    if (e2) toast.error('Η παλιά δεν έγινε ανενεργή: ' + e2.message)
+
+    // 4) Σβήσιμο παικτών της παλιάς ομάδας
+    await supabase.from('players').delete().eq('team_id', t.team_id)
+
+    toast.success(`Έτοιμο: «${nm}» αντικατέστησε «${t.name}»`)
+    fetchRows()
+  }
+
   /** Αναβολή: +1 στην ομάδα που τη ζήτησε */
   async function bumpPostpone(t: Team, delta: number) {
     const next = Math.max(0, (t.postponements ?? 0) + delta)
@@ -123,6 +157,9 @@ export default function AdminTeams() {
               <button onClick={() => { setEdit(t); setOpen(true) }}
                 className="px-3 py-2 rounded-lg bg-chalk/[0.05] text-silver
                   text-[11px] font-bold">Επεξ.</button>
+              <button onClick={() => replaceTeam(t)} title="Αντικατάσταση ομάδας"
+                className="px-2.5 py-2 rounded-lg bg-lit/[0.12] text-lit border border-lit/25
+                  text-[11px] font-bold">↔</button>
               <button onClick={() => remove(t.team_id)}
                 className="px-2.5 py-2 rounded-lg bg-danger/15 text-danger
                   text-[11px] font-bold">✕</button>
