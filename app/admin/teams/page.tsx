@@ -65,8 +65,19 @@ export default function AdminTeams() {
       .select('team_id').single()
     if (e1 || !nt) return toast.error('Δεν δημιουργήθηκε η νέα ομάδα: ' + (e1?.message ?? ''))
 
-    // 2) Προαιρετικά: μελλοντικοί (προγραμματισμένοι) αγώνες → νέα ομάδα
-    if (confirm('Να περάσουν οι ΜΕΛΛΟΝΤΙΚΟΙ (προγραμματισμένοι) αγώνες της παλιάς ομάδας στη νέα;')) {
+    // 2) Μεταφορά αγώνων στη νέα ομάδα: ΟΛΟΙ (για να κληρονομήσει βαθμούς/αποτελέσματα)
+    //    ή μόνο οι μελλοντικοί (για ξεκίνημα από το μηδέν).
+    const moveAll = confirm(
+      'Να πάρει η ΝΕΑ ομάδα και τα ΑΠΟΤΕΛΕΣΜΑΤΑ της παλιάς (βαθμοί/ιστορικό);\n\n'
+      + 'OK = μεταφορά ΟΛΩΝ των αγώνων (παρελθόν + μέλλον)\n'
+      + 'Άκυρο = μόνο οι μελλοντικοί (η νέα ξεκινά από το μηδέν)')
+    if (moveAll) {
+      await supabase.from('matches').update({ team_a: nt.team_id }).eq('team_a', t.team_id)
+      await supabase.from('matches').update({ team_b: nt.team_id }).eq('team_b', t.team_id)
+      // μετέφερε και γκολ/κάρτες + απαντήσεις captain στη νέα ομάδα (best-effort)
+      await supabase.from('events').update({ team_id: nt.team_id }).eq('team_id', t.team_id).then(() => {}, () => {})
+      await supabase.from('match_responses').update({ team_id: nt.team_id }).eq('team_id', t.team_id).then(() => {}, () => {})
+    } else {
       await supabase.from('matches').update({ team_a: nt.team_id }).eq('team_a', t.team_id).eq('match_status', 'Scheduled')
       await supabase.from('matches').update({ team_b: nt.team_id }).eq('team_b', t.team_id).eq('match_status', 'Scheduled')
     }
