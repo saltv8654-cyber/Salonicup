@@ -109,4 +109,9 @@ left join results r on r.team_id = t.team_id
 where t.active
 group by t.team_id, t.league_id, t.name, t.logo_url, t.postponements;
 
+-- ── 3) Grants (ώστε το Data API να διαβάζει τις views· απαραίτητο για νέα
+--       αντικείμενα από 30/10/2026 και μετά) ──
+grant select on standings      to anon, authenticated;
+grant select on standings_live to anon, authenticated;
+
 notify pgrst, 'reload schema';
