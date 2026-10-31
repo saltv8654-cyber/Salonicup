@@ -183,6 +183,32 @@ export default function AdminBet() {
     setDraft({})
   }
 
+  // Ξαναϋπολογίζει ΟΛΕΣ τις αποδόσεις από τα τρέχοντα στατιστικά (αγνοεί τις ήδη
+  // δημοσιευμένες) και τις δημοσιεύει. Λύνει το «ίδιες αποδόσεις παντού».
+  async function recomputeAndPublishAll() {
+    const toPublish = matches.filter(m => statOf.byTeam.has(m.team_a) || statOf.byTeam.has(m.team_b))
+    if (!toPublish.length) { toast.error('Δεν υπάρχουν αγώνες με στατιστικά ομάδων'); return }
+    setSaving('all')
+    const num = (x: string) => { const n = parseFloat(x); return Number.isFinite(n) ? n : null }
+    const rows = toPublish.map(m => {
+      const c = computeFor(m)   // ΠΑΝΤΑ φρέσκος υπολογισμός
+      if (!c) return null
+      return {
+        match_id: m.match_id,
+        home: num(c.home), draw: num(c.draw), away: num(c.away),
+        over25: num(c.over25), under25: num(c.under25),
+        btts_yes: num(c.btts_yes), btts_no: num(c.btts_no),
+        p_home: c.p_home, p_draw: c.p_draw, p_away: c.p_away,
+        updated_at: new Date().toISOString(),
+      }
+    }).filter((r: any) => r && r.home != null && r.draw != null && r.away != null)
+    const { error } = await supabase.from('bet_odds').upsert(rows as any, { onConflict: 'match_id' })
+    setSaving(null)
+    if (error) { toast.error('Σφάλμα: ' + error.message); return }
+    toast.success(`Υπολογίστηκαν & δημοσιεύτηκαν ${rows.length} αγώνες`)
+    setDraft({}); fetchAll()
+  }
+
   if (load) return <Loading />
 
   const grouped = new Map<string, UpMatch[]>()
@@ -211,6 +237,11 @@ export default function AdminBet() {
             Διόρθωσε αν θες και δημοσίευσε — ο κόσμος τις βλέπει στο <b>/bet</b>.
           </p>
         </div>
+        <button onClick={recomputeAndPublishAll} disabled={saving === 'all'}
+          className="shrink-0 px-3 py-2 rounded-xl bg-gradient-to-b from-lit to-brand
+            text-white text-[12px] font-extrabold disabled:opacity-50">
+          {saving === 'all' ? '…' : '♻️ Υπολόγισε & δημοσίευσε όλα'}
+        </button>
       </div>
 
       <button onClick={publishAll} disabled={saving === 'all'}
