@@ -56,28 +56,30 @@ export function computeOdds(home: TeamStat, away: TeamStat, base: number, h2h?: 
   const atk = (t: TeamStat) => (t.played > 0 ? clamp((t.gf / t.played) / b, 0.25, 3) : 1)
   const def = (t: TeamStat) => (t.played > 0 ? clamp((t.ga / t.played) / b, 0.25, 3) : 1)
 
-  // Μικρή διόρθωση φόρμας: ±10% ανάλογα με τη διαφορά φόρμας των δύο ομάδων
-  const fH = home.form ?? 0.5, fA = away.form ?? 0.5
-  const formAdj = 1 + clamp((fH - fA) * 0.2, -0.12, 0.12)
+  // ── ΣΥΝΟΛΙΚΑ αναμενόμενα γκολ (για Over/Under & Goal-Goal) — από τα γκολ ──
+  const egH = b * atk(home) * def(away)
+  const egA = b * atk(away) * def(home)
+  const T = clamp((egH + egA) * HOME_ADV, 0.6, 10)   // HOME_ADV=1 → ουδέτερο
 
-  // Ισχύς βαθμολογίας: πόντοι ανά αγώνα (ώστε η θέση στον πίνακα να μετράει)
+  // ── ΠΟΙΟΣ ΕΙΝΑΙ ΦΑΒΟΡΙ (κατανομή των γκολ) ──
+  // Σειρά βαρύτητας: 1) βαθμολογία  2) φόρμα  3) μεταξύ τους  4) γκολ υπέρ/κατά
   const ppg = (t: TeamStat) => clamp(t.played > 0 ? t.points / t.played : 1, 0, 3)
-  const strAdj = clamp((ppg(home) - ppg(away)) * 0.12, -0.25, 0.25)
-
-  let lH = b * atk(home) * def(away) * HOME_ADV * formAdj * (1 + strAdj)
-  let lA = b * atk(away) * def(home) / HOME_ADV / formAdj * (1 - strAdj)
-  lH = clamp(lH, 0.15, 6)
-  lA = clamp(lA, 0.15, 6)
-
-  // Ενσωμάτωση head-to-head: μίξη με τα μέσα γκολ των προηγούμενων αναμετρήσεων
-  // (όσες περισσότερες φορές έχουν παίξει, τόσο μεγαλύτερο βάρος, έως 35%).
+  const gd  = (t: TeamStat) => (t.played > 0 ? (t.gf - t.ga) / t.played : 0)
+  const fH = home.form ?? 0.5, fA = away.form ?? 0.5
+  let h2hAdv = 0
   if (h2h && h2h.meetings >= 1) {
-    const w = Math.min(0.35, h2h.meetings * 0.12)
-    const hAvg = clamp(h2h.homeGoals / h2h.meetings, 0, 8)
-    const aAvg = clamp(h2h.awayGoals / h2h.meetings, 0, 8)
-    lH = clamp(lH * (1 - w) + hAvg * w, 0.15, 6)
-    lA = clamp(lA * (1 - w) + aAvg * w, 0.15, 6)
+    const tot = h2h.homeGoals + h2h.awayGoals
+    h2hAdv = (tot > 0 ? (h2h.homeGoals - h2h.awayGoals) / tot : 0) * Math.min(1, h2h.meetings / 2)
   }
+  const diff = clamp(
+      0.50 * ((ppg(home) - ppg(away)) / 3)          // βαθμολογία (πόντοι/αγώνα)
+    + 0.30 * (fH - fA)                              // φόρμα
+    + 0.12 * h2hAdv                                 // μεταξύ τους
+    + 0.08 * clamp((gd(home) - gd(away)) / 6, -1, 1) // γκολ υπέρ/κατά
+    , -1, 1)
+  const shareH = clamp(0.5 + 0.45 * diff, 0.15, 0.85)
+  const lH = clamp(T * shareH, 0.15, 7)
+  const lA = clamp(T * (1 - shareH), 0.15, 7)
 
   const N = 16
   let pH = 0, pD = 0, pA = 0, pOver = 0, pBtts = 0
