@@ -23,7 +23,7 @@ export type Odds = {
 }
 
 const MARGIN = 1.07      // overround ~7% (το «κόστος» του πράκτορα)
-const HOME_ADV = 1.04    // μικρό πλεονέκτημα έδρας (σε κοινά γήπεδα ~ουδέτερο)
+const HOME_ADV = 1.00    // χωρίς πλεονέκτημα έδρας — όλοι παίζουν στα ίδια γήπεδα
 const MIN_ODDS = 1.05
 const MAX_ODDS = 25
 
