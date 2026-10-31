@@ -103,7 +103,20 @@ export default function AdminBet() {
       points: s?.points ?? 0, position: s?.position ?? 0,
       form: (statOf.form.get(tid) ?? 0) / (3 * Math.max(1, statOf.seen.get(tid) ?? 0)),
     })
-    const o = computeOdds(mk(h, m.team_a), mk(a, m.team_b), base)
+    // Head-to-head: όλες οι προηγούμενες αναμετρήσεις των δύο ομάδων (από το αρχείο)
+    const h2h = (() => {
+      let hg = 0, ag = 0, n = 0
+      for (const g of played) {
+        const ab = g.team_a === m.team_a && g.team_b === m.team_b
+        const ba = g.team_a === m.team_b && g.team_b === m.team_a
+        if (!ab && !ba) continue
+        n++
+        if (ab) { hg += g.goals_team_a ?? 0; ag += g.goals_team_b ?? 0 }
+        else    { hg += g.goals_team_b ?? 0; ag += g.goals_team_a ?? 0 }
+      }
+      return n ? { homeGoals: hg, awayGoals: ag, meetings: n } : undefined
+    })()
+    const o = computeOdds(mk(h, m.team_a), mk(a, m.team_b), base, h2h)
     return {
       home: o.home.toFixed(2), draw: o.draw.toFixed(2), away: o.away.toFixed(2),
       over25: o.over25.toFixed(2), under25: o.under25.toFixed(2),

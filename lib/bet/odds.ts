@@ -48,7 +48,10 @@ function priceFromProb(p: number): number {
  * @param base Μέσος όρος γκολ ανά ομάδα ανά αγώνα στο πρωτάθλημα (π.χ. 1.4).
  *             Υπολογισμός: sum(gf) / sum(played) όλων των ομάδων.
  */
-export function computeOdds(home: TeamStat, away: TeamStat, base: number): Odds {
+/** Ιστορικό αναμετρήσεων των δύο ομάδων (από όλο το αρχείο αγώνων). */
+export type H2H = { homeGoals: number; awayGoals: number; meetings: number }
+
+export function computeOdds(home: TeamStat, away: TeamStat, base: number, h2h?: H2H): Odds {
   const b = clamp(base || 1.3, 0.6, 4)
   const atk = (t: TeamStat) => (t.played > 0 ? clamp((t.gf / t.played) / b, 0.25, 3) : 1)
   const def = (t: TeamStat) => (t.played > 0 ? clamp((t.ga / t.played) / b, 0.25, 3) : 1)
@@ -61,6 +64,16 @@ export function computeOdds(home: TeamStat, away: TeamStat, base: number): Odds 
   let lA = b * atk(away) * def(home) / HOME_ADV / formAdj
   lH = clamp(lH, 0.15, 6)
   lA = clamp(lA, 0.15, 6)
+
+  // Ενσωμάτωση head-to-head: μίξη με τα μέσα γκολ των προηγούμενων αναμετρήσεων
+  // (όσες περισσότερες φορές έχουν παίξει, τόσο μεγαλύτερο βάρος, έως 35%).
+  if (h2h && h2h.meetings >= 1) {
+    const w = Math.min(0.35, h2h.meetings * 0.12)
+    const hAvg = clamp(h2h.homeGoals / h2h.meetings, 0, 8)
+    const aAvg = clamp(h2h.awayGoals / h2h.meetings, 0, 8)
+    lH = clamp(lH * (1 - w) + hAvg * w, 0.15, 6)
+    lA = clamp(lA * (1 - w) + aAvg * w, 0.15, 6)
+  }
 
   const N = 16
   let pH = 0, pD = 0, pA = 0, pOver = 0, pBtts = 0
