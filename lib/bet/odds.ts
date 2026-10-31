@@ -23,7 +23,7 @@ export type Odds = {
 }
 
 const MARGIN = 1.07      // overround ~7% (το «κόστος» του πράκτορα)
-const HOME_ADV = 1.08    // ελαφρύ πλεονέκτημα έδρας
+const HOME_ADV = 1.04    // μικρό πλεονέκτημα έδρας (σε κοινά γήπεδα ~ουδέτερο)
 const MIN_ODDS = 1.05
 const MAX_ODDS = 25
 
@@ -60,8 +60,12 @@ export function computeOdds(home: TeamStat, away: TeamStat, base: number, h2h?: 
   const fH = home.form ?? 0.5, fA = away.form ?? 0.5
   const formAdj = 1 + clamp((fH - fA) * 0.2, -0.12, 0.12)
 
-  let lH = b * atk(home) * def(away) * HOME_ADV * formAdj
-  let lA = b * atk(away) * def(home) / HOME_ADV / formAdj
+  // Ισχύς βαθμολογίας: πόντοι ανά αγώνα (ώστε η θέση στον πίνακα να μετράει)
+  const ppg = (t: TeamStat) => clamp(t.played > 0 ? t.points / t.played : 1, 0, 3)
+  const strAdj = clamp((ppg(home) - ppg(away)) * 0.12, -0.25, 0.25)
+
+  let lH = b * atk(home) * def(away) * HOME_ADV * formAdj * (1 + strAdj)
+  let lA = b * atk(away) * def(home) / HOME_ADV / formAdj * (1 - strAdj)
   lH = clamp(lH, 0.15, 6)
   lA = clamp(lA, 0.15, 6)
 
