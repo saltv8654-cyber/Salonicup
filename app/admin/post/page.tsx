@@ -339,7 +339,7 @@ export default function AdminPost() {
 
         const oddsPost: PostData = {
           type: 'odds',
-          leagueName: 'Αποδόσεις Ημέρας',
+          leagueName: 'SALONICUP BET',
           sub: dayLabel,
           typeLabel: 'Αποδόσεις',
           leagueLogo: null,

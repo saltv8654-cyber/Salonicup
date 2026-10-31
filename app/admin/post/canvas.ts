@@ -202,7 +202,8 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
   ctx.textBaseline = 'alphabetic'
   ctx.fillStyle = pal.accent
   ctx.font = font(600, 29)
-  ctx.fillText('SALONICUP', tx, 94)
+  // Στο post «Αποδόσεις» ο τίτλος είναι ήδη «SALONICUP BET», οπότε παραλείπουμε το kicker.
+  if (d.type !== 'odds') ctx.fillText('SALONICUP', tx, 94)
   ctx.fillStyle = COL.white
   ctx.fillText(fitFont(ctx, d.leagueName.toUpperCase(), W - tx - 260, 700, 60, 34), tx, 152)
   ctx.fillStyle = COL.blue
