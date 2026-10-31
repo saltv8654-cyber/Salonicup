@@ -65,16 +65,28 @@ export default function AdminBet() {
   }
   useEffect(() => { fetchAll() }, [])
 
-  // Στατιστικά ανά ομάδα + μέσος όρος γκολ ανά πρωτάθλημα
+  // Στατιστικά ανά ομάδα ΑΠΕΥΘΕΙΑΣ από τους παιγμένους αγώνες (όχι από view βαθμολογίας),
+  // ώστε να μην επηρεάζεται από αλλαγές/ανενεργές ομάδες και να υπάρχει πάντα διαφοροποίηση.
   const statOf = useMemo(() => {
-    const byTeam = new Map<string, Standing>()
-    standings.forEach(r => byTeam.set(r.team_id, r))
+    const byTeam = new Map<string, any>()
+    const bump = (tid: string, gf: number, ga: number) => {
+      const a = byTeam.get(tid) ?? { team_id: tid, played: 0, goals_for: 0, goals_against: 0, points: 0, position: 0 }
+      a.played += 1; a.goals_for += gf; a.goals_against += ga
+      a.points += gf > ga ? 3 : gf === ga ? 1 : 0
+      byTeam.set(tid, a)
+    }
+    // (τα πιο πρόσφατα πρώτα, γιατί το `played` έρχεται ascending:false)
+    for (const g of played) {
+      if (g.team_a) bump(g.team_a, g.goals_team_a ?? 0, g.goals_team_b ?? 0)
+      if (g.team_b) bump(g.team_b, g.goals_team_b ?? 0, g.goals_team_a ?? 0)
+    }
     // Φόρμα: πόντοι τελευταίων 5 αγώνων / 15
     const form = new Map<string, number>()
     const seen = new Map<string, number>()
     for (const g of played) {
       for (const side of ['a', 'b'] as const) {
         const tid = side === 'a' ? g.team_a : g.team_b
+        if (!tid) continue
         const gf = side === 'a' ? g.goals_team_a : g.goals_team_b
         const ga = side === 'a' ? g.goals_team_b : g.goals_team_a
         const c = seen.get(tid) ?? 0
@@ -84,15 +96,18 @@ export default function AdminBet() {
         form.set(tid, (form.get(tid) ?? 0) + pts)
       }
     }
+    // Μέσος όρος γκολ ανά ομάδα ανά αγώνα, ανά πρωτάθλημα
     const baseByLeague = new Map<string, number>()
-    const agg = new Map<string, { gf: number; pl: number }>()
-    standings.forEach(r => {
-      const a = agg.get(r.league_id) ?? { gf: 0, pl: 0 }
-      a.gf += r.goals_for; a.pl += r.played; agg.set(r.league_id, a)
-    })
-    agg.forEach((v, k) => baseByLeague.set(k, v.pl > 0 ? v.gf / v.pl : 1.3))
+    const agg = new Map<string, { goals: number; apps: number }>()
+    for (const g of played) {
+      const a = agg.get(g.league_id) ?? { goals: 0, apps: 0 }
+      a.goals += (g.goals_team_a ?? 0) + (g.goals_team_b ?? 0)
+      a.apps += 2
+      agg.set(g.league_id, a)
+    }
+    agg.forEach((v, k) => baseByLeague.set(k, v.apps > 0 ? v.goals / v.apps : 1.3))
     return { byTeam, form, seen, baseByLeague }
-  }, [standings, played])
+  }, [played])
 
   function computeFor(m: UpMatch): Draft | null {
     const h = statOf.byTeam.get(m.team_a)
