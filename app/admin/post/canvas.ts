@@ -15,7 +15,7 @@ const COL = {
   highlight: 'rgba(224,91,31,0.22)',
 }
 
-export type PostType = 'schedule' | 'results' | 'standings' | 'versus' | 'week'
+export type PostType = 'schedule' | 'results' | 'standings' | 'versus' | 'week' | 'odds'
 
 /* Χρωματικά θέματα ανά πρωτάθλημα (accent + φόντο). */
 export type ThemeId = 'miami' | 'liga' | 'master' | 'trophy' | 'fantasy' | 'legends'
@@ -43,6 +43,7 @@ export interface MatchRow {
   time?: string; score?: string; field?: string
   leagueName?: string; leagueLogo?: string | null
   tag?: string   // π.χ. "PLAYOFF · ΠΡΟΗΜ. Α΄" — χρυσό σήμα playoff
+  oHome?: string; oDraw?: string; oAway?: string   // αποδόσεις 1 / Χ / 2 (για post «Αποδόσεις»)
 }
 export interface StandRow {
   position: number; name: string; logo: string | null
@@ -241,6 +242,7 @@ export async function drawPost(canvas: HTMLCanvasElement, d: PostData, size?: { 
   const bodyBottom = hasSp ? H - 165 : H - 64
   if (d.type === 'standings') drawStandings(ctx, d, L, pal, bodyBottom)
   else if (d.type === 'versus') drawVersus(ctx, d, L, W, H, pal)
+  else if (d.type === 'odds') drawOdds(ctx, d, L, pal, bodyBottom)
   else drawMatches(ctx, d, L, pal, bodyBottom)
 
   /* λωρίδα χορηγών (μη-Αναμέτρηση· η Αναμέτρηση τους ζωγραφίζει στοιβαγμένους) */
@@ -568,6 +570,82 @@ function drawMatches(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEl
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText('Δεν υπάρχουν αγώνες', S / 2, 560)
+  }
+}
+
+/** Post «Αποδόσεις ημέρας»: κάθε αγώνας με ομάδες + ώρα + αποδόσεις 1/Χ/2. */
+function drawOdds(ctx: any, d: PostData, L: (u: string | null) => HTMLImageElement | null, pal: Pal, bottom = S - 64) {
+  const PAD = 60
+  const cardW = S - PAD * 2
+  const total = d.groups.reduce((n, g) => n + g.matches.length, 0)
+  const nDays = d.groups.length
+  const top = 264
+  const gap = 18, dayH = 56
+  let cardH = (bottom - top - nDays * dayH - total * gap) / Math.max(total, 1)
+  cardH = Math.max(120, Math.min(220, cardH))
+  let y = top
+
+  d.groups.forEach((g) => {
+    ctx.fillStyle = COL.blue
+    ctx.font = font(600, 36)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'alphabetic'
+    ctx.fillText(g.day.toUpperCase(), S / 2, y + 36)
+    y += dayH
+
+    g.matches.forEach((m) => {
+      ctx.fillStyle = COL.card
+      roundRect(ctx, PAD, y, cardW, cardH, 20); ctx.fill()
+      ctx.strokeStyle = COL.cardLine; ctx.lineWidth = 1.5
+      roundRect(ctx, PAD, y, cardW, cardH, 20); ctx.stroke()
+
+      const teamY = y + cardH * 0.32
+      const cs = Math.round(cardH * 0.32)
+      // γηπεδούχος αριστερά
+      crest(ctx, L(m.homeLogo), m.homeName, PAD + 26 + cs / 2, teamY, cs)
+      ctx.fillStyle = COL.white; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+      ctx.font = font(600, 34)
+      ctx.fillText(fitFont(ctx, m.homeName, 290, 600, 34, 20), PAD + 40 + cs, teamY)
+      // φιλοξενούμενος δεξιά
+      const rx = S - PAD - 26 - cs / 2
+      crest(ctx, L(m.awayLogo), m.awayName, rx, teamY, cs)
+      ctx.textAlign = 'right'; ctx.font = font(600, 34)
+      ctx.fillText(fitFont(ctx, m.awayName, 290, 600, 34, 20), S - PAD - 40 - cs, teamY)
+      // κέντρο: ώρα + γήπεδο
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillStyle = pal.accent; ctx.font = font(700, 30)
+      if (m.time) ctx.fillText(m.time, S / 2, teamY - 12)
+      if (m.field) { ctx.fillStyle = COL.dim; ctx.font = font(600, 22); ctx.fillText(m.field, S / 2, teamY + 16) }
+
+      // αποδόσεις 1 / Χ / 2
+      if (m.oHome || m.oDraw || m.oAway) {
+        const py = y + cardH * 0.74
+        const ph = cardH * 0.36
+        const pills: [string, string | undefined][] = [['1', m.oHome], ['Χ', m.oDraw], ['2', m.oAway]]
+        const pw = (cardW - 4 * 16) / 3
+        let px = PAD + 16
+        pills.forEach(([lbl, val]) => {
+          ctx.fillStyle = 'rgba(255,255,255,0.05)'
+          roundRect(ctx, px, py - ph / 2, pw, ph, 12); ctx.fill()
+          ctx.strokeStyle = COL.cardLine; ctx.lineWidth = 1.5
+          roundRect(ctx, px, py - ph / 2, pw, ph, 12); ctx.stroke()
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+          ctx.fillStyle = COL.dim; ctx.font = font(700, 23)
+          ctx.fillText(lbl, px + pw / 2, py - ph * 0.19)
+          ctx.fillStyle = pal.accent; ctx.font = font(800, Math.round(ph * 0.34))
+          ctx.fillText(val ?? '—', px + pw / 2, py + ph * 0.22)
+          px += pw + 16
+        })
+      }
+      y += cardH + gap
+    })
+    y += 6
+  })
+
+  if (total === 0) {
+    ctx.fillStyle = COL.dim; ctx.font = font(500, 34)
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText('Δεν υπάρχουν αγώνες με αποδόσεις', S / 2, 560)
   }
 }
 

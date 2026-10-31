@@ -14,6 +14,7 @@ const TYPES: { id: PostType; label: string }[] = [
   { id: 'standings', label: 'Βαθμολογία' },
   { id: 'versus',    label: 'Αναμέτρηση' },
   { id: 'week',      label: 'Εβδομάδα' },
+  { id: 'odds',      label: 'Αποδόσεις' },
 ]
 
 const DAY_FMT: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'numeric' }
@@ -299,6 +300,52 @@ export default function AdminPost() {
         return
       }
 
+      // Αποδόσεις ημέρας (οι αγώνες της ημέρας + 1/Χ/2 από το Bet)
+      if (type === 'odds') {
+        const legMap = buildLegMap(matches)
+        const list = matches
+          .filter(m => ['Scheduled', 'Live'].includes(m.match_status)
+            && m.match_date && athensDateKey(m.match_date) === day)
+          .sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
+          .slice(0, 6)
+        if (!list.length) { toast.error('Δεν υπάρχουν αγώνες αυτή την ημέρα'); setBusy(false); return }
+        const { data: od } = await supabase.from('bet_odds')
+          .select('match_id,home,draw,away').in('match_id', list.map(m => m.match_id))
+        const oMap = new Map<string, any>((od ?? []).map((o: any) => [o.match_id, o]))
+        const fmtOdd = (v: any) => (v == null ? undefined : Number(v).toFixed(2))
+        const byDay = new Map<string, MatchRow[]>()
+        for (const m of list) {
+          const dt = m.match_date ? new Date(m.match_date) : null
+          const dayKey = dt ? dt.toLocaleDateString('el-GR', DAY_FMT) : 'Αποδόσεις'
+          const o = oMap.get(m.match_id)
+          const row: MatchRow = {
+            homeName: m.team_a_data?.name ?? '—', homeLogo: m.team_a_data?.logo_url ?? null,
+            awayName: m.team_b_data?.name ?? '—', awayLogo: m.team_b_data?.logo_url ?? null,
+            time: dt ? dt.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
+          }
+          if (m.field) row.field = m.field
+          const tag = playoffTag(m, legMap); if (tag) row.tag = tag
+          if (o) { row.oHome = fmtOdd(o.home); row.oDraw = fmtOdd(o.draw); row.oAway = fmtOdd(o.away) }
+          if (!byDay.has(dayKey)) byDay.set(dayKey, [])
+          byDay.get(dayKey)!.push(row)
+        }
+        const groups: DayGroup[] = [...byDay.entries()].map(([dk, ms]) => ({ day: dk, matches: ms }))
+        const oddsPost: PostData = {
+          type: 'odds',
+          leagueName: leagueObj.name,
+          sub: `${dayLabel} · ${season}`.trim(),
+          typeLabel: 'Αποδόσεις',
+          leagueLogo: leagueObj.logo_url ?? null,
+          groups, standings: [],
+          sponsors: showSponsors ? [sponsorA, sponsorB, sponsorC, sponsorD].filter(Boolean) : [],
+          theme,
+        }
+        await drawPost(canvasRef.current, oddsPost, { w: size.w, h: size.h })
+        setReady(true)
+        toast.success('Έτοιμο! Κατέβασέ το.')
+        return
+      }
+
       // Αναμέτρηση (1vs1)
       let versus: PostData['versus']
       if (type === 'versus') {
@@ -430,7 +477,7 @@ export default function AdminPost() {
           <div className="grid grid-cols-3 gap-[3px] bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
             {TYPES.map(t => (
               <button key={t.id}
-                onClick={() => { setType(t.id); setReady(false); if (t.id === 'week') setFormat('story') }}
+                onClick={() => { setType(t.id); setReady(false); if (t.id === 'week' || t.id === 'odds') setFormat('story') }}
                 className={`py-2.5 rounded-lg text-[12px] font-bold transition-colors
                   ${type === t.id ? 'bg-brand text-chalk' : 'text-dim'}`}>
                 {t.label}
@@ -578,6 +625,34 @@ export default function AdminPost() {
           </>
         )}
 
+        {type === 'odds' && (
+          <>
+            <div>
+              <label className="block text-[8.5px] font-extrabold text-dim
+                tracking-[0.12em] mb-1.5 pl-0.5">ΗΜΕΡΑ</label>
+              <input type="date" value={day} onChange={e => { setDay(e.target.value); setReady(false) }}
+                className="w-full bg-chalk/[0.04] rounded-xl px-3.5 py-3 text-chalk text-sm
+                  outline-none border border-chalk/[0.07] focus:border-lit/50" />
+              <p className="text-[10px] text-dim mt-1 pl-0.5">
+                Οι αγώνες της ημέρας με τις αποδόσεις 1/Χ/2 (όπως δημοσιεύτηκαν στο Bet).
+              </p>
+            </div>
+            <div>
+              <label className="block text-[8.5px] font-extrabold text-dim
+                tracking-[0.12em] mb-1.5 pl-0.5">ΜΕΓΕΘΟΣ</label>
+              <div className="flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
+                {(['story', 'square', 'yt'] as const).map(f => (
+                  <button key={f} onClick={() => { setFormat(f); setReady(false) }}
+                    className={`flex-1 py-2.5 rounded-lg text-[12px] font-bold transition-colors
+                      ${format === f ? 'bg-brand text-chalk' : 'text-dim'}`}>
+                    {SIZES[f].label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
         {/* Χορηγοί — για όλους τους τύπους */}
         <div className="rounded-xl border border-chalk/[0.06] p-3 bg-turf/40">
           <label className="flex items-center justify-between mb-2">
@@ -621,12 +696,12 @@ export default function AdminPost() {
       <div className="mt-5">
         <canvas ref={canvasRef}
           className={`w-full rounded-2xl border border-chalk/[0.08] ${ready ? 'block' : 'hidden'}`}
-          style={{ aspectRatio: (type === 'versus' || type === 'week') ? `${size.w} / ${size.h}` : '1 / 1' }} />
+          style={{ aspectRatio: (type === 'versus' || type === 'week' || type === 'odds') ? `${size.w} / ${size.h}` : '1 / 1' }} />
         {ready && (
           <button onClick={download}
             className="w-full mt-3 py-3.5 rounded-xl bg-chalk/[0.06] text-chalk
               font-extrabold text-[14px] border border-chalk/[0.08]">
-            ⬇︎ Αποθήκευση εικόνας ({(type === 'versus' || type === 'week') ? `${size.w}×${size.h}` : '1080×1080'})
+            ⬇︎ Αποθήκευση εικόνας ({(type === 'versus' || type === 'week' || type === 'odds') ? `${size.w}×${size.h}` : '1080×1080'})
           </button>
         )}
         {!ready && (
