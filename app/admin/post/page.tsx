@@ -300,42 +300,49 @@ export default function AdminPost() {
         return
       }
 
-      // Αποδόσεις ημέρας (οι αγώνες της ημέρας + 1/Χ/2 από το Bet)
+      // Αποδόσεις ημέρας — ΟΛΑ τα πρωταθλήματα μαζί, ομαδοποιημένα ανά πρωτάθλημα
       if (type === 'odds') {
-        const legMap = buildLegMap(matches)
-        const list = matches
-          .filter(m => ['Scheduled', 'Live'].includes(m.match_status)
-            && m.match_date && athensDateKey(m.match_date) === day)
-          .sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
-          .slice(0, 6)
-        if (!list.length) { toast.error('Δεν υπάρχουν αγώνες αυτή την ημέρα'); setBusy(false); return }
+        const { data: dm } = await supabase.from('matches')
+          .select('*, team_a_data:team_a(name,logo_url), team_b_data:team_b(name,logo_url), league:league_id(name,logo_url,sort_order)')
+          .not('match_date', 'is', null)
+        const all = dm ?? []
+        const dayList = all
+          .filter((m: any) => ['Scheduled', 'Live'].includes(m.match_status)
+            && athensDateKey(m.match_date) === day)
+          .sort((a: any, b: any) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
+        if (!dayList.length) { toast.error('Δεν υπάρχουν αγώνες αυτή την ημέρα'); setBusy(false); return }
+        const legMap = buildLegMap(all)
         const { data: od } = await supabase.from('bet_odds')
-          .select('match_id,home,draw,away').in('match_id', list.map(m => m.match_id))
+          .select('match_id,home,draw,away').in('match_id', dayList.map((m: any) => m.match_id))
         const oMap = new Map<string, any>((od ?? []).map((o: any) => [o.match_id, o]))
         const fmtOdd = (v: any) => (v == null ? undefined : Number(v).toFixed(2))
-        const byDay = new Map<string, MatchRow[]>()
-        for (const m of list) {
+
+        const byLeague = new Map<string, { name: string; sort: number; rows: MatchRow[] }>()
+        for (const m of dayList) {
           const dt = m.match_date ? new Date(m.match_date) : null
-          const dayKey = dt ? dt.toLocaleDateString('el-GR', DAY_FMT) : 'Αποδόσεις'
           const o = oMap.get(m.match_id)
           const row: MatchRow = {
             homeName: m.team_a_data?.name ?? '—', homeLogo: m.team_a_data?.logo_url ?? null,
             awayName: m.team_b_data?.name ?? '—', awayLogo: m.team_b_data?.logo_url ?? null,
             time: dt ? dt.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
+            leagueName: m.league?.name, leagueLogo: m.league?.logo_url ?? null,
           }
           if (m.field) row.field = m.field
           const tag = playoffTag(m, legMap); if (tag) row.tag = tag
           if (o) { row.oHome = fmtOdd(o.home); row.oDraw = fmtOdd(o.draw); row.oAway = fmtOdd(o.away) }
-          if (!byDay.has(dayKey)) byDay.set(dayKey, [])
-          byDay.get(dayKey)!.push(row)
+          if (!byLeague.has(m.league_id)) byLeague.set(m.league_id, { name: m.league?.name ?? '—', sort: m.league?.sort_order ?? 999, rows: [] })
+          byLeague.get(m.league_id)!.rows.push(row)
         }
-        const groups: DayGroup[] = [...byDay.entries()].map(([dk, ms]) => ({ day: dk, matches: ms }))
+        const groups: DayGroup[] = [...byLeague.values()]
+          .sort((a, b) => a.sort - b.sort)
+          .map(g => ({ day: g.name, matches: g.rows }))
+
         const oddsPost: PostData = {
           type: 'odds',
-          leagueName: leagueObj.name,
-          sub: `${dayLabel} · ${season}`.trim(),
+          leagueName: 'Αποδόσεις Ημέρας',
+          sub: dayLabel,
           typeLabel: 'Αποδόσεις',
-          leagueLogo: leagueObj.logo_url ?? null,
+          leagueLogo: null,
           groups, standings: [],
           sponsors: showSponsors ? [sponsorA, sponsorB, sponsorC, sponsorD].filter(Boolean) : [],
           theme,

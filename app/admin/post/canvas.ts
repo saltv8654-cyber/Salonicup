@@ -578,63 +578,89 @@ function drawOdds(ctx: any, d: PostData, L: (u: string | null) => HTMLImageEleme
   const PAD = 60
   const cardW = S - PAD * 2
   const total = d.groups.reduce((n, g) => n + g.matches.length, 0)
-  const nDays = d.groups.length
+  const nHead = d.groups.length
   const top = 264
-  const gap = 18, dayH = 56
-  let cardH = (bottom - top - nDays * dayH - total * gap) / Math.max(total, 1)
-  cardH = Math.max(120, Math.min(220, cardH))
+
+  // Προσαρμογή ύψους ώστε να χωράνε ΟΛΑ τα πρωταθλήματα/αγώνες της ημέρας.
+  let gap = 14, headH = 56
+  const need = (ch: number, g: number, h: number) => nHead * h + total * (ch + g) + nHead * 6
+  let cardH = 150
+  if (need(cardH, gap, headH) > bottom - top) {
+    cardH = (bottom - top - nHead * headH - total * gap - nHead * 6) / Math.max(total, 1)
+  }
+  cardH = Math.max(64, Math.min(170, cardH))
+  if (need(cardH, gap, headH) > bottom - top) {
+    gap = 10; headH = 46
+    cardH = Math.max(58, (bottom - top - nHead * headH - total * gap - nHead * 6) / Math.max(total, 1))
+  }
+  const k = Math.max(0.55, Math.min(1, cardH / 150))
   let y = top
 
   d.groups.forEach((g) => {
-    ctx.fillStyle = COL.blue
-    ctx.font = font(600, 36)
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'alphabetic'
-    ctx.fillText(g.day.toUpperCase(), S / 2, y + 36)
-    y += dayH
+    // ── Τίτλος πρωταθλήματος (λογότυπο + όνομα + λεπτή γραμμή) ──
+    const hy = y + headH / 2
+    const lsz = Math.round(headH * 0.62)
+    const logo = g.matches[0]?.leagueLogo ?? null
+    let hx = PAD
+    ctx.textBaseline = 'middle'
+    if (logo) { crest(ctx, L(logo), g.day, PAD + lsz / 2, hy, lsz); hx = PAD + lsz + 14 }
+    ctx.fillStyle = pal.accent
+    ctx.font = font(700, Math.round(32 * Math.max(0.82, k)))
+    ctx.textAlign = 'left'
+    const htitle = g.day.toUpperCase()
+    ctx.fillText(htitle, hx, hy + 1)
+    const tw = ctx.measureText(htitle).width
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1.5
+    ctx.beginPath(); ctx.moveTo(hx + tw + 20, hy); ctx.lineTo(S - PAD, hy); ctx.stroke()
+    y += headH
 
     g.matches.forEach((m) => {
       ctx.fillStyle = COL.card
-      roundRect(ctx, PAD, y, cardW, cardH, 20); ctx.fill()
+      roundRect(ctx, PAD, y, cardW, cardH, 16); ctx.fill()
       ctx.strokeStyle = COL.cardLine; ctx.lineWidth = 1.5
-      roundRect(ctx, PAD, y, cardW, cardH, 20); ctx.stroke()
+      roundRect(ctx, PAD, y, cardW, cardH, 16); ctx.stroke()
 
-      const teamY = y + cardH * 0.32
-      const cs = Math.round(cardH * 0.32)
+      const hasOdds = !!(m.oHome || m.oDraw || m.oAway)
+      const teamY = hasOdds ? y + cardH * 0.30 : y + cardH / 2
+      const cs = Math.round(cardH * (hasOdds ? 0.26 : 0.40))
+      const nfs = Math.round(30 * k)
+      const nameMaxW = S / 2 - (PAD + 34 + cs) - 56
+
       // γηπεδούχος αριστερά
-      crest(ctx, L(m.homeLogo), m.homeName, PAD + 26 + cs / 2, teamY, cs)
+      crest(ctx, L(m.homeLogo), m.homeName, PAD + 24 + cs / 2, teamY, cs)
       ctx.fillStyle = COL.white; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
-      ctx.font = font(600, 34)
-      ctx.fillText(fitFont(ctx, m.homeName, 290, 600, 34, 20), PAD + 40 + cs, teamY)
+      ctx.fillText(fitFont(ctx, m.homeName, nameMaxW, 600, nfs, 15), PAD + 34 + cs, teamY)
       // φιλοξενούμενος δεξιά
-      const rx = S - PAD - 26 - cs / 2
+      const rx = S - PAD - 24 - cs / 2
       crest(ctx, L(m.awayLogo), m.awayName, rx, teamY, cs)
-      ctx.textAlign = 'right'; ctx.font = font(600, 34)
-      ctx.fillText(fitFont(ctx, m.awayName, 290, 600, 34, 20), S - PAD - 40 - cs, teamY)
-      // κέντρο: ώρα + γήπεδο
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      ctx.fillStyle = pal.accent; ctx.font = font(700, 30)
-      if (m.time) ctx.fillText(m.time, S / 2, teamY - 12)
-      if (m.field) { ctx.fillStyle = COL.dim; ctx.font = font(600, 22); ctx.fillText(m.field, S / 2, teamY + 16) }
+      ctx.textAlign = 'right'
+      ctx.fillText(fitFont(ctx, m.awayName, nameMaxW, 600, nfs, 15), S - PAD - 34 - cs, teamY)
 
-      // αποδόσεις 1 / Χ / 2
-      if (m.oHome || m.oDraw || m.oAway) {
-        const py = y + cardH * 0.74
-        const ph = cardH * 0.36
+      // κέντρο: ώρα (+ γήπεδο από κάτω)
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillStyle = pal.accent; ctx.font = font(700, Math.round(28 * k))
+      if (m.time) ctx.fillText(m.time, S / 2, teamY - (m.field ? 11 * k : 0))
+      if (m.field) { ctx.fillStyle = COL.dim; ctx.font = font(600, Math.round(20 * k)); ctx.fillText(m.field, S / 2, teamY + 14 * k) }
+
+      // αποδόσεις 1 / Χ / 2 (ετικέτα αριστερά, τιμή δεξιά, σε μία σειρά)
+      if (hasOdds) {
+        const ph = cardH * 0.32
+        const py = y + cardH - ph / 2 - cardH * 0.11
         const pills: [string, string | undefined][] = [['1', m.oHome], ['Χ', m.oDraw], ['2', m.oAway]]
-        const pw = (cardW - 4 * 16) / 3
-        let px = PAD + 16
+        const pw = (cardW - 4 * 14) / 3
+        let px = PAD + 14
+        const lfs = Math.max(13, Math.round(ph * 0.42)), vfs = Math.max(15, Math.round(ph * 0.48))
         pills.forEach(([lbl, val]) => {
           ctx.fillStyle = 'rgba(255,255,255,0.05)'
-          roundRect(ctx, px, py - ph / 2, pw, ph, 12); ctx.fill()
+          roundRect(ctx, px, py - ph / 2, pw, ph, 10); ctx.fill()
           ctx.strokeStyle = COL.cardLine; ctx.lineWidth = 1.5
-          roundRect(ctx, px, py - ph / 2, pw, ph, 12); ctx.stroke()
-          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-          ctx.fillStyle = COL.dim; ctx.font = font(700, 23)
-          ctx.fillText(lbl, px + pw / 2, py - ph * 0.19)
-          ctx.fillStyle = pal.accent; ctx.font = font(800, Math.round(ph * 0.34))
-          ctx.fillText(val ?? '—', px + pw / 2, py + ph * 0.22)
-          px += pw + 16
+          roundRect(ctx, px, py - ph / 2, pw, ph, 10); ctx.stroke()
+          ctx.textBaseline = 'middle'
+          ctx.fillStyle = COL.dim; ctx.font = font(700, lfs); ctx.textAlign = 'left'
+          ctx.fillText(lbl, px + 14, py)
+          ctx.fillStyle = pal.accent; ctx.font = font(800, vfs); ctx.textAlign = 'right'
+          ctx.fillText(val ?? '—', px + pw - 14, py)
+          px += pw + 14
         })
       }
       y += cardH + gap
