@@ -151,9 +151,14 @@ create or replace function bet_on_match_status()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if NEW.match_status is distinct from OLD.match_status then
-    if NEW.match_status in ('Played','Forfeit') then perform bet_settle_match(NEW.match_id);
-    elsif NEW.match_status = 'Postponed'         then perform bet_void_match(NEW.match_id);
-    end if;
+    -- ΠΟΤΕ να μη μπλοκάρει το κλείσιμο του αγώνα αν αποτύχει ο διακανονισμός στοιχημάτων
+    begin
+      if NEW.match_status in ('Played','Forfeit') then perform bet_settle_match(NEW.match_id);
+      elsif NEW.match_status = 'Postponed'         then perform bet_void_match(NEW.match_id);
+      end if;
+    exception when others then
+      raise warning 'bet settle failed for match %: %', NEW.match_id, SQLERRM;
+    end;
   end if;
   return NEW;
 end $$;
