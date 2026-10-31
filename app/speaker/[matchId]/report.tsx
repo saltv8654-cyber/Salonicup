@@ -58,6 +58,13 @@ export default function ReportSheet({ match, events, onClose, onFinished }: {
   /** Αποθηκεύει το κείμενο και κλείνει τον αγώνα */
   async function finish() {
     setSaving(true)
+    // Αν η σύνδεση έχει λήξει (π.χ. η σελίδα έμεινε ανοιχτή από χθες), ανανέωσέ την πρώτα
+    const { data: u } = await supabase.auth.getUser()
+    if (!u?.user) {
+      setSaving(false)
+      toast.error('Η σύνδεση έληξε — κλείσε/άνοιξε το app ή ξανασυνδέσου και πάτα ξανά Λήξη.')
+      return
+    }
     const { error } = await supabase.from('matches').update({
       report: text || null,
       mvp_player_id: mvp,
@@ -66,7 +73,7 @@ export default function ReportSheet({ match, events, onClose, onFinished }: {
     }).eq('match_id', match.match_id)
     setSaving(false)
 
-    if (error) { toast.error('Δεν αποθηκεύτηκε'); return }
+    if (error) { toast.error('Δεν αποθηκεύτηκε: ' + error.message); return }
     if (!done) {
       notifyPush({
         title: '🏁 Τελικό σφύριγμα',
