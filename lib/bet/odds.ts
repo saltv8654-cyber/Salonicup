@@ -77,7 +77,9 @@ export function computeOdds(home: TeamStat, away: TeamStat, base: number, h2h?: 
     + 0.12 * h2hAdv                                 // μεταξύ τους
     + 0.08 * clamp((gd(home) - gd(away)) / 6, -1, 1) // γκολ υπέρ/κατά
     , -1, 1)
-  const shareH = clamp(0.5 + 0.45 * diff, 0.15, 0.85)
+  // Πιο «μαζεμένη» κατανομή: σε ματς με πολλά γκολ, το Poisson δίνει ακραία φαβορί,
+  // οπότε περιορίζουμε το άνοιγμα ώστε δύο κοντινές ομάδες να βγαίνουν κοντά.
+  const shareH = clamp(0.5 + 0.30 * diff, 0.36, 0.64)
   const lH = clamp(T * shareH, 0.15, 7)
   const lA = clamp(T * (1 - shareH), 0.15, 7)
 
