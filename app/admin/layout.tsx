@@ -38,9 +38,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { profile, isAdmin, loading, signOut } = useAuth()
   const [pending, setPending] = useState(0)  // εκκρεμή αιτήματα captains (αλλαγή/αναβολή)
 
+  // Ο φωτογράφος έχει πρόσβαση ΜΟΝΟ στην καρτέλα Post (δημιουργία γραφικών).
+  const isPhotographer = profile?.role === 'photographer'
+  const allowed = isAdmin || (isPhotographer && path.startsWith('/admin/post'))
+
   useEffect(() => {
-    if (!loading && !isAdmin) router.replace('/')
-  }, [loading, isAdmin])
+    if (loading) return
+    if (isAdmin) return
+    if (isPhotographer) { if (!path.startsWith('/admin/post')) router.replace('/admin/post') }
+    else router.replace('/')
+  }, [loading, isAdmin, isPhotographer, path])
 
   // Ξανασύνδεσε τη συνδρομή push με τον admin λογαριασμό, ώστε τα captain/εγγραφές push να φτάνουν
   useEffect(() => { if (isAdmin) resyncPush() }, [isAdmin])
@@ -57,7 +64,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return () => clearInterval(iv)
   }, [isAdmin, path])
 
-  if (loading || !isAdmin) return <Loading />
+  if (loading || !allowed) return <Loading />
+
+  // Ο φωτογράφος βλέπει μόνο το Post στο κάτω μενού· ο admin τα πάντα.
+  const nav = isAdmin ? NAV : NAV.filter(n => n.href === '/admin/post')
 
   return (
     <div className="min-h-screen bg-pitch pb-20">
@@ -69,7 +79,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <p className="text-[9px] tracking-[0.2em] uppercase text-lit font-extrabold">
               Salonicup
             </p>
-            <p className="text-sm font-bold text-chalk">Διαχείριση</p>
+            <p className="text-sm font-bold text-chalk">{isAdmin ? 'Διαχείριση' : 'Δημιουργία Post'}</p>
           </div>
         </div>
         <div className="flex flex-col items-end gap-1.5">
@@ -84,11 +94,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="flex items-center gap-2">
             <div className="flex bg-turf rounded-lg p-[3px] border border-chalk/[0.06]">
               <span className="px-2 py-1.5 rounded-md text-[10.5px] font-extrabold
-                bg-brand text-chalk">Admin</span>
-              <Link href="/speaker"
-                className="px-2 py-1.5 rounded-md text-[10.5px] font-bold text-dim">Speaker</Link>
-              <Link href="/schedule"
-                className="px-2 py-1.5 rounded-md text-[10.5px] font-bold text-dim">Captain</Link>
+                bg-brand text-chalk">{isAdmin ? 'Admin' : 'Post'}</span>
+              {isAdmin && (
+                <Link href="/speaker"
+                  className="px-2 py-1.5 rounded-md text-[10.5px] font-bold text-dim">Speaker</Link>
+              )}
+              {isAdmin && (
+                <Link href="/schedule"
+                  className="px-2 py-1.5 rounded-md text-[10.5px] font-bold text-dim">Captain</Link>
+              )}
               <Link href="/"
                 className="px-2 py-1.5 rounded-md text-[10.5px] font-bold text-dim">Θεατής</Link>
             </div>
@@ -105,7 +119,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       <nav className="fixed bottom-0 inset-x-0 bg-pitch/95 backdrop-blur-xl
         border-t border-chalk/[0.06] flex overflow-x-auto z-30">
-        {NAV.map(n => {
+        {nav.map(n => {
           const on = n.href === '/admin' ? path === '/admin' : path.startsWith(n.href)
           return (
             <Link key={n.href} href={n.href}

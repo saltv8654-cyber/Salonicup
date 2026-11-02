@@ -134,13 +134,21 @@ function LoginForm() {
               </button>
             )}
             {profile.role === 'photographer' && (
-              <p className="text-[11px] text-dim text-center px-2 -mb-0.5">
-                Άνοιξε τον αγώνα (π.χ. από «Χθες») → ενότητα <b className="text-silver">Φωτογραφίες</b> → <b className="text-lit">＋ Προσθήκη</b>
-              </p>
+              <>
+                <button onClick={() => router.push('/admin/post')}
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-b from-lit to-brand
+                    text-white font-extrabold text-[15px]
+                    shadow-[0_4px_16px_rgba(224,91,31,0.3)]">
+                  📸 Δημιουργία Post
+                </button>
+                <p className="text-[11px] text-dim text-center px-2 -mb-0.5">
+                  Άνοιξε τον αγώνα (π.χ. από «Χθες») → ενότητα <b className="text-silver">Φωτογραφίες</b> → <b className="text-lit">＋ Προσθήκη</b>
+                </p>
+              </>
             )}
             <button onClick={() => router.push('/')}
               className={`w-full py-3.5 rounded-xl font-extrabold text-[15px]
-                ${!isAdmin && !isSpeaker
+                ${!isAdmin && !isSpeaker && profile.role !== 'photographer'
                   ? 'bg-gradient-to-b from-lit to-brand text-white shadow-[0_4px_16px_rgba(224,91,31,0.3)]'
                   : 'bg-turf border border-chalk/[0.07] text-silver'}`}>
               ⚽ Στους αγώνες
