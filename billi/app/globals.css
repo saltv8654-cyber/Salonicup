@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #01030f;
+  --blue: #3b82f6;
+  --cyan: #5eead4;
+  --violet: #8b5cf6;
+}
+
+body {
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(60rem 30rem at 50% -10rem, rgba(59, 130, 246, 0.18), transparent 70%),
+    radial-gradient(40rem 25rem at 100% 30%, rgba(139, 92, 246, 0.10), transparent 70%),
+    radial-gradient(40rem 25rem at 0% 60%, rgba(94, 234, 212, 0.06), transparent 70%);
+  background-attachment: fixed;
+  color: #e2e8f0;
+  font-family: "M PLUS Rounded 1c", system-ui, sans-serif;
+}
+
+.text-gradient {
+  background: linear-gradient(90deg, var(--cyan), var(--blue) 50%, var(--violet));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* 1px gradient outline: wrapper paints the gradient, child covers all but the edge */
+.gradient-border {
+  padding: 1px;
+  background: linear-gradient(135deg, var(--blue), var(--cyan) 50%, var(--violet));
+  box-shadow: 0 0 40px -12px rgba(59, 130, 246, 0.5);
+}
