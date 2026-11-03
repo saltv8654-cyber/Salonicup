@@ -2,13 +2,18 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 let client: SupabaseClient | null = null;
 
+/** Accepts the URL however it was pasted: trims spaces, a trailing slash and a copied "/rest/v1" suffix. */
+export function supabaseUrl(raw = process.env.SUPABASE_URL ?? ""): string {
+  return raw.trim().replace(/\/+$/, "").replace(/\/(rest|auth)\/v1$/i, "").replace(/\/+$/, "");
+}
+
 export const dbConfigured = () => !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 /** Server-only client with the service role key; RLS has no policies, so nothing else can touch the tables. */
 export function db(): SupabaseClient {
   if (!dbConfigured()) throw new Error("Supabase is not configured");
   if (!client) {
-    client = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    client = createClient(supabaseUrl(), process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(), {
       auth: { persistSession: false, autoRefreshToken: false },
       // Next.js caches fetch() GETs by default; CRM reads must always hit the database.
       global: { fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }) },
