@@ -166,7 +166,16 @@ export default function Home() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Σφάλμα");
       setResult(json);
-      track("analysis_ok", { provider: json.bill?.provider ?? null, color: json.bill?.tariff_color ?? null });
+      const rec = json.comparison?.recommendation ?? null;
+      const recOffer = rec ? json.comparison.byColor?.[rec.color] : null;
+      track("analysis_ok", {
+        provider: json.bill?.provider ?? null,
+        color: json.bill?.tariff_color ?? null,
+        annual_kwh: json.comparison?.annualKwh ?? null,
+        current_annual: json.comparison?.currentAnnual != null ? Math.round(json.comparison.currentAnnual) : null,
+        recommended_color: rec?.color ?? null,
+        best_savings: recOffer?.savings != null ? Math.round(recOffer.savings) : null,
+      });
       setTimeout(() => document.getElementById("results")?.scrollIntoView({ behavior: "smooth" }), 50);
     } catch (e: any) {
       setError(e.message);
