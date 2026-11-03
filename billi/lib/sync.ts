@@ -72,21 +72,43 @@ function plausible(t: Omit<Tariff, "id" | "category" | "provider" | "valid_month
 const slug = (s: string) =>
   s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9Ͱ-Ͽ]+/g, "-").replace(/^-|-$/g, "");
 
-async function researchProvider(client: Anthropic, provider: { name: string; site: string }, month: string): Promise<Tariff[]> {
+export type SyncModel = "haiku" | "sonnet";
+
+/** Haiku is the cheap default (basic web tools); Sonnet is the more thorough, pricier retry. */
+function requestFor(model: SyncModel) {
+  return model === "sonnet"
+    ? {
+        model: "claude-sonnet-5-5",
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default" as const,
+        tools: [
+          { type: "web_search_20260209" as const, name: "web_search" as const, max_uses: 4 },
+          { type: "web_fetch_20260209" as const, name: "web_fetch" as const, max_uses: 6 },
+        ],
+      }
+    : {
+        model: "claude-haiku-5-5",
+        tools: [
+          { type: "web_search_20250305" as const, name: "web_search" as const, max_uses: 4 },
+          { type: "web_fetch_20250910" as const, name: "web_fetch" as const, max_uses: 6 },
+        ],
+      };
+}
+
+async function researchProvider(
+  client: Anthropic,
+  provider: { name: string; site: string },
+  month: string,
+  model: SyncModel,
+): Promise<Tariff[]> {
   const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: prompt(provider, month) }];
 
   // Server-side web tools can pause a long turn; resend to let it continue (bounded).
   for (let i = 0; i < 4; i++) {
     const res = await client.beta.messages.parse({
-      model: "claude-sonnet-5-5",
+      ...requestFor(model),
       max_tokens: 16000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
       output_config: { effort: "medium", format: betaZodOutputFormat(ProviderTariffs) },
-      tools: [
-        { type: "web_search_20260209", name: "web_search", max_uses: 4 },
-        { type: "web_fetch_20260209", name: "web_fetch", max_uses: 6 },
-      ],
       messages,
     });
 
@@ -124,7 +146,10 @@ async function researchProvider(client: Anthropic, provider: { name: string; sit
  * Researches every provider in parallel. A provider that fails keeps its tariffs from the previous
  * snapshot, so a flaky site never empties the comparison.
  */
-export async function syncTariffs(previous: TariffFile): Promise<TariffFile & { errors: Record<string, string> }> {
+export async function syncTariffs(
+  previous: TariffFile,
+  model: SyncModel = "haiku",
+): Promise<TariffFile & { errors: Record<string, string> }> {
   const client = new Anthropic();
   const month = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Athens" }).slice(0, 7);
   const errors: Record<string, string> = {};
@@ -132,7 +157,7 @@ export async function syncTariffs(previous: TariffFile): Promise<TariffFile & { 
   const results = await Promise.all(
     PROVIDERS.map(async (p) => {
       try {
-        const found = await researchProvider(client, p, month);
+        const found = await researchProvider(client, p, month, model);
         if (found.length > 0) return found;
         errors[p.name] = "δεν βρέθηκαν τιμές";
       } catch (e: any) {

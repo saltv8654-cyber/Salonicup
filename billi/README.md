@@ -31,18 +31,19 @@ npm run dev
 | 🟡 Κίτρινο | Κυμαινόμενη με βάση τη χονδρεμπορική, γνωστή μετά την κατανάλωση |
 | 🟠 Πορτοκαλί | Δυναμική ωριαία, απαιτεί έξυπνο μετρητή |
 
-## Ενημέρωση τιμών (αυτόματη)
+## Ενημέρωση τιμών (χειροκίνητη)
 
-Κάθε μέρα στις 04:00 UTC (06:00 ώρα Ελλάδας τον χειμώνα, 07:00 το καλοκαίρι) το Vercel Cron καλεί το `/api/sync`
-(`vercel.json`). Το `lib/sync.ts` ζητά από το Claude Sonnet 5.5, με web search και web fetch, τα τρέχοντα οικιακά
-τιμολόγια κάθε παρόχου της λίστας `PROVIDERS`. Οι τιμές ελέγχονται (λογικά όρια €/kWh και πάγιου) και αποθηκεύονται
-στο Vercel Blob (`tariffs/latest.json`). Αν ένας πάροχος αποτύχει, κρατιούνται οι τιμές του από τον προηγούμενο
-συγχρονισμό.
+Ο συγχρονισμός τρέχει μόνο όταν ανοίξεις το `/api/sync?key=<CRON_SECRET>`. Το `lib/sync.ts` ζητά από το Claude
+Haiku 5.5, με web search και web fetch, τα τρέχοντα οικιακά τιμολόγια κάθε παρόχου της λίστας `PROVIDERS`. Με
+`&model=sonnet` τρέχει με το Claude Sonnet 5.5, που είναι πιο ακριβό αλλά πιο διεξοδικό. Οι τιμές ελέγχονται (λογικά
+όρια €/kWh και πάγιου) και αποθηκεύονται στο Vercel Blob (`tariffs/latest.json`). Αν ένας πάροχος αποτύχει,
+κρατιούνται οι τιμές του από τον προηγούμενο συγχρονισμό.
 
 Ρυθμίσεις στο Vercel (project billi):
 - **Storage → Create → Blob** (Public) και σύνδεση στο project. Προσθέτει αυτόματα το `BLOB_READ_WRITE_TOKEN`.
-- **Environment Variables:** `CRON_SECRET`, μια τυχαία μεγάλη φράση. Το Vercel Cron τη στέλνει σε κάθε κλήση,
-  και όποιος άλλος καλέσει το `/api/sync` παίρνει 401.
-- Χειροκίνητη εκτέλεση: **Settings → Cron Jobs → Run**.
+- **Environment Variables:** `CRON_SECRET`, μια τυχαία μεγάλη φράση.
+
+Για καθημερινό συγχρονισμό αργότερα: `vercel.json` με `{"crons":[{"path":"/api/sync","schedule":"0 4 * * *"}]}`.
+Το Vercel Cron στέλνει το `CRON_SECRET` ως `Authorization: Bearer`.
 
 Αν δεν υπάρχει Blob store, χρησιμοποιείται το `data/tariffs.json`.
