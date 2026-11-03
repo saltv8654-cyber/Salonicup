@@ -80,6 +80,64 @@ function Login({ onDone }: { onDone: () => void }) {
   );
 }
 
+function BillAttachment({ lead, onChanged }: { lead: Lead; onChanged: () => void }) {
+  const file = ((lead.bill ?? null) as { _file?: { name: string; type: string; size: number; uploaded_at: string } } | null)?._file;
+  const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<{ url: string; type: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  if (!file) return <div className="pt-2 text-xs text-slate-500">📎 Δεν επισύναψε λογαριασμό</div>;
+
+  const open = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const d = await api<{ url: string; file: { type: string } }>(`/api/admin/leads/${lead.id}/attachment`);
+      setPreview({ url: d.url, type: d.file.type });
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const remove = async () => {
+    if (!confirm("Οριστική διαγραφή του αρχείου του λογαριασμού;")) return;
+    setBusy(true);
+    try {
+      await api(`/api/admin/leads/${lead.id}/attachment`, { method: "DELETE" });
+      setPreview(null);
+      onChanged();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-2 space-y-2 rounded-xl bg-white/[0.03] p-3 ring-1 ring-white/10">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-sm text-slate-200">📎 Λογαριασμός ({file.type === "application/pdf" ? "PDF" : "εικόνα"}, {Math.round(file.size / 1024)} KB)</div>
+        <div className="flex gap-2">
+          <button className={btn + " !px-3 !py-1.5 text-xs"} disabled={busy} onClick={open}>📄 Δες τον λογαριασμό</button>
+          <button className={btnGhost + " !px-3 !py-1.5 text-xs"} disabled={busy} onClick={remove}>🗑</button>
+        </div>
+      </div>
+      {error && <p className="text-xs text-red-300">{error}</p>}
+      {preview && (
+        <div className="space-y-2">
+          {preview.type.startsWith("image/") ? (
+            <img src={preview.url} alt="Λογαριασμός" className="max-h-[70vh] w-full rounded-lg object-contain ring-1 ring-white/10" />
+          ) : (
+            <iframe src={preview.url} title="Λογαριασμός" className="h-[70vh] w-full rounded-lg bg-white ring-1 ring-white/10" />
+          )}
+          <a href={preview.url} target="_blank" rel="noreferrer" className="text-xs text-cyan-300 underline">Άνοιγμα σε νέα καρτέλα ↗</a>
+          <span className="ml-2 text-[11px] text-slate-500">ο σύνδεσμος λήγει σε 5 λεπτά</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ───────────── lead detail ───────────── */
 
 function LeadDetail({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: (l: Lead) => void }) {
@@ -156,6 +214,7 @@ function LeadDetail({ id, onClose, onChanged }: { id: string; onClose: () => voi
               </div>
               <div className="pt-2 text-slate-400">Καταχωρίστηκε {when(lead.created_at)} · {lead.preferred_time ?? "—"}</div>
               {lead.message && <div className="text-slate-200">💬 {lead.message}</div>}
+              <BillAttachment lead={lead} onChanged={load} />
               <div className="text-xs text-slate-500">Συναίνεση επικοινωνίας ✓{lead.consent_marketing ? " · ενημερωτικά ✓" : ""}</div>
             </div>
 
@@ -1004,7 +1063,10 @@ export default function Admin() {
                 <button onClick={() => setOpenId(l.id)} className={`${card} w-full text-left transition hover:ring-white/25`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="font-semibold text-white">{l.name} <span className="font-normal text-slate-400">· {l.phone}</span></div>
+                      <div className="font-semibold text-white">
+                        {l.name} <span className="font-normal text-slate-400">· {l.phone}</span>
+                        {(l.bill as { _file?: unknown } | null)?._file ? <span className="ml-1.5" title="Επισύναψε λογαριασμό">📎</span> : null}
+                      </div>
                       <div className="truncate text-sm text-slate-400">{l.tariff_label ?? "Γενική επικοινωνία"}{l.current_provider ? ` · τώρα ${l.current_provider}` : ""}</div>
                     </div>
                     <div className="flex items-center gap-2">

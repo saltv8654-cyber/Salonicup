@@ -157,6 +157,8 @@ export default function Home() {
   const fileInput = useRef<HTMLInputElement>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
   const [leadTarget, setLeadTarget] = useState<LeadTarget | null>(null);
+  // The analysed file stays in the browser; it is uploaded only if the visitor ticks "attach" in the lead form.
+  const [billFile, setBillFile] = useState<File | null>(null);
 
   useEffect(() => {
     track("page_view");
@@ -173,14 +175,17 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setBillFile(null);
     track("upload_start", { type: file.type || "unknown" });
     try {
       const fd = new FormData();
-      fd.append("file", await shrinkImage(file));
+      const sent = await shrinkImage(file);
+      fd.append("file", sent);
       const res = await fetch("/api/analyze", { method: "POST", body: fd });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Σφάλμα");
       setResult(json);
+      setBillFile(sent);
       const rec = json.comparison?.recommendation ?? null;
       const recOffer = rec ? json.comparison.byColor?.[rec.color] : null;
       track("analysis_ok", {
@@ -202,6 +207,7 @@ export default function Home() {
 
   function reset() {
     setResult(null);
+    setBillFile(null);
     setError(null);
     if (fileInput.current) fileInput.current.value = "";
     if (cameraInput.current) cameraInput.current.value = "";
@@ -279,12 +285,13 @@ export default function Home() {
               />
             </div>
           </div>
-          <p className="mt-3 text-center text-xs text-slate-500">🔒 Το billi δεν αποθηκεύει τον λογαριασμό σου. Τον στέλνει μόνο για ανάλυση.</p>
+          <p className="mt-3 text-center text-xs text-slate-500">🔒 Το billi δεν αποθηκεύει τον λογαριασμό σου, εκτός αν το ζητήσεις στη φόρμα επικοινωνίας.</p>
         </section>
 
         <ManualCalc
           onResult={(r) => {
             setError(null);
+            setBillFile(null);
             setResult(r);
             setTimeout(() => document.getElementById("results")?.scrollIntoView({ behavior: "smooth" }), 50);
           }}
@@ -322,7 +329,7 @@ export default function Home() {
 
       <Footer />
 
-      {leadTarget && <LeadModal target={leadTarget} result={result} onClose={() => setLeadTarget(null)} />}
+      {leadTarget && <LeadModal target={leadTarget} result={result} billFile={billFile} onClose={() => setLeadTarget(null)} />}
     </LeadCtx.Provider>
   );
 }
@@ -1052,8 +1059,10 @@ function Field({ label, children, hint }: { label: string; children: React.React
 const inputCls =
   "w-full rounded-xl bg-[#0a1028] px-3 py-2.5 text-sm text-slate-100 ring-1 ring-white/15 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-400/60";
 
-function LeadModal({ target, result, onClose }: { target: LeadTarget; result: Result | null; onClose: () => void }) {
+function LeadModal({ target, result, billFile, onClose }: { target: LeadTarget; result: Result | null; billFile: File | null; onClose: () => void }) {
   const [form, setForm] = useState({ name: "", phone: "", email: "", preferred_time: PREFERRED_TIMES[0], message: "", consent_contact: false, consent_marketing: false, website: "" });
+  const [attach, setAttach] = useState(false);
+  const [attachNote, setAttachNote] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -1106,6 +1115,16 @@ function LeadModal({ target, result, onClose }: { target: LeadTarget; result: Re
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? "Κάτι πήγε στραβά");
+      if (attach && billFile && json.id && json.attach_token) {
+        const fd = new FormData();
+        fd.append("token", json.attach_token);
+        fd.append("file", billFile);
+        const up = await fetch(`/api/leads/${json.id}/attachment`, { method: "POST", body: fd }).catch(() => null);
+        if (!up?.ok) {
+          const e = await up?.json().catch(() => ({}));
+          setAttachNote(`Το αίτημα στάλθηκε, αλλά ο λογαριασμός δεν επισυνάφθηκε${e?.error ? ` (${e.error})` : ""}. Θα σου τον ζητήσουμε στο τηλέφωνο.`);
+        }
+      }
       track("lead_submit", { tariff: t ? `${t.provider} ${t.name}` : null });
       setDone(true);
     } catch (err: any) {
@@ -1135,6 +1154,7 @@ function LeadModal({ target, result, onClose }: { target: LeadTarget; result: Re
           <div className="mt-6 rounded-xl bg-emerald-400/10 p-5 text-center ring-1 ring-emerald-300/30">
             <div className="text-3xl">✅</div>
             <div className="mt-2 font-semibold text-white">Ευχαριστούμε, {form.name.split(" ")[0]}!</div>
+            {attachNote && <p className="mt-2 text-xs text-amber-200">{attachNote}</p>}
             <p className="mt-1 text-sm text-slate-300">Θα σε καλέσουμε στο {form.phone} {form.preferred_time !== PREFERRED_TIMES[0] ? `(${form.preferred_time.toLowerCase()})` : "σύντομα"}.</p>
             <button type="button" className={`${btnSecondary} mt-4`} onClick={onClose}>Κλείσιμο</button>
           </div>
@@ -1191,6 +1211,17 @@ function LeadModal({ target, result, onClose }: { target: LeadTarget; result: Re
               <input type="checkbox" checked={form.consent_marketing} onChange={(e) => set("consent_marketing", e.target.checked)} className="mt-0.5 h-4 w-4 accent-cyan-400" />
               <span>Θέλω να με ενημερώνετε όταν βγαίνουν φθηνότερα προγράμματα.</span>
             </label>
+            {billFile && (
+              <label className="flex items-start gap-2.5 rounded-xl bg-white/[0.03] p-3 text-sm text-slate-300 ring-1 ring-white/10">
+                <input type="checkbox" checked={attach} onChange={(e) => setAttach(e.target.checked)} className="mt-0.5 h-4 w-4 accent-cyan-400" />
+                <span>
+                  📎 Επισύναψε τον λογαριασμό που ανέβασα, για να γίνει πιο γρήγορα η αλλαγή.
+                  <span className="mt-0.5 block text-xs text-slate-500">
+                    Τον βλέπει μόνο ο σύμβουλος του Billi και διαγράφεται όταν ολοκληρωθεί ή ακυρωθεί η αλλαγή.
+                  </span>
+                </span>
+              </label>
+            )}
 
             {error && <div className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300 ring-1 ring-red-400/30">⚠️ {error}</div>}
 
