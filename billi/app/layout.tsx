@@ -3,7 +3,7 @@ import "@fontsource/m-plus-rounded-1c/500.css";
 import "@fontsource/m-plus-rounded-1c/700.css";
 import "@fontsource/m-plus-rounded-1c/800.css";
 import "./globals.css";
-import { Analytics } from "@vercel/analytics/next";
+import { ConsentedAnalytics, CookieBanner } from "./consent";
 import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
@@ -18,7 +18,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="el">
       <body className="min-h-screen antialiased">
         {children}
-        <Analytics />
+        <CookieBanner />
+        <ConsentedAnalytics />
       </body>
     </html>
   );
