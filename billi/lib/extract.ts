@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import type { Bill } from "./types";
 
@@ -84,18 +84,17 @@ export type ImageType = "image/jpeg" | "image/png" | "image/webp" | "image/gif";
 
 export async function extractBill(file: { buffer: Buffer; mimeType: "application/pdf" | ImageType }): Promise<Bill> {
   const data = file.buffer.toString("base64");
-  const source: Anthropic.Beta.BetaContentBlockParam =
+  const source: Anthropic.ContentBlockParam =
     file.mimeType === "application/pdf"
       ? { type: "document", source: { type: "base64", media_type: "application/pdf", data } }
       : { type: "image", source: { type: "base64", media_type: file.mimeType, data } };
 
-  const res = await anthropic().beta.messages.parse({
-    model: "claude-opus-5-5",
+  // Haiku: cheapest tier, accurate enough for reading a bill. It has no server-side fallback on refusal.
+  const res = await anthropic().messages.parse({
+    model: "claude-haiku-5-5",
     max_tokens: 16000,
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
     system: SYSTEM_PROMPT,
-    output_config: { effort: "medium", format: betaZodOutputFormat(BillSchema) },
+    output_config: { effort: "medium", format: zodOutputFormat(BillSchema) },
     messages: [{ role: "user", content: [source, { type: "text", text: "Ανάλυσε αυτόν τον λογαριασμό ρεύματος." }] }],
   });
 
