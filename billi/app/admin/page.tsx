@@ -880,9 +880,12 @@ function TariffsView({ category }: { category: EnergyCat }) {
 
       {rows.length === 0 ? (
         category === "gas" ? (
-          <div className={`${card} space-y-2 text-sm text-slate-300`}>
-            <p>Δεν υπάρχουν ακόμα τιμές αερίου, οπότε στο site η σύγκριση αερίου είναι κενή και προτείνει «Να με καλέσετε».</p>
-            <p>Πάτα «＋ Νέο πρόγραμμα» και πρόσθεσε τα προγράμματα των παρόχων (πάγιο €/μήνα και τιμή €/kWh χωρίς ΦΠΑ).</p>
+          <div className={`${card} space-y-3 text-sm text-slate-300`}>
+            <p>Δεν υπάρχουν ακόμα τιμές αερίου εδώ, οπότε το site δείχνει τις ενσωματωμένες επίσημες τιμές Νοεμβρίου (Heron, Protergia).</p>
+            <button className={btn} onClick={() => act(() => api("/api/admin/tariffs/import?category=gas", { method: "POST" }), "Οι τιμές αερίου εισήχθησαν")}>
+              ⬇ Εισαγωγή των τρεχουσών τιμών αερίου
+            </button>
+            <p>Ή πάτα «＋ Νέο πρόγραμμα» και πρόσθεσε προγράμματα (πάγιο €/μήνα και τιμή €/kWh χωρίς ΦΠΑ).</p>
           </div>
         ) : (
           <div className={`${card} space-y-3 text-sm text-slate-300`}>

@@ -1,0 +1,10 @@
+{
+  "updated_at": "2026-11-03T12:00:00Z",
+  "source": "Επίσημες σελίδες προγραμμάτων Heron και Protergia, τιμές Νοεμβρίου 2026 (11/2026), όπως διαβάστηκαν στις 3/11/2026. Τιμές χωρίς ΦΠΑ και ρυθμιζόμενες χρεώσεις, μόνο προμήθεια. Μόνο αυτόνομη θέρμανση.",
+  "tariffs": [
+    { "id": "heron-gas-max-home-2026-11", "category": "gas", "provider": "Heron", "name": "GAS MAX HOME", "color": "green", "fixed_monthly_eur": 4.3, "price_per_kwh_eur": 0.10594, "price_per_kwh_with_discount_eur": 0.09534, "discount_condition": "δώρο 55% αντί 50% της μηνιαίας κατανάλωσης, μετά από 9 μήνες στο πρόγραμμα (αρχική χρέωση 0,21187 €/kWh)", "valid_month": "2026-11", "url": "https://www.heron.gr/energy/gas/gia-to-spiti/gas-max-home/" },
+    { "id": "heron-gas-pass-home-2026-11", "category": "gas", "provider": "Heron", "name": "GAS PASS HOME", "color": "green", "fixed_monthly_eur": 3.4, "price_per_kwh_eur": 0.15644, "price_per_kwh_with_discount_eur": 0.146663, "discount_condition": "δώρο 25% αντί 20% της μηνιαίας κατανάλωσης, μετά από 9 μήνες στο πρόγραμμα· η επιδότηση 150 € (Δεκ–Φεβ) δεν υπολογίζεται", "valid_month": "2026-11", "url": "https://www.heron.gr/energy/gas/gia-to-spiti/gas-pass-home/" },
+    { "id": "protergia-value-gas-flex-2026-11", "category": "gas", "provider": "Protergia", "name": "Value Gas Flex (Αυτόνομο)", "color": "green", "fixed_monthly_eur": 7, "price_per_kwh_eur": 0.09231, "price_per_kwh_with_discount_eur": 0.09031, "discount_condition": "με ρεύμα και αέριο στην Protergia (Power+Gas)", "min_duration_months": 12, "valid_month": "2026-11", "url": "https://www.protergia.gr/spiti/fysiko-aerio-gia-spiti/oikiako-autonomo-value-gas-flex/" },
+    { "id": "protergia-value-gas-standard-2026-11", "category": "gas", "provider": "Protergia", "name": "Value Gas Standard (Αυτόνομο)", "color": "green", "fixed_monthly_eur": 5, "price_per_kwh_eur": 0.10031, "min_duration_months": 12, "valid_month": "2026-11", "url": "https://www.protergia.gr/spiti/fysiko-aerio-gia-spiti/oikiako-autonomo-value-gas-standard/" }
+  ]
+}
