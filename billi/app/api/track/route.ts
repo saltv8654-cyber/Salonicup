@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db, dbConfigured } from "@/lib/db";
 import { EVENT_NAMES } from "@/lib/track";
-import { parseUserAgent } from "@/lib/ua";
+import { isBot, parseUserAgent } from "@/lib/ua";
 
 export const runtime = "nodejs";
 
@@ -27,11 +27,13 @@ export async function POST(req: NextRequest) {
   const parsed = Event.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return new NextResponse(null, { status: 204 });
   const e = parsed.data;
+  const ua = req.headers.get("user-agent") ?? "";
+  if (isBot(ua)) return new NextResponse(null, { status: 204 });
 
   // Device and location come from the request, not the client, so they can't be spoofed into odd values.
   const city = req.headers.get("x-vercel-ip-city");
   const ctx = {
-    ...parseUserAgent(req.headers.get("user-agent") ?? ""),
+    ...parseUserAgent(ua),
     country: req.headers.get("x-vercel-ip-country") ?? null,
     city: city ? safeDecode(city) : null,
   };

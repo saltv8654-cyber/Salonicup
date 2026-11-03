@@ -21,3 +21,14 @@ export function parseUserAgent(ua: string) {
     /Safari/i.test(s) ? "Safari" : "Άλλο";
   return { device, os, browser };
 }
+
+/**
+ * Automated visitors: search/link-preview crawlers, uptime checks and headless browsers (e.g. the one Vercel uses
+ * for deployment screenshots). Their visits would otherwise show up as real traffic, often from US data centres.
+ */
+export function isBot(ua: string): boolean {
+  return (
+    !ua ||
+    /bot\b|bot\/|crawl|spider|slurp|headless|lighthouse|pagespeed|vercel|prerender|preview|facebookexternalhit|whatsapp|telegrambot|skypeuripreview|bingpreview|python|curl|wget|axios|node-fetch|go-http|java\/|okhttp|phantomjs|puppeteer|playwright|selenium|uptime|monitor|pingdom/i.test(ua)
+  );
+}
