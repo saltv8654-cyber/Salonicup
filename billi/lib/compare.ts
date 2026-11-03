@@ -30,17 +30,23 @@ export function annualKwh(bill: Bill): number {
   return Math.round(((bill.kwh_total ?? 0) / days) * 365);
 }
 
-/** Effective €/kWh the customer currently pays for supply, after discounts. */
-function currentRate(bill: Bill): number | null {
-  if (bill.net_energy_charge && bill.kwh_total) return bill.net_energy_charge / bill.kwh_total;
-  return bill.kwh_rate;
+/**
+ * What the customer pays for supply today, per year incl. VAT. Prefer the supplier total actually
+ * charged on the bill (fixed fee + energy − discounts), scaled to a year; it needs no assumptions
+ * about how the provider pro-rates the fixed fee.
+ */
+function currentAnnualCost(bill: Bill, kwh: number): number | null {
+  const days = bill.billing_days && bill.billing_days > 0 ? bill.billing_days : null;
+  if (bill.supplier_total && days) return bill.supplier_total * (365 / days) * (1 + VAT);
+  if (bill.fixed_monthly_fee === null) return null;
+  const rate =
+    bill.net_energy_charge && bill.kwh_total ? bill.net_energy_charge / bill.kwh_total : bill.kwh_rate;
+  return rate !== null ? supplyCost(kwh, bill.fixed_monthly_fee, rate) : null;
 }
 
 export function compare(bill: Bill, tariffs: Tariff[]): Comparison {
   const kwh = annualKwh(bill);
-  const rate = currentRate(bill);
-  const currentAnnual =
-    rate !== null && bill.fixed_monthly_fee !== null ? supplyCost(kwh, bill.fixed_monthly_fee, rate) : null;
+  const currentAnnual = currentAnnualCost(bill, kwh);
 
   const offers: Offer[] = tariffs
     .map((t) => {
