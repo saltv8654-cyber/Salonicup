@@ -1,5 +1,132 @@
 {
-  "updated_at": null,
-  "source": "Συμπληρώστε από energycost.gr (ΡΑΑΕΥ) ή τις σελίδες των παρόχων. Τιμές χωρίς ΦΠΑ, μόνο χρεώσεις προμήθειας.",
-  "tariffs": []
+  "updated_at": "2026-11-03T12:00:00Z",
+  "source": "Δημοσιεύσεις τιμολογίων Νοεμβρίου 2026 (energycost.gr/ΡΑΑΕΥ μέσω ειδησεογραφίας, timesrevmatos.gr). Τιμές χωρίς ΦΠΑ, μόνο χρεώσεις προμήθειας.",
+  "tariffs": [
+    {
+      "id": "dei-myhome-online-2026-11",
+      "category": "electricity",
+      "provider": "ΔΕΗ",
+      "name": "myHome Online",
+      "color": "blue",
+      "fixed_monthly_eur": 5,
+      "price_per_kwh_eur": 0.13,
+      "discount_condition": "για ενεργοποιήσεις 1–30 Νοεμβρίου 2026",
+      "valid_month": "2026-11",
+      "url": "https://www.cnn.gr/oikonomia/chrima/story/559793/ta-timologia-noemvriou-apo-ti-dei-nea-prosfora-me-0-13-kwh-sto-mple-sta-0-169-kwh-to-prasino"
+    },
+    {
+      "id": "dei-myhome-enter-2026-11",
+      "category": "electricity",
+      "provider": "ΔΕΗ",
+      "name": "myHome Enter",
+      "color": "blue",
+      "fixed_monthly_eur": 7.5,
+      "price_per_kwh_eur": 0.179,
+      "valid_month": "2026-11",
+      "url": "https://timesrevmatos.gr/"
+    },
+    {
+      "id": "dei-g1-prasino-2026-11",
+      "category": "electricity",
+      "provider": "ΔΕΗ",
+      "name": "Γ1 (Πράσινο)",
+      "color": "green",
+      "fixed_monthly_eur": 5,
+      "price_per_kwh_eur": 0.169,
+      "discount_condition": "με την έκπτωση της ΔΕΗ, έως 200 kWh/μήνα (πάνω από 200: 0,28444 €/kWh)",
+      "valid_month": "2026-11",
+      "url": "https://www.capital.gr/epixeiriseis/4027226/dei-aporrofisi-auxiseon-sta-prasina-timologia-nea-prosfora-sta-mple/"
+    },
+    {
+      "id": "dei-myhome-4all-2026-11",
+      "category": "electricity",
+      "provider": "ΔΕΗ",
+      "name": "myHome 4All",
+      "color": "yellow",
+      "fixed_monthly_eur": 5,
+      "price_per_kwh_eur": 0.3134,
+      "discount_condition": "με έκπτωση, έως 500 kWh/μήνα",
+      "valid_month": "2026-11",
+      "url": "https://timesrevmatos.gr/programmata/dei-myhome-4all/"
+    },
+    {
+      "id": "protergia-value-special-2026-11",
+      "category": "electricity",
+      "provider": "Protergia",
+      "name": "Οικιακό Value Special",
+      "color": "green",
+      "fixed_monthly_eur": 5,
+      "price_per_kwh_eur": 0.264,
+      "valid_month": "2026-11",
+      "url": "https://www.tanea.gr/2026/11/02/economy/reyma-poso-kostizei-i-kilovatora-ton-noemvrio-oi-times-ton-paroxon/"
+    },
+    {
+      "id": "protergia-value-balance-12m-2026-11",
+      "category": "electricity",
+      "provider": "Protergia",
+      "name": "Value Balance 12M",
+      "color": "blue",
+      "fixed_monthly_eur": 10.9,
+      "price_per_kwh_eur": 0.179,
+      "min_duration_months": 12,
+      "valid_month": "2026-11",
+      "url": "https://timesrevmatos.gr/"
+    },
+    {
+      "id": "protergia-value-standard-2-2026-11",
+      "category": "electricity",
+      "provider": "Protergia",
+      "name": "Value Standard 2.0",
+      "color": "yellow",
+      "fixed_monthly_eur": 5,
+      "price_per_kwh_eur": 0.268,
+      "valid_month": "2026-11",
+      "url": "https://timesrevmatos.gr/"
+    },
+    {
+      "id": "heron-basic-home-2026-11",
+      "category": "electricity",
+      "provider": "ΗΡΩΝ",
+      "name": "Basic Home",
+      "color": "green",
+      "fixed_monthly_eur": 5,
+      "price_per_kwh_eur": 0.2595,
+      "discount_condition": "με έκπτωση συνέπειας",
+      "valid_month": "2026-11",
+      "url": "https://www.liberal.gr/energeia/timologia-reymatos-ayxiseis-eos-76-sta-prasina-ton-noembrio"
+    },
+    {
+      "id": "heron-blue-smart-home-2026-11",
+      "category": "electricity",
+      "provider": "ΗΡΩΝ",
+      "name": "Blue Smart Home",
+      "color": "blue",
+      "fixed_monthly_eur": 15.9,
+      "price_per_kwh_eur": 0.158,
+      "valid_month": "2026-11",
+      "url": "https://timesrevmatos.gr/"
+    },
+    {
+      "id": "eunice-home-secure-start-2026-11",
+      "category": "electricity",
+      "provider": "EUNICE",
+      "name": "Home SECURE Start",
+      "color": "blue",
+      "fixed_monthly_eur": 8,
+      "price_per_kwh_eur": 0.177,
+      "valid_month": "2026-11",
+      "url": "https://timesrevmatos.gr/"
+    },
+    {
+      "id": "volton-eidiko-2026-11",
+      "category": "electricity",
+      "provider": "Volton",
+      "name": "Ειδικό (Πράσινο)",
+      "color": "green",
+      "fixed_monthly_eur": 4.9,
+      "price_per_kwh_eur": 0.36226,
+      "valid_month": "2026-11",
+      "url": "https://www.documentonews.gr/article/ilektriko-revma-akrivotera-ta-prasina-timologia-noemvriou-times-ana-parocho/"
+    }
+  ]
 }
