@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
 
     const bill = await extractBill({ buffer: Buffer.from(await file.arrayBuffer()), mimeType });
     const warnings = validate(bill);
-    const { tariffs, updated_at } = loadTariffs();
+    const { tariffs, updated_at } = await loadTariffs();
 
     return NextResponse.json({
       bill,

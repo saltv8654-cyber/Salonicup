@@ -31,24 +31,18 @@ npm run dev
 | 🟡 Κίτρινο | Κυμαινόμενη με βάση τη χονδρεμπορική, γνωστή μετά την κατανάλωση |
 | 🟠 Πορτοκαλί | Δυναμική ωριαία, απαιτεί έξυπνο μετρητή |
 
-## Ενημέρωση τιμών
+## Ενημέρωση τιμών (αυτόματη)
 
-Πηγή: [energycost.gr](https://www.energycost.gr) (ΡΑΑΕΥ) ή οι σελίδες των παρόχων. Τα πράσινα τιμολόγια αλλάζουν
-κάθε μήνα. Τιμές **χωρίς ΦΠΑ**, μόνο προμήθεια:
+Κάθε μέρα στις 04:00 UTC (06:00 ώρα Ελλάδας τον χειμώνα, 07:00 το καλοκαίρι) το Vercel Cron καλεί το `/api/sync`
+(`vercel.json`). Το `lib/sync.ts` ζητά από το Claude Sonnet 5.5, με web search και web fetch, τα τρέχοντα οικιακά
+τιμολόγια κάθε παρόχου της λίστας `PROVIDERS`. Οι τιμές ελέγχονται (λογικά όρια €/kWh και πάγιου) και αποθηκεύονται
+στο Vercel Blob (`tariffs/latest.json`). Αν ένας πάροχος αποτύχει, κρατιούνται οι τιμές του από τον προηγούμενο
+συγχρονισμό.
 
-```json
-{
-  "id": "provider-program-2026-10",
-  "category": "electricity",
-  "provider": "Πάροχος",
-  "name": "Όνομα προγράμματος",
-  "color": "green",
-  "fixed_monthly_eur": 5,
-  "price_per_kwh_eur": 0.15,
-  "price_per_kwh_with_discount_eur": 0.14,
-  "discount_condition": "με έγκαιρη εξόφληση",
-  "min_duration_months": 12,
-  "valid_month": "2026-10",
-  "url": "https://..."
-}
-```
+Ρυθμίσεις στο Vercel (project billi):
+- **Storage → Create → Blob** (Public) και σύνδεση στο project. Προσθέτει αυτόματα το `BLOB_READ_WRITE_TOKEN`.
+- **Environment Variables:** `CRON_SECRET`, μια τυχαία μεγάλη φράση. Το Vercel Cron τη στέλνει σε κάθε κλήση,
+  και όποιος άλλος καλέσει το `/api/sync` παίρνει 401.
+- Χειροκίνητη εκτέλεση: **Settings → Cron Jobs → Run**.
+
+Αν δεν υπάρχει Blob store, χρησιμοποιείται το `data/tariffs.json`.

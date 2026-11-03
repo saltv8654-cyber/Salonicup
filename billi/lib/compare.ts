@@ -17,6 +17,8 @@ export interface Comparison {
   annualKwh: number;
   currentAnnual: number | null;
   offers: Offer[];
+  /** Cheapest offer of each tariff colour, for the "which colour suits you" view */
+  byColor: Record<TariffColor, Offer | null>;
   recommendation: { color: TariffColor; text: string } | null;
 }
 
@@ -60,7 +62,11 @@ export function compare(bill: Bill, tariffs: Tariff[]): Comparison {
     })
     .sort((a, b) => (a.annualWithDiscount ?? a.annual) - (b.annualWithDiscount ?? b.annual));
 
-  return { annualKwh: kwh, currentAnnual, offers, recommendation: recommend(offers) };
+  const byColor = Object.fromEntries(
+    (["blue", "green", "yellow", "orange"] as TariffColor[]).map((c) => [c, offers.find((o) => o.tariff.color === c) ?? null]),
+  ) as Record<TariffColor, Offer | null>;
+
+  return { annualKwh: kwh, currentAnnual, offers, byColor, recommendation: recommend(offers) };
 }
 
 function recommend(offers: Offer[]): Comparison["recommendation"] {
