@@ -127,6 +127,18 @@
       "price_per_kwh_eur": 0.36226,
       "valid_month": "2026-11",
       "url": "https://www.documentonews.gr/article/ilektriko-revma-akrivotera-ta-prasina-timologia-noemvriou-times-ana-parocho/"
+    },
+    {
+      "id": "elin-power-on-home-zero-2026-11",
+      "category": "electricity",
+      "provider": "ΕΛΙΝ",
+      "name": "Power On! Home Zero",
+      "color": "yellow",
+      "fixed_monthly_eur": 0,
+      "price_per_kwh_eur": 0.233,
+      "discount_condition": "ως εκτίμηση Νοεμβρίου: είναι κυμαινόμενη και οριστικοποιείται μετά την κατανάλωση",
+      "valid_month": "2026-11",
+      "url": "https://energy.elin.gr/ilektriki-energeia-new/gia-to-spiti-ilektriko-reyma-on/power-on-home-zero-oikiako-reyma/"
     }
   ]
 }
