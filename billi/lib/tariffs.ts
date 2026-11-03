@@ -4,9 +4,12 @@ import type { TariffFile } from "./types";
 
 const PATH = "tariffs/latest.json";
 
+/** A connected store exposes either a read-write token or, on newer projects, a store id used with Vercel OIDC. */
+export const blobConfigured = () => !!(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
+
 /** Latest synced snapshot from Vercel Blob; falls back to the bundled file when no store is connected yet. */
 export async function loadTariffs(): Promise<TariffFile> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return bundled as TariffFile;
+  if (!blobConfigured()) return bundled as TariffFile;
   try {
     const res = await get(PATH, { access: "public", useCache: false });
     if (res) return (await new Response(res.stream).json()) as TariffFile;
