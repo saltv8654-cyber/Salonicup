@@ -51,6 +51,16 @@ export async function POST(req: NextRequest) {
     if (err instanceof Anthropic.RateLimitError) {
       return NextResponse.json({ error: "Πολλά αιτήματα. Δοκίμασε ξανά σε λίγο." }, { status: 429 });
     }
+    if (err instanceof Anthropic.BadRequestError) {
+      const detail: string = (err.error as any)?.error?.message ?? err.message;
+      if (/credit balance/i.test(detail)) {
+        return NextResponse.json({ error: "Δεν υπάρχει υπόλοιπο στον λογαριασμό Anthropic. Φόρτωσε credits στο console.anthropic.com." }, { status: 502 });
+      }
+      if (/image|5 ?MB|dimensions/i.test(detail)) {
+        return NextResponse.json({ error: "Η φωτογραφία δεν έγινε δεκτή (πολύ μεγάλη ή μη έγκυρη). Δοκίμασε στιγμιότυπο οθόνης ή PDF." }, { status: 422 });
+      }
+      return NextResponse.json({ error: `Σφάλμα AI (400): ${detail}` }, { status: 502 });
+    }
     if (err instanceof Anthropic.APIError) {
       return NextResponse.json({ error: `Σφάλμα AI (${err.status ?? "δίκτυο"}). Δοκίμασε ξανά.` }, { status: 502 });
     }
