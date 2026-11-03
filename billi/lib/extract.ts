@@ -12,9 +12,14 @@ const SYSTEM_PROMPT = `
 2. Ποσά σε EUR ως αριθμοί (π.χ. 12.34).
 3. Αν ένα πεδίο δεν υπάρχει στον λογαριασμό, επιστρέφεις null (ποτέ 0 για ελλιπή στοιχεία).
 4. Η έκπτωση συνέπειας / έγκαιρης πληρωμής επιστρέφεται ως θετικός αριθμός.
-5. fixed_monthly_fee = το ΜΗΝΙΑΙΟ πάγιο του προγράμματος (όχι αναλογικό ανά ημέρα).
+5. fixed_monthly_fee = το Πάγιο Τέλος όπως αναγράφεται στον λογαριασμό.
 6. kwh_rate = τιμή ενέργειας προμήθειας σε €/kWh όπως αναγράφεται (χωρίς ρυθμιζόμενες χρεώσεις).
-7. billing_days από το διάστημα κατανάλωσης. is_estimate = true αν η μέτρηση είναι εκτιμώμενη.
+7. net_energy_charge = χρέωση ενέργειας μείον εκπτώσεις, ΧΩΡΙΣ το πάγιο.
+   supplier_total = το σύνολο της ενότητας προμήθειας (πάγιο + ενέργεια − εκπτώσεις).
+   Παράδειγμα: Πάγιο 9,57 · Ενέργεια 98 kWh × 0,199 = 19,50 · Έκπτωση −10,88 · Σύνολο προμήθειας 18,19
+   → fixed_monthly_fee 9.57, energy_charge_gross 19.50, consistency_discount 10.88,
+     net_energy_charge 8.62, supplier_total 18.19.
+8. billing_days από το διάστημα κατανάλωσης. is_estimate = true αν η μέτρηση είναι εκτιμώμενη.
 
 ΧΡΩΜΑ ΤΙΜΟΛΟΓΙΟΥ (tariff_color):
 Από το 2024 κάθε λογαριασμός αναγράφει το χρώμα του τιμολογίου. Το χρώμα αφορά τον τρόπο τιμολόγησης,
@@ -41,11 +46,11 @@ const BillSchema = z.object({
   kwh_night: num,
   kwh_rate: num,
   kwh_rate_night: num,
-  fixed_monthly_fee: num,
-  energy_charge_gross: num,
-  consistency_discount: num,
-  net_energy_charge: num,
-  supplier_total: num,
+  fixed_monthly_fee: num.describe("Πάγιο Τέλος της περιόδου, όπως αναγράφεται"),
+  energy_charge_gross: num.describe("Χρέωση ενέργειας προμήθειας πριν από εκπτώσεις (kWh × τιμή)"),
+  consistency_discount: num.describe("Έκπτωση συνέπειας/έγκαιρης πληρωμής σε €, θετικός αριθμός"),
+  net_energy_charge: num.describe("energy_charge_gross μείον εκπτώσεις, ΧΩΡΙΣ το πάγιο"),
+  supplier_total: num.describe("Σύνολο χρεώσεων προμήθειας του παρόχου (πάγιο + ενέργεια − εκπτώσεις), χωρίς ρυθμιζόμενες, φόρους, ΦΠΑ, δήμο"),
   regulated_total: num,
   municipal_total: num,
   efk_total: num,
@@ -69,6 +74,11 @@ export function validate(bill: Bill): string[] {
   if (!bill.total_due || bill.total_due <= 0) w.push("Δεν βρέθηκε σύνολο πληρωμής");
   if (!bill.tariff_color) w.push("Δεν αναγνωρίστηκε το χρώμα τιμολογίου");
   if (bill.is_estimate) w.push("Ο λογαριασμός βασίζεται σε εκτιμώμενη μέτρηση");
+
+  if (bill.fixed_monthly_fee !== null && bill.net_energy_charge !== null && bill.supplier_total !== null &&
+      Math.abs(bill.fixed_monthly_fee + bill.net_energy_charge - bill.supplier_total) > 0.5) {
+    w.push("Οι χρεώσεις προμήθειας (πάγιο + ενέργεια) δεν συμφωνούν με το σύνολο προμήθειας. Έλεγξε τα ποσά.");
+  }
 
   const parts = [bill.supplier_total, bill.regulated_total, bill.municipal_total, bill.efk_total, bill.vat_amount];
   if (bill.total_due && parts.every((p) => p !== null)) {
