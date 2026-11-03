@@ -5,6 +5,7 @@ import type { Bill, Tariff, TariffColor } from "@/lib/types";
 import { COLOR_INFO } from "@/lib/types";
 import type { Comparison, Offer } from "@/lib/compare";
 import { sessionId, track, trafficSource } from "@/lib/track";
+import { CookieSettingsLink } from "./consent";
 
 const CONTACT_PHONE = process.env.NEXT_PUBLIC_CONTACT_PHONE ?? "";
 const COMPANY_NAME = process.env.NEXT_PUBLIC_COMPANY_NAME ?? "Billi";
@@ -913,7 +914,7 @@ function LeadModal({ target, result, onClose }: { target: LeadTarget; result: Re
               : null,
           },
           source: trafficSource(),
-          session_id: sessionId(),
+          session_id: sessionId() || undefined,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -1051,7 +1052,7 @@ function Footer() {
           μπορεί να λάβουμε προμήθεια από τον πάροχο, χωρίς καμία επιβάρυνση για σένα. Η σειρά της σύγκρισης βγαίνει μόνο από το κόστος.
         </p>
         <p>
-          © {new Date().getFullYear()} {COMPANY_NAME} · <a href="/privacy" className="underline">Πολιτική Απορρήτου</a>
+          © {new Date().getFullYear()} {COMPANY_NAME} · <a href="/privacy" className="underline">Πολιτική Απορρήτου</a> · <CookieSettingsLink />
         </p>
       </div>
     </footer>
