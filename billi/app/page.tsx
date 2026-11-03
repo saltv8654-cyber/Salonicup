@@ -1,9 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { Bill, Tariff, TariffColor } from "@/lib/types";
 import { COLOR_INFO } from "@/lib/types";
 import type { Comparison, Offer } from "@/lib/compare";
+import { sessionId, track, trafficSource } from "@/lib/track";
+
+const CONTACT_PHONE = process.env.NEXT_PUBLIC_CONTACT_PHONE ?? "";
+const COMPANY_NAME = process.env.NEXT_PUBLIC_COMPANY_NAME ?? "Billi";
+
+/** What the visitor wants to be contacted about; empty = general "call me". */
+interface LeadTarget {
+  tariff?: Tariff;
+  annual?: number | null;
+  savings?: number | null;
+}
+const LeadCtx = createContext<(t?: LeadTarget) => void>(() => {});
 
 interface Result {
   bill: Bill;
@@ -61,6 +73,8 @@ const btnPrimary =
   "inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 via-cyan-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50";
 const btnSecondary =
   "inline-flex items-center justify-center gap-2 rounded-xl bg-white/5 px-5 py-3 text-sm font-semibold text-slate-100 ring-1 ring-white/15 transition hover:bg-white/10 active:scale-[0.98] disabled:opacity-50";
+const btnWant =
+  "inline-flex items-center gap-1 whitespace-nowrap rounded-lg bg-gradient-to-r from-blue-500 to-violet-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-110";
 const btnSmall =
   "inline-flex items-center gap-1 whitespace-nowrap rounded-lg bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-100 ring-1 ring-white/15 transition hover:bg-white/10";
 
@@ -127,6 +141,16 @@ export default function Home() {
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
+  const [leadTarget, setLeadTarget] = useState<LeadTarget | null>(null);
+
+  useEffect(() => {
+    track("page_view");
+  }, []);
+
+  const openLead = (t: LeadTarget = {}) => {
+    track("lead_open", { tariff: t.tariff ? `${t.tariff.provider} ${t.tariff.name}` : null });
+    setLeadTarget(t);
+  };
 
   const step = result ? 3 : loading ? 2 : 1;
 
@@ -134,6 +158,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setResult(null);
+    track("upload_start", { type: file.type || "unknown" });
     try {
       const fd = new FormData();
       fd.append("file", await shrinkImage(file));
@@ -141,9 +166,11 @@ export default function Home() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Σφάλμα");
       setResult(json);
+      track("analysis_ok", { provider: json.bill?.provider ?? null, color: json.bill?.tariff_color ?? null });
       setTimeout(() => document.getElementById("results")?.scrollIntoView({ behavior: "smooth" }), 50);
     } catch (e: any) {
       setError(e.message);
+      track("analysis_error", { message: String(e.message).slice(0, 200) });
     } finally {
       setLoading(false);
     }
@@ -158,7 +185,7 @@ export default function Home() {
   }
 
   return (
-    <>
+    <LeadCtx.Provider value={openLead}>
       <TopBar onNew={result ? reset : undefined} />
 
       <main className="relative mx-auto max-w-3xl px-4 pb-16 pt-6">
@@ -252,9 +279,15 @@ export default function Home() {
 
         <ProviderCatalog offers={result?.comparison?.offers ?? null} />
 
+        <ContactSection />
+
         <HowItWorks />
       </main>
-    </>
+
+      <Footer />
+
+      {leadTarget && <LeadModal target={leadTarget} result={result} onClose={() => setLeadTarget(null)} />}
+    </LeadCtx.Provider>
   );
 }
 
@@ -286,6 +319,7 @@ function TopBar({ onNew }: { onNew?: () => void }) {
     { id: "colors", icon: "🎨", label: "Ποιο χρώμα με συμφέρει" },
     { id: "compare", icon: "📊", label: "Σύγκριση παρόχων" },
     { id: "providers", icon: "🏢", label: "Προγράμματα ανά εταιρεία" },
+    { id: "contact", icon: "📞", label: "Επικοινωνία" },
     { id: "how", icon: "❓", label: "Πώς δουλεύει" },
   ];
 
@@ -425,6 +459,7 @@ type ColorFilter = "all" | TariffColor;
 type SortKey = "annual" | "kwh" | "fee";
 
 function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bill; updatedAt: string | null }) {
+  const want = useContext(LeadCtx);
   const [color, setColor] = useState<ColorFilter>("all");
   const [sort, setSort] = useState<SortKey>("annual");
   const [noFee, setNoFee] = useState(false);
@@ -501,8 +536,10 @@ function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bil
               )}
 
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                {recommended?.tariff.url && (
-                  <a href={recommended.tariff.url} target="_blank" rel="noreferrer" className={btnPrimary}>Δες το πρόγραμμα ↗</a>
+                {recommended && (
+                  <button type="button" className={btnPrimary} onClick={() => want({ tariff: recommended.tariff, annual: offerAnnual(recommended), savings: recommended.savings })}>
+                    ✋ Θέλω αυτό το πρόγραμμα
+                  </button>
                 )}
                 <button type="button" className={btnSecondary} onClick={() => document.getElementById("compare")?.scrollIntoView({ behavior: "smooth" })}>
                   Όλη η σύγκριση ↓
@@ -642,7 +679,13 @@ function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bil
                             {o.savings > 0 ? `▼ κερδίζεις ${eur(o.savings, 0)}/έτος` : `▲ ${eur(-o.savings, 0)}/έτος ακριβότερο`}
                           </span>
                         ) : <span />}
-                        {o.tariff.url && <a href={o.tariff.url} target="_blank" rel="noreferrer" className={btnSmall}>Δες ↗</a>}
+                        <div className="flex gap-2">
+                          {o.tariff.url && (
+                            <a href={o.tariff.url} target="_blank" rel="noreferrer" className={btnSmall}
+                              onClick={() => track("tariff_click", { tariff: `${o.tariff.provider} ${o.tariff.name}` })}>Δες ↗</a>
+                          )}
+                          <button type="button" className={btnWant} onClick={() => want({ tariff: o.tariff, annual: offerAnnual(o), savings: o.savings })}>Θέλω αυτό</button>
+                        </div>
                       </div>
                     </li>
                   );
@@ -665,6 +708,8 @@ function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bil
 /* ───────────── programmes per provider ───────────── */
 
 function ProviderCatalog({ offers }: { offers: Offer[] | null }) {
+  const want = useContext(LeadCtx);
+  const offerById = useMemo(() => new Map((offers ?? []).map((o) => [o.tariff.id, o])), [offers]);
   const [tariffs, setTariffs] = useState<Tariff[] | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -762,7 +807,16 @@ function ProviderCatalog({ offers }: { offers: Offer[] | null }) {
                                 {annual !== undefined && (
                                   <span className="whitespace-nowrap text-sm font-bold text-white">{eur(annual, 0)}<span className="text-[10px] font-normal text-slate-400">/έτος</span></span>
                                 )}
-                                {t.url && <a href={t.url} target="_blank" rel="noreferrer" className={btnSmall}>Δες ↗</a>}
+                                <div className="flex gap-1.5">
+                                  {t.url && (
+                                    <a href={t.url} target="_blank" rel="noreferrer" className={btnSmall}
+                                      onClick={() => track("tariff_click", { tariff: `${t.provider} ${t.name}` })}>Δες ↗</a>
+                                  )}
+                                  <button type="button" className={btnWant}
+                                    onClick={() => want({ tariff: t, annual: annual ?? null, savings: offerById.get(t.id)?.savings ?? null })}>
+                                    Θέλω αυτό
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           </li>
@@ -781,6 +835,217 @@ function ProviderCatalog({ offers }: { offers: Offer[] | null }) {
         Τιμές χωρίς ΦΠΑ, μόνο χρεώσεις προμήθειας{updatedAt && <> · ενημέρωση {new Date(updatedAt).toLocaleDateString("el-GR", { timeZone: "Europe/Athens" })}</>}.
       </p>
     </Card>
+  );
+}
+
+/* ───────────── lead form ───────────── */
+
+const PREFERRED_TIMES = ["Οποιαδήποτε ώρα", "Πρωί (9–12)", "Μεσημέρι (12–15)", "Απόγευμα (15–18)", "Βράδυ (18–21)"];
+
+function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+  return (
+    <label className="block">
+      <span className="text-xs font-semibold text-slate-300">{label}</span>
+      <div className="mt-1">{children}</div>
+      {hint && <span className="mt-1 block text-[11px] text-slate-500">{hint}</span>}
+    </label>
+  );
+}
+
+const inputCls =
+  "w-full rounded-xl bg-[#0a1028] px-3 py-2.5 text-sm text-slate-100 ring-1 ring-white/15 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-400/60";
+
+function LeadModal({ target, result, onClose }: { target: LeadTarget; result: Result | null; onClose: () => void }) {
+  const [form, setForm] = useState({ name: "", phone: "", email: "", preferred_time: PREFERRED_TIMES[0], message: "", consent_contact: false, consent_marketing: false, website: "" });
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
+
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", esc);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", esc);
+      document.body.style.overflow = "";
+    };
+  }, [onClose]);
+
+  const bill = result?.bill ?? null;
+  const c = result?.comparison ?? null;
+  const t = target.tariff;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setSending(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          context: {
+            tariff_id: t?.id ?? null,
+            tariff_label: t ? `${t.provider} ${t.name}` : null,
+            current_provider: bill?.provider ?? null,
+            current_program: bill?.program_name ?? null,
+            annual_kwh: c?.annualKwh ?? null,
+            current_annual: c?.currentAnnual !== undefined && c?.currentAnnual !== null ? Math.round(c.currentAnnual * 100) / 100 : null,
+            offer_annual: target.annual != null ? Math.round(target.annual * 100) / 100 : null,
+            savings: target.savings != null ? Math.round(target.savings * 100) / 100 : null,
+            bill: bill
+              ? {
+                  tariff_color: bill.tariff_color, period: bill.period_start && bill.period_end ? `${bill.period_start} – ${bill.period_end}` : null,
+                  kwh_total: bill.kwh_total, billing_days: bill.billing_days, fixed_monthly_fee: bill.fixed_monthly_fee,
+                  kwh_rate: bill.kwh_rate, supplier_total: bill.supplier_total, total_due: bill.total_due,
+                }
+              : null,
+          },
+          source: trafficSource(),
+          session_id: sessionId(),
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? "Κάτι πήγε στραβά");
+      track("lead_submit", { tariff: t ? `${t.provider} ${t.name}` : null });
+      setDone(true);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-[#060a1c] p-5 ring-1 ring-white/15 sm:rounded-2xl sm:p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-white">{t ? "Θέλω αυτό το πρόγραμμα" : "Να με καλέσετε"}</h2>
+            <p className="mt-1 text-sm text-slate-400">Ένας σύμβουλος του Billi θα σε καλέσει δωρεάν και θα αναλάβει την αλλαγή.</p>
+          </div>
+          <button type="button" aria-label="Κλείσιμο" onClick={onClose} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/5 text-slate-300 ring-1 ring-white/10 hover:bg-white/10">✕</button>
+        </div>
+
+        {done ? (
+          <div className="mt-6 rounded-xl bg-emerald-400/10 p-5 text-center ring-1 ring-emerald-300/30">
+            <div className="text-3xl">✅</div>
+            <div className="mt-2 font-semibold text-white">Ευχαριστούμε, {form.name.split(" ")[0]}!</div>
+            <p className="mt-1 text-sm text-slate-300">Θα σε καλέσουμε στο {form.phone} {form.preferred_time !== PREFERRED_TIMES[0] ? `(${form.preferred_time.toLowerCase()})` : "σύντομα"}.</p>
+            <button type="button" className={`${btnSecondary} mt-4`} onClick={onClose}>Κλείσιμο</button>
+          </div>
+        ) : (
+          <form className="mt-4 space-y-3" onSubmit={submit}>
+            {(t || bill) && (
+              <div className="rounded-xl bg-white/[0.03] p-3 text-sm ring-1 ring-white/10">
+                {t && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-white">{t.provider} · {t.name}</span>
+                    <ColorBadge color={t.color} />
+                  </div>
+                )}
+                {target.annual != null && (
+                  <div className="mt-1 text-xs text-slate-400">
+                    ~{eur(target.annual, 0)}/έτος{target.savings != null && target.savings > 0 && <> · κερδίζεις ~{eur(target.savings, 0)}</>}
+                  </div>
+                )}
+                {bill?.provider && <div className="mt-1 text-xs text-slate-500">Σήμερα: {bill.provider} {bill.program_name ?? ""}</div>}
+              </div>
+            )}
+
+            <Field label="Ονοματεπώνυμο *">
+              <input required minLength={2} maxLength={100} autoComplete="name" className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="π.χ. Μαρία Παπαδοπούλου" />
+            </Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Τηλέφωνο *">
+                <input required type="tel" inputMode="tel" autoComplete="tel" className={inputCls} value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="69xxxxxxxx" />
+              </Field>
+              <Field label="Email">
+                <input type="email" autoComplete="email" className={inputCls} value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="προαιρετικό" />
+              </Field>
+            </div>
+            <Field label="Πότε να σε καλέσουμε;">
+              <span className="relative block">
+                <select className={`${inputCls} appearance-none pr-9`} value={form.preferred_time} onChange={(e) => set("preferred_time", e.target.value)}>
+                  {PREFERRED_TIMES.map((p) => <option key={p}>{p}</option>)}
+                </select>
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">▾</span>
+              </span>
+            </Field>
+            <Field label="Μήνυμα">
+              <textarea rows={2} maxLength={1000} className={inputCls} value={form.message} onChange={(e) => set("message", e.target.value)} placeholder="προαιρετικό" />
+            </Field>
+
+            {/* honeypot for bots: hidden from people */}
+            <input tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" value={form.website} onChange={(e) => set("website", e.target.value)} name="website" />
+
+            <label className="flex items-start gap-2.5 text-sm text-slate-300">
+              <input type="checkbox" required checked={form.consent_contact} onChange={(e) => set("consent_contact", e.target.checked)} className="mt-0.5 h-4 w-4 accent-cyan-400" />
+              <span>Συμφωνώ να επικοινωνήσει μαζί μου το Billi για την αλλαγή παρόχου, σύμφωνα με την <a href="/privacy" target="_blank" className="underline">Πολιτική Απορρήτου</a>. *</span>
+            </label>
+            <label className="flex items-start gap-2.5 text-sm text-slate-400">
+              <input type="checkbox" checked={form.consent_marketing} onChange={(e) => set("consent_marketing", e.target.checked)} className="mt-0.5 h-4 w-4 accent-cyan-400" />
+              <span>Θέλω να με ενημερώνετε όταν βγαίνουν φθηνότερα προγράμματα.</span>
+            </label>
+
+            {error && <div className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300 ring-1 ring-red-400/30">⚠️ {error}</div>}
+
+            <button type="submit" disabled={sending} className={`${btnPrimary} w-full`}>{sending ? "Αποστολή…" : "Στείλε — θα σε καλέσουμε"}</button>
+            <p className="text-center text-[11px] text-slate-500">Δωρεάν, χωρίς δέσμευση. Δεν μοιραζόμαστε τα στοιχεία σου με τρίτους χωρίς τη συγκατάθεσή σου.</p>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ───────────── contact + footer ───────────── */
+
+function ContactSection() {
+  const want = useContext(LeadCtx);
+  const digits = CONTACT_PHONE.replace(/[^\d+]/g, "");
+  const intl = digits.startsWith("+") ? digits.slice(1) : digits.startsWith("30") ? digits : `30${digits}`;
+  const click = (channel: string) => track("contact_click", { channel });
+
+  return (
+    <section id="contact" className="mt-10 scroll-mt-20">
+      <div className="gradient-border rounded-2xl">
+        <div className="rounded-2xl bg-[#060a1c] p-5 text-center sm:p-6">
+          <div className="text-2xl">🤝</div>
+          <h2 className="mt-2 text-xl font-semibold text-white">Θες να το αναλάβουμε εμείς;</h2>
+          <p className="mt-1 text-sm text-slate-400">Ένας σύμβουλος του Billi σε βοηθά να αλλάξεις πάροχο δωρεάν, χωρίς να ψάχνεις τίποτα.</p>
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+            <button type="button" className={btnPrimary} onClick={() => want()}>📝 Να με καλέσετε</button>
+            {digits && <a href={`tel:${digits}`} className={btnSecondary} onClick={() => click("phone")}>📞 Κάλεσε {CONTACT_PHONE}</a>}
+            {digits && <a href={`viber://chat?number=%2B${intl}`} className={btnSecondary} onClick={() => click("viber")}>💜 Viber</a>}
+            {digits && <a href={`https://wa.me/${intl}`} target="_blank" rel="noreferrer" className={btnSecondary} onClick={() => click("whatsapp")}>💬 WhatsApp</a>}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="border-t border-white/10 px-4 py-8 text-center text-xs text-slate-500">
+      <div className="mx-auto max-w-3xl space-y-2">
+        <p>
+          Το Billi συγκρίνει αμερόληπτα όλα τα προγράμματα που δημοσιεύουν οι πάροχοι. Αν αλλάξεις πάροχο μέσω του Billi,
+          μπορεί να λάβουμε προμήθεια από τον πάροχο, χωρίς καμία επιβάρυνση για σένα. Η σειρά της σύγκρισης βγαίνει μόνο από το κόστος.
+        </p>
+        <p>
+          © {new Date().getFullYear()} {COMPANY_NAME} · <a href="/privacy" className="underline">Πολιτική Απορρήτου</a>
+        </p>
+      </div>
+    </footer>
   );
 }
 

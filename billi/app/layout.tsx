@@ -3,6 +3,7 @@ import "@fontsource/m-plus-rounded-1c/500.css";
 import "@fontsource/m-plus-rounded-1c/700.css";
 import "@fontsource/m-plus-rounded-1c/800.css";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
@@ -15,7 +16,10 @@ export const viewport: Viewport = { themeColor: "#01030f" };
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="el">
-      <body className="min-h-screen antialiased">{children}</body>
+      <body className="min-h-screen antialiased">
+        {children}
+        <Analytics />
+      </body>
     </html>
   );
 }

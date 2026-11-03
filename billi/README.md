@@ -47,3 +47,34 @@ Haiku 5.5, με web search και web fetch, τα τρέχοντα οικιακ�
 Το Vercel Cron στέλνει το `CRON_SECRET` ως `Authorization: Bearer`.
 
 Αν δεν υπάρχει Blob store, χρησιμοποιείται το `data/tariffs.json`.
+
+## Leads, CRM και στατιστικά
+
+- **Φόρμα επικοινωνίας:** κουμπιά «Θέλω αυτό το πρόγραμμα» και «Να με καλέσετε». Στέλνει στο `/api/leads` μαζί
+  με τη σύνοψη της ανάλυσης και την πηγή (UTM/referrer). Ο λογαριασμός ως αρχείο δεν αποθηκεύεται.
+- **CRM:** `/admin` (κωδικός `ADMIN_PASSWORD`). Περιλαμβάνει:
+  - λίστα πελατών και κατάσταση (Νέο → Επικοινωνία → Προσφορά → Υπογραφή → Ενεργό / Χάθηκε),
+  - ιστορικό επικοινωνίας, προμήθεια, επόμενη κλήση,
+  - εξαγωγή CSV,
+  - στατιστικά: πορεία επισκεπτών, πηγές, προγράμματα που πατήθηκαν.
+- **Ειδοποίηση:** μήνυμα Telegram σε κάθε νέο lead (προαιρετικό).
+- **Tracking:**
+  - `/api/track` με ανώνυμο κωδικό στο localStorage, χωρίς cookies διαφήμισης,
+  - Vercel Web Analytics (ενεργοποίηση από το Vercel → Analytics).
+- **Πολιτική απορρήτου:** `/privacy`.
+
+### Ρύθμιση (μία φορά)
+
+1. Νέο project στο [Supabase](https://supabase.com) → **SQL Editor** → εκτέλεση του `supabase/schema.sql`.
+2. Μεταβλητές περιβάλλοντος στο Vercel (project billi):
+
+| Μεταβλητή | Από πού |
+|---|---|
+| `SUPABASE_URL` | Supabase → Project Settings → API → Project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → `service_role` (μυστικό, ποτέ στον browser) |
+| `ADMIN_PASSWORD` | δικός σου ισχυρός κωδικός για το `/admin` |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | προαιρετικά: bot από τον @BotFather και το chat id σου |
+| `NEXT_PUBLIC_CONTACT_PHONE` | τηλέφωνο για Κλήση / Viber / WhatsApp |
+| `NEXT_PUBLIC_COMPANY_NAME`, `NEXT_PUBLIC_CONTACT_EMAIL`, `NEXT_PUBLIC_COMPANY_VAT` | για την Πολιτική Απορρήτου |
+
+Οι `NEXT_PUBLIC_*` μπαίνουν στη σελίδα κατά το build, οπότε μετά από αλλαγή χρειάζεται Redeploy.
