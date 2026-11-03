@@ -1,4 +1,5 @@
-import type { Bill, Tariff, TariffColor } from "./types";
+import type { Bill, EnergyCategory, Tariff, TariffColor } from "./types";
+import { gasYearFraction, parseDate } from "./season";
 import { COLOR_INFO } from "./types";
 
 const VAT = 0.06;
@@ -26,9 +27,15 @@ function supplyCost(kwh: number, fixedMonthly: number, pricePerKwh: number) {
   return (fixedMonthly * 12 + kwh * pricePerKwh) * (1 + VAT);
 }
 
-/** Linear extrapolation of the billed period to a year. */
-export function annualKwh(bill: Bill): number {
+/** Billed period scaled to a year: linear for electricity, by heating season for gas. */
+export function annualKwh(bill: Bill, category: EnergyCategory = "electricity"): number {
   const days = bill.billing_days && bill.billing_days > 0 ? bill.billing_days : 30;
+  if (category === "gas") {
+    const start = parseDate(bill.period_start);
+    const end = parseDate(bill.period_end);
+    const f = start && end && end >= start ? gasYearFraction(start, end) : null;
+    if (f && f > 0.01) return Math.round((bill.kwh_total ?? 0) / f);
+  }
   return Math.round(((bill.kwh_total ?? 0) / days) * 365);
 }
 
@@ -37,8 +44,14 @@ export function annualKwh(bill: Bill): number {
  * charged on the bill (fixed fee + energy − discounts), scaled to a year; it needs no assumptions
  * about how the provider pro-rates the fixed fee.
  */
-function currentAnnualCost(bill: Bill, kwh: number): number | null {
+function currentAnnualCost(bill: Bill, kwh: number, category: EnergyCategory): number | null {
   const days = bill.billing_days && bill.billing_days > 0 ? bill.billing_days : null;
+  // Gas: the period's energy share isn't a fixed fraction of the year, so split fee and energy before scaling.
+  if (category === "gas" && bill.supplier_total && days && bill.kwh_total) {
+    const periodFee = bill.fixed_monthly_fee ?? 0;
+    const rate = Math.max(0, bill.supplier_total - periodFee) / bill.kwh_total;
+    return supplyCost(kwh, periodFee * (30.44 / days), rate);
+  }
   if (bill.supplier_total && days) return bill.supplier_total * (365 / days) * (1 + VAT);
   if (bill.fixed_monthly_fee === null) return null;
   const rate =
@@ -46,9 +59,9 @@ function currentAnnualCost(bill: Bill, kwh: number): number | null {
   return rate !== null ? supplyCost(kwh, bill.fixed_monthly_fee, rate) : null;
 }
 
-export function compare(bill: Bill, tariffs: Tariff[]): Comparison {
-  const kwh = annualKwh(bill);
-  const currentAnnual = currentAnnualCost(bill, kwh);
+export function compare(bill: Bill, tariffs: Tariff[], category: EnergyCategory = "electricity"): Comparison {
+  const kwh = annualKwh(bill, category);
+  const currentAnnual = currentAnnualCost(bill, kwh, category);
 
   const offers: Offer[] = tariffs
     .map((t) => {

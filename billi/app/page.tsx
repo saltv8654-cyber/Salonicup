@@ -1,8 +1,9 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { Bill, Tariff, TariffColor } from "@/lib/types";
-import { COLOR_INFO } from "@/lib/types";
+import type { Bill, Category, EnergyCategory, Tariff, TariffColor, TelecomBill, TelecomPlan } from "@/lib/types";
+import { CATEGORY_INFO, COLOR_INFO } from "@/lib/types";
+import { avgMonthly, compareTelecom, type TelecomComparison, type TelecomOffer, type TelecomSide } from "@/lib/telecom";
 import { compare, type Comparison, type Offer } from "@/lib/compare";
 import { sessionId, track, trafficSource } from "@/lib/track";
 import { CookieSettingsLink } from "./consent";
@@ -13,6 +14,7 @@ const COMPANY_NAME = process.env.NEXT_PUBLIC_COMPANY_NAME ?? "Billi";
 /** What the visitor wants to be contacted about; empty = general "call me". */
 interface LeadTarget {
   tariff?: Tariff;
+  plan?: TelecomPlan;
   annual?: number | null;
   savings?: number | null;
 }
@@ -25,19 +27,32 @@ interface Result {
   tariffs_updated_at: string | null;
   /** Estimated from a typed-in consumption instead of an uploaded bill. */
   manual?: { kwhMonth: number };
+  category?: EnergyCategory;
 }
 
-/** One shared request for the tariff catalogue (used by the calculator and the per-provider list). */
-let tariffsPromise: Promise<{ tariffs: Tariff[]; updated_at: string | null }> | null = null;
-function getTariffs() {
-  tariffsPromise ??= fetch("/api/tariffs")
-    .then((r) => (r.ok ? r.json() : Promise.reject(new Error("tariffs"))))
-    .catch((e) => {
-      tariffsPromise = null;
-      throw e;
-    });
-  return tariffsPromise;
+interface TelecomResult {
+  category: "telecom";
+  telecom: TelecomBill | null;
+  warnings: string[];
+  telecomComparison: TelecomComparison;
+  tariffs_updated_at: string | null;
+  manual?: boolean;
 }
+
+/** One shared request per catalogue (used by the calculators and the per-provider lists). */
+const catalogue = new Map<string, Promise<any>>();
+function fetchOnce<T>(key: string, url: string): Promise<T> {
+  if (!catalogue.has(key)) {
+    catalogue.set(key, fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(new Error(key)))).catch((e) => {
+      catalogue.delete(key);
+      throw e;
+    }));
+  }
+  return catalogue.get(key)!;
+}
+const getTariffs = (category: EnergyCategory = "electricity") =>
+  fetchOnce<{ tariffs: Tariff[]; updated_at: string | null }>(`tariffs-${category}`, `/api/tariffs?category=${category}`);
+const getPlans = () => fetchOnce<{ plans: TelecomPlan[]; updated_at: string | null }>("telecom", "/api/tariffs?category=telecom");
 
 const eur = (n: number | null | undefined, digits = 2) =>
   n === null || n === undefined ? "—" : `${n.toLocaleString("el-GR", { minimumFractionDigits: digits, maximumFractionDigits: digits })} €`;
@@ -153,6 +168,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
+  const [telecomResult, setTelecomResult] = useState<TelecomResult | null>(null);
+  const [category, setCategory] = useState<Category>("electricity");
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
@@ -165,31 +182,53 @@ export default function Home() {
   }, []);
 
   const openLead = (t: LeadTarget = {}) => {
-    track("lead_open", { tariff: t.tariff ? `${t.tariff.provider} ${t.tariff.name}` : null });
+    const label = t.tariff ? `${t.tariff.provider} ${t.tariff.name}` : t.plan ? `${t.plan.provider} ${t.plan.name}` : null;
+    track("lead_open", { tariff: label, category });
     setLeadTarget(t);
   };
 
-  const step = result ? 3 : loading ? 2 : 1;
+  const step = result || telecomResult ? 3 : loading ? 2 : 1;
+  const info = CATEGORY_INFO[category];
+
+  function switchCategory(c: Category) {
+    if (c === category) return;
+    setCategory(c);
+    setResult(null);
+    setTelecomResult(null);
+    setError(null);
+    setBillFile(null);
+    if (fileInput.current) fileInput.current.value = "";
+    if (cameraInput.current) cameraInput.current.value = "";
+  }
 
   async function onFile(file: File) {
     setLoading(true);
     setError(null);
     setResult(null);
+    setTelecomResult(null);
     setBillFile(null);
-    track("upload_start", { type: file.type || "unknown" });
+    track("upload_start", { type: file.type || "unknown", category });
     try {
       const fd = new FormData();
       const sent = await shrinkImage(file);
       fd.append("file", sent);
+      fd.append("category", category);
       const res = await fetch("/api/analyze", { method: "POST", body: fd });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Σφάλμα");
-      setResult(json);
       setBillFile(sent);
+      if (json.category === "telecom") {
+        setTelecomResult(json);
+        track("analysis_ok", { provider: json.telecom?.provider ?? null, category: "telecom" });
+        setTimeout(() => document.getElementById("results")?.scrollIntoView({ behavior: "smooth" }), 50);
+        return;
+      }
+      setResult(json);
       const rec = json.comparison?.recommendation ?? null;
       const recOffer = rec ? json.comparison.byColor?.[rec.color] : null;
       track("analysis_ok", {
         provider: json.bill?.provider ?? null,
+        category,
         color: json.bill?.tariff_color ?? null,
         annual_kwh: json.comparison?.annualKwh ?? null,
         current_annual: json.comparison?.currentAnnual != null ? Math.round(json.comparison.currentAnnual) : null,
@@ -207,6 +246,7 @@ export default function Home() {
 
   function reset() {
     setResult(null);
+    setTelecomResult(null);
     setBillFile(null);
     setError(null);
     if (fileInput.current) fileInput.current.value = "";
@@ -216,15 +256,27 @@ export default function Home() {
 
   return (
     <LeadCtx.Provider value={openLead}>
-      <TopBar onNew={result ? reset : undefined} />
+      <TopBar onNew={result || telecomResult ? reset : undefined} />
 
       <main className="relative mx-auto max-w-3xl px-4 pb-16 pt-6">
         <header className="flex flex-col items-center text-center">
           <h1><img src="/logo.png" alt="Billi — Know your bills. Save more." className="h-40 w-auto sm:h-52" /></h1>
-          <div className="mt-4 flex flex-wrap justify-center gap-2 whitespace-nowrap text-xs">
-            <span className="rounded-full bg-blue-500/15 px-3 py-1 text-blue-300 ring-1 ring-blue-400/30">⚡ Ρεύμα</span>
-            <span className="rounded-full bg-white/5 px-3 py-1 text-slate-500 ring-1 ring-white/10">🔥 Αέριο · σύντομα</span>
-            <span className="rounded-full bg-white/5 px-3 py-1 text-slate-500 ring-1 ring-white/10">📶 Internet · σύντομα</span>
+          <div role="tablist" aria-label="Κατηγορία" className="mt-5 grid w-full max-w-md grid-cols-3 gap-1.5 rounded-2xl bg-white/[0.03] p-1.5 ring-1 ring-white/10">
+            {(Object.keys(CATEGORY_INFO) as Category[]).map((c) => (
+              <button
+                key={c}
+                role="tab"
+                aria-selected={category === c}
+                type="button"
+                onClick={() => switchCategory(c)}
+                className={`rounded-xl px-2 py-2.5 text-xs font-semibold transition sm:text-sm ${
+                  category === c ? "bg-gradient-to-r from-blue-500 via-cyan-500 to-violet-500 text-white shadow-lg shadow-blue-500/20" : "text-slate-300 hover:bg-white/5"
+                }`}
+              >
+                <span className="block text-lg leading-none">{CATEGORY_INFO[c].emoji}</span>
+                <span className="mt-1 block">{CATEGORY_INFO[c].label}</span>
+              </button>
+            ))}
           </div>
         </header>
 
@@ -251,8 +303,8 @@ export default function Home() {
                 </>
               ) : (
                 <>
-                  <span className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-blue-500 via-cyan-400 to-violet-500 text-2xl shadow-lg shadow-cyan-500/20">⚡</span>
-                  <p className="mt-4 text-lg font-semibold text-white">Ανέβασε τον λογαριασμό ρεύματος</p>
+                  <span className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-blue-500 via-cyan-400 to-violet-500 text-2xl shadow-lg shadow-cyan-500/20">{info.emoji}</span>
+                  <p className="mt-4 text-lg font-semibold text-white">Ανέβασε τον {info.bill}</p>
                   <p className="mt-1 text-sm text-slate-400">PDF ή φωτογραφία · έως 10 MB</p>
 
                   <div className="mt-6 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
@@ -288,14 +340,29 @@ export default function Home() {
           <p className="mt-3 text-center text-xs text-slate-500">🔒 Το billi δεν αποθηκεύει τον λογαριασμό σου, εκτός αν το ζητήσεις στη φόρμα επικοινωνίας.</p>
         </section>
 
-        <ManualCalc
-          onResult={(r) => {
-            setError(null);
-            setBillFile(null);
-            setResult(r);
-            setTimeout(() => document.getElementById("results")?.scrollIntoView({ behavior: "smooth" }), 50);
-          }}
-        />
+        <div key={`calc-${category}`}>
+        {category === "telecom" ? (
+          <TelecomCalc
+            onResult={(r) => {
+              setError(null);
+              setBillFile(null);
+              setTelecomResult(r);
+              setTimeout(() => document.getElementById("results")?.scrollIntoView({ behavior: "smooth" }), 50);
+            }}
+          />
+        ) : (
+          <ManualCalc
+            key={category}
+            category={category}
+            onResult={(r) => {
+              setError(null);
+              setBillFile(null);
+              setResult(r);
+              setTimeout(() => document.getElementById("results")?.scrollIntoView({ behavior: "smooth" }), 50);
+            }}
+          />
+        )}
+        </div>
 
         {error && (
           <div className="mt-6 flex items-start justify-between gap-3 rounded-xl bg-red-500/10 p-4 text-red-300 ring-1 ring-red-400/30">
@@ -307,12 +374,12 @@ export default function Home() {
         {result && (
           <div id="results" className="scroll-mt-20">
             {result.manual ? (
-              <ManualSummary kwhMonth={result.manual.kwhMonth} bill={result.bill} annualKwh={result.comparison?.annualKwh ?? 0} onUpload={() => fileInput.current?.click()} />
+              <ManualSummary category={result.category ?? "electricity"} kwhMonth={result.manual.kwhMonth} bill={result.bill} annualKwh={result.comparison?.annualKwh ?? 0} onUpload={() => fileInput.current?.click()} />
             ) : (
               <BillSummary bill={result.bill} warnings={result.warnings} />
             )}
             {result.comparison && (
-              <ComparisonView c={result.comparison} current={result.bill} updatedAt={result.tariffs_updated_at} />
+              <ComparisonView c={result.comparison} current={result.bill} updatedAt={result.tariffs_updated_at} category={result.category ?? "electricity"} />
             )}
             <div className="mt-8 flex justify-center">
               <button type="button" className={btnSecondary} onClick={reset}>↺ Ανάλυσε άλλον λογαριασμό</button>
@@ -320,7 +387,20 @@ export default function Home() {
           </div>
         )}
 
-        <ProviderCatalog offers={result?.comparison?.offers ?? null} />
+        {telecomResult && (
+          <div id="results" className="scroll-mt-20">
+            <TelecomResults r={telecomResult} onUpload={() => fileInput.current?.click()} />
+            <div className="mt-8 flex justify-center">
+              <button type="button" className={btnSecondary} onClick={reset}>↺ Ανάλυσε άλλον λογαριασμό</button>
+            </div>
+          </div>
+        )}
+
+        {category === "telecom" ? (
+          <TelecomCatalog offers={telecomResult ? [...(telecomResult.telecomComparison.internet?.offers ?? []), ...(telecomResult.telecomComparison.mobile?.offers ?? [])] : null} />
+        ) : (
+          <ProviderCatalog key={category} category={category} offers={result?.comparison?.offers ?? null} />
+        )}
 
         <ContactSection />
 
@@ -329,7 +409,7 @@ export default function Home() {
 
       <Footer />
 
-      {leadTarget && <LeadModal target={leadTarget} result={result} billFile={billFile} onClose={() => setLeadTarget(null)} />}
+      {leadTarget && <LeadModal target={leadTarget} result={result} telecomResult={telecomResult} category={category} billFile={billFile} onClose={() => setLeadTarget(null)} />}
     </LeadCtx.Provider>
   );
 }
@@ -440,9 +520,19 @@ const PRESETS = [
   { label: "❄️ Με κλιματιστικά / θέρμανση", kwh: 700 },
 ];
 
-function ManualCalc({ onResult }: { onResult: (r: Result) => void }) {
+const GAS_PRESETS = [
+  { label: "🍳 Κουζίνα & ζεστό νερό", kwh: 1500 },
+  { label: "🏢 Διαμέρισμα με θέρμανση", kwh: 5000 },
+  { label: "👨‍👩‍👧 Οικογένεια", kwh: 8000 },
+  { label: "🏡 Μονοκατοικία", kwh: 14000 },
+];
+
+/** Electricity asks kWh per month; gas asks kWh per year, because heating makes months too uneven. */
+function ManualCalc({ onResult, category }: { onResult: (r: Result) => void; category: EnergyCategory }) {
+  const gas = category === "gas";
+  const presets = gas ? GAS_PRESETS : PRESETS;
   const [open, setOpen] = useState(false);
-  const [kwh, setKwh] = useState(250);
+  const [kwh, setKwh] = useState(gas ? 5000 : 250);
   const [tariffs, setTariffs] = useState<Tariff[] | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [provider, setProvider] = useState("");
@@ -451,8 +541,8 @@ function ManualCalc({ onResult }: { onResult: (r: Result) => void }) {
 
   useEffect(() => {
     if (!open || tariffs) return;
-    getTariffs().then((d) => { setTariffs(d.tariffs); setUpdatedAt(d.updated_at); }).catch(() => setFailed(true));
-  }, [open, tariffs]);
+    getTariffs(category).then((d) => { setTariffs(d.tariffs); setUpdatedAt(d.updated_at); }).catch(() => setFailed(true));
+  }, [open, tariffs, category]);
 
   const providers = useMemo(() => [...new Set((tariffs ?? []).map((t) => t.provider))].sort((a, b) => a.localeCompare(b, "el")), [tariffs]);
   const programs = (tariffs ?? []).filter((t) => t.provider === provider);
@@ -466,7 +556,7 @@ function ManualCalc({ onResult }: { onResult: (r: Result) => void }) {
       tariff_color: current?.color ?? null,
       period_start: null, period_end: null,
       billing_days: 365,
-      kwh_total: kwh * 12,
+      kwh_total: gas ? kwh : kwh * 12,
       kwh_day: null, kwh_night: null,
       kwh_rate: current ? current.price_per_kwh_with_discount_eur ?? current.price_per_kwh_eur : null,
       kwh_rate_night: null,
@@ -475,9 +565,9 @@ function ManualCalc({ onResult }: { onResult: (r: Result) => void }) {
       supplier_total: null, regulated_total: null, municipal_total: null, efk_total: null, vat_amount: null, total_due: null,
       is_estimate: true,
     };
-    const comparison = compare(bill, tariffs);
-    track("manual_calc", { kwh_month: kwh, provider: bill.provider, program: bill.program_name });
-    onResult({ bill, warnings: [], comparison, tariffs_updated_at: updatedAt, manual: { kwhMonth: kwh } });
+    const comparison = compare(bill, tariffs, category);
+    track("manual_calc", { kwh_month: gas ? Math.round(kwh / 12) : kwh, provider: bill.provider, program: bill.program_name, category });
+    onResult({ bill, warnings: [], comparison, tariffs_updated_at: updatedAt, manual: { kwhMonth: gas ? Math.round(kwh / 12) : kwh }, category });
   }
 
   const chip = (on: boolean) =>
@@ -488,7 +578,7 @@ function ManualCalc({ onResult }: { onResult: (r: Result) => void }) {
       <div className={`rounded-2xl ring-1 transition ${open ? "bg-white/[0.03] ring-white/15" : "bg-white/[0.02] ring-white/10"}`}>
         <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between gap-3 p-4 text-left">
           <div>
-            <div className="font-semibold text-white">🧮 Δεν έχεις τον λογαριασμό πρόχειρο;</div>
+            <div className="font-semibold text-white">🧮 Δεν έχεις τον {CATEGORY_INFO[category].bill} πρόχειρο;</div>
             <div className="text-sm text-slate-400">Υπολόγισε με την κατανάλωσή σου, σε 10 δευτερόλεπτα</div>
           </div>
           <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/5 text-slate-300 ring-1 ring-white/10 transition ${open ? "rotate-180" : ""}`}>▾</span>
@@ -496,31 +586,33 @@ function ManualCalc({ onResult }: { onResult: (r: Result) => void }) {
 
         {open && (
           <div className="border-t border-white/10 p-4 sm:p-5">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Πόσο καις τον μήνα;</div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">{gas ? "Πόσο αέριο καις τον χρόνο;" : "Πόσο καις τον μήνα;"}</div>
             <div className="mt-2 flex flex-wrap gap-2">
-              {PRESETS.map((p) => (
+              {presets.map((p) => (
                 <button key={p.kwh} type="button" className={chip(kwh === p.kwh)} onClick={() => setKwh(p.kwh)}>{p.label} · {p.kwh}</button>
               ))}
             </div>
 
             <div className="mt-4 flex items-center gap-3">
               <input
-                type="range" min={30} max={1500} step={10} value={kwh}
+                type="range" min={gas ? 300 : 30} max={gas ? 30000 : 1500} step={gas ? 100 : 10} value={kwh}
                 onChange={(e) => setKwh(Number(e.target.value))}
                 className="h-2 w-full cursor-pointer accent-cyan-400"
-                aria-label="kWh τον μήνα"
+                aria-label={gas ? "kWh τον χρόνο" : "kWh τον μήνα"}
               />
               <label className="flex shrink-0 items-center gap-1.5 rounded-xl bg-[#0a1028] px-3 py-2 ring-1 ring-white/15">
                 <input
-                  type="number" inputMode="numeric" min={1} max={5000} value={kwh}
-                  onChange={(e) => setKwh(Math.max(1, Math.min(5000, Number(e.target.value) || 0)))}
+                  type="number" inputMode="numeric" min={1} max={gas ? 60000 : 5000} value={kwh}
+                  onChange={(e) => setKwh(Math.max(1, Math.min(gas ? 60000 : 5000, Number(e.target.value) || 0)))}
                   className="w-16 bg-transparent text-right text-sm font-semibold text-white focus:outline-none"
                 />
-                <span className="text-xs text-slate-400">kWh/μήνα</span>
+                <span className="text-xs text-slate-400">{gas ? "kWh/έτος" : "kWh/μήνα"}</span>
               </label>
             </div>
             <p className="mt-2 text-xs text-slate-500">
-              ≈ {(kwh * 12).toLocaleString("el-GR")} kWh τον χρόνο. Τη βρίσκεις στον λογαριασμό ως «Κατανάλωση», διαιρεμένη με τους μήνες της περιόδου.
+              {gas
+                ? "Το βρίσκεις αθροίζοντας τις kWh (όχι τα m³) των λογαριασμών ενός χρόνου. Ένα διαμέρισμα με θέρμανση καίει συνήθως 4.000–7.000 kWh."
+                : `≈ ${(kwh * 12).toLocaleString("el-GR")} kWh τον χρόνο. Τη βρίσκεις στον λογαριασμό ως «Κατανάλωση», διαιρεμένη με τους μήνες της περιόδου.`}
             </p>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -556,6 +648,11 @@ function ManualCalc({ onResult }: { onResult: (r: Result) => void }) {
             </div>
 
             {failed && <p className="mt-3 text-sm text-red-300">Δεν φορτώθηκαν οι τιμές. Ανανέωσε τη σελίδα.</p>}
+            {tariffs && tariffs.length === 0 && (
+              <p className="mt-3 rounded-xl bg-amber-400/10 p-3 text-sm text-amber-200 ring-1 ring-amber-300/20">
+                Οι τιμές {gas ? "αερίου" : ""} ενημερώνονται αυτές τις μέρες. Μέχρι τότε, πάτα «Να με καλέσετε» και ένας σύμβουλος θα σου πει τι σε συμφέρει.
+              </p>
+            )}
             <button type="button" disabled={!tariffs} onClick={calculate} className={`${btnPrimary} mt-5 w-full`}>
               {tariffs ? "⚡ Δες τι σε συμφέρει" : "Φόρτωση τιμών…"}
             </button>
@@ -566,11 +663,11 @@ function ManualCalc({ onResult }: { onResult: (r: Result) => void }) {
   );
 }
 
-function ManualSummary({ kwhMonth, bill, annualKwh, onUpload }: { kwhMonth: number; bill: Bill; annualKwh: number; onUpload: () => void }) {
+function ManualSummary({ kwhMonth, bill, annualKwh, onUpload, category }: { kwhMonth: number; bill: Bill; annualKwh: number; onUpload: () => void; category: EnergyCategory }) {
   return (
     <Card title="Ο υπολογισμός σου">
       <div className="mt-4 grid grid-cols-2 gap-2">
-        <Stat label="Κατανάλωση" value={`${kwhMonth.toLocaleString("el-GR")} kWh/μήνα`} />
+        <Stat label="Κατανάλωση" value={`${kwhMonth.toLocaleString("el-GR")} kWh/μήνα${category === "gas" ? " (μ.ό.)" : ""}`} />
         <Stat label="Ανά έτος" value={`${annualKwh.toLocaleString("el-GR")} kWh`} />
       </div>
       {bill.provider && (
@@ -588,6 +685,334 @@ function ManualSummary({ kwhMonth, bill, annualKwh, onUpload }: { kwhMonth: numb
         <button type="button" className={btnSecondary} onClick={onUpload}>📄 Ανέβασε λογαριασμό για ακρίβεια</button>
         <button type="button" className={btnSecondary} onClick={() => document.getElementById("calc")?.scrollIntoView({ behavior: "smooth" })}>✏️ Άλλαξε κατανάλωση</button>
       </div>
+    </Card>
+  );
+}
+
+/* ───────────── internet & mobile ───────────── */
+
+const planSpec = (p: TelecomPlan) =>
+  p.kind === "internet"
+    ? [p.speed_mbps ? `${p.speed_mbps} Mbps` : null, p.tech].filter(Boolean).join(" · ")
+    : p.data_gb !== undefined ? `${p.data_gb.toLocaleString("el-GR")} GB` : "Απεριόριστα data";
+
+const priceLine = (p: TelecomPlan) =>
+  p.promo_eur !== undefined && p.promo_months
+    ? `${eur(p.promo_eur)} για ${p.promo_months} μήνες, μετά ${eur(p.monthly_eur)}`
+    : `${eur(p.monthly_eur)}/μήνα`;
+
+const SPEEDS = [50, 100, 200, 300, 500, 1000];
+const DATA = [5, 20, 50, 80];
+
+function TelecomCalc({ onResult }: { onResult: (r: TelecomResult) => void }) {
+  const [open, setOpen] = useState(false);
+  const [plans, setPlans] = useState<TelecomPlan[] | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [wantInternet, setWantInternet] = useState(true);
+  const [speed, setSpeed] = useState<number | null>(100);
+  const [internetNow, setInternetNow] = useState("");
+  const [wantMobile, setWantMobile] = useState(false);
+  const [data, setData] = useState<number | "unlimited" | null>(20);
+  const [mobileNow, setMobileNow] = useState("");
+
+  useEffect(() => {
+    if (!open || plans) return;
+    getPlans().then((d) => { setPlans(d.plans); setUpdatedAt(d.updated_at); }).catch(() => setFailed(true));
+  }, [open, plans]);
+
+  const money = (v: string) => (v.trim() ? Number(v.replace(",", ".")) || null : null);
+  const chip = (on: boolean) =>
+    `rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${on ? "bg-cyan-400/15 text-cyan-200 ring-cyan-300/50" : "bg-white/5 text-slate-300 ring-white/15 hover:bg-white/10"}`;
+
+  function calculate() {
+    if (!plans) return;
+    const telecomComparison = compareTelecom(plans, {
+      internet: wantInternet ? { needs: { minSpeed: speed, minDataGb: null, needUnlimitedData: false }, current: money(internetNow) } : null,
+      mobile: wantMobile
+        ? { needs: { minSpeed: null, minDataGb: typeof data === "number" ? data : null, needUnlimitedData: data === "unlimited" }, current: money(mobileNow) }
+        : null,
+    });
+    track("manual_calc", { category: "telecom", speed: wantInternet ? speed : null, data: wantMobile ? String(data) : null });
+    onResult({ category: "telecom", telecom: null, warnings: [], telecomComparison, tariffs_updated_at: updatedAt, manual: true });
+  }
+
+  const moneyInput = (v: string, set: (v: string) => void) => (
+    <label className="flex items-center gap-1.5 rounded-xl bg-[#0a1028] px-3 py-2 ring-1 ring-white/15">
+      <span className="text-xs text-slate-400">Πληρώνω σήμερα</span>
+      <input inputMode="decimal" value={v} onChange={(e) => set(e.target.value)} placeholder="προαιρετικό" className="w-24 bg-transparent text-right text-sm font-semibold text-white placeholder:font-normal placeholder:text-slate-600 focus:outline-none" />
+      <span className="text-xs text-slate-400">€/μήνα</span>
+    </label>
+  );
+
+  return (
+    <section id="calc" className="mt-4 scroll-mt-20">
+      <div className={`rounded-2xl ring-1 transition ${open ? "bg-white/[0.03] ring-white/15" : "bg-white/[0.02] ring-white/10"}`}>
+        <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between gap-3 p-4 text-left">
+          <div>
+            <div className="font-semibold text-white">🧮 Δεν έχεις τον λογαριασμό πρόχειρο;</div>
+            <div className="text-sm text-slate-400">Πες μας τι χρειάζεσαι, σε 10 δευτερόλεπτα</div>
+          </div>
+          <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/5 text-slate-300 ring-1 ring-white/10 transition ${open ? "rotate-180" : ""}`}>▾</span>
+        </button>
+        {open && (
+          <div className="space-y-4 border-t border-white/10 p-4 sm:p-5">
+            <div className="rounded-xl bg-white/[0.02] p-3 ring-1 ring-white/10">
+              <label className="flex items-center gap-2.5 font-semibold text-white">
+                <input type="checkbox" className="h-4 w-4 accent-cyan-400" checked={wantInternet} onChange={(e) => setWantInternet(e.target.checked)} /> 🏠 Internet σπιτιού
+              </label>
+              {wantInternet && (
+                <div className="mt-3 space-y-3">
+                  <div className="text-xs text-slate-400">Τι ταχύτητα θέλεις τουλάχιστον;</div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className={chip(speed === null)} onClick={() => setSpeed(null)}>Δεν ξέρω</button>
+                    {SPEEDS.map((v) => <button key={v} type="button" className={chip(speed === v)} onClick={() => setSpeed(v)}>{v >= 1000 ? "1 Gbps" : `${v} Mbps`}</button>)}
+                  </div>
+                  {moneyInput(internetNow, setInternetNow)}
+                </div>
+              )}
+            </div>
+            <div className="rounded-xl bg-white/[0.02] p-3 ring-1 ring-white/10">
+              <label className="flex items-center gap-2.5 font-semibold text-white">
+                <input type="checkbox" className="h-4 w-4 accent-cyan-400" checked={wantMobile} onChange={(e) => setWantMobile(e.target.checked)} /> 📱 Κινητή
+              </label>
+              {wantMobile && (
+                <div className="mt-3 space-y-3">
+                  <div className="text-xs text-slate-400">Πόσα data χρειάζεσαι τον μήνα;</div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className={chip(data === null)} onClick={() => setData(null)}>Δεν ξέρω</button>
+                    {DATA.map((v) => <button key={v} type="button" className={chip(data === v)} onClick={() => setData(v)}>{v} GB</button>)}
+                    <button type="button" className={chip(data === "unlimited")} onClick={() => setData("unlimited")}>Απεριόριστα</button>
+                  </div>
+                  {moneyInput(mobileNow, setMobileNow)}
+                </div>
+              )}
+            </div>
+            {failed && <p className="text-sm text-red-300">Δεν φορτώθηκαν οι τιμές. Ανανέωσε τη σελίδα.</p>}
+            <button type="button" disabled={!plans || (!wantInternet && !wantMobile)} onClick={calculate} className={`${btnPrimary} w-full`}>
+              {plans ? "⚡ Δες τι σε συμφέρει" : "Φόρτωση τιμών…"}
+            </button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function TelecomOfferCard({ o, recommended }: { o: TelecomOffer; recommended: boolean }) {
+  const want = useContext(LeadCtx);
+  const p = o.plan;
+  return (
+    <li className={`rounded-xl p-4 ring-1 transition ${recommended ? "bg-cyan-400/[0.07] ring-cyan-300/50" : o.fits ? "bg-white/[0.02] ring-white/10 hover:ring-white/20" : "bg-white/[0.01] opacity-60 ring-white/5"}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-white">{p.provider}</span>
+            {recommended && <span className="rounded-full bg-cyan-400/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cyan-200">✦ Πρόταση</span>}
+            {!o.fits && <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">{p.kind === "internet" ? "πιο αργό" : "λιγότερα data"}</span>}
+          </div>
+          <div className="text-sm text-slate-400">{p.name} · {planSpec(p)}</div>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="whitespace-nowrap text-lg font-bold text-white">{eur(o.avgMonthly)}<span className="text-xs font-normal text-slate-400">/μήνα</span></div>
+          <div className="text-[10px] text-slate-500">μέσος όρος 24 μηνών</div>
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-slate-400">💶 {priceLine(p)}{p.commitment_months ? ` · δέσμευση ${p.commitment_months} μήνες` : ""}</p>
+      {p.notes && <p className="mt-1 text-xs text-slate-500">ℹ️ {p.notes}</p>}
+      <div className="mt-3 flex items-center justify-between gap-3">
+        {o.savingsMonthly !== null ? (
+          <span className={`text-sm font-semibold ${o.savingsMonthly > 0 ? "text-emerald-300" : "text-slate-500"}`}>
+            {o.savingsMonthly > 0 ? `▼ κερδίζεις ${eur(o.savingsMonthly)}/μήνα` : `▲ ${eur(-o.savingsMonthly)}/μήνα ακριβότερο`}
+          </span>
+        ) : <span />}
+        <div className="flex gap-2">
+          {p.url && <a href={p.url} target="_blank" rel="noreferrer" className={btnSmall} onClick={() => track("tariff_click", { tariff: `${p.provider} ${p.name}`, category: "telecom" })}>Δες ↗</a>}
+          <button type="button" className={btnWant} onClick={() => want({ plan: p, annual: o.avgMonthly * 12, savings: o.savingsMonthly !== null ? o.savingsMonthly * 12 : null })}>Θέλω αυτό</button>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function TelecomSideView({ side }: { side: TelecomSide }) {
+  const want = useContext(LeadCtx);
+  const [showAll, setShowAll] = useState(false);
+  const title = side.kind === "internet" ? "🏠 Internet σπιτιού" : "📱 Κινητή";
+  const fitting = side.offers.filter((o) => o.fits);
+  const shown = showAll ? side.offers : fitting.slice(0, 5);
+  return (
+    <Card title={title} subtitle={side.current !== null ? <>Σήμερα πληρώνεις <strong className="text-slate-200">{eur(side.current)}</strong>/μήνα</> : undefined}>
+      {side.best ? (
+        <div className="gradient-border mt-4 rounded-xl">
+          <div className="rounded-xl bg-[#081028] p-4 sm:p-5">
+            <div className="text-xs font-semibold uppercase tracking-wider text-gradient">✦ Πρόταση Billi</div>
+            <div className="mt-1.5 text-lg font-semibold text-white">{side.best.plan.provider} · {side.best.plan.name}</div>
+            <div className="text-sm text-slate-400">{planSpec(side.best.plan)}</div>
+            <ul className="mt-3 space-y-2 text-sm text-slate-300">
+              {side.reasons.map((r) => <li key={r} className="flex gap-2"><span className="text-cyan-300">•</span><span>{r}</span></li>)}
+            </ul>
+            <button
+              type="button"
+              className={`${btnPrimary} mt-4 w-full`}
+              onClick={() => want({ plan: side.best!.plan, annual: side.best!.avgMonthly * 12, savings: side.best!.savingsMonthly !== null ? side.best!.savingsMonthly * 12 : null })}
+            >
+              ✋ Θέλω αυτό το πρόγραμμα
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-4 rounded-xl bg-white/5 p-4 text-sm text-slate-400">
+          {side.offers.length ? "Κανένα πρόγραμμα δεν καλύπτει αυτό που χρειάζεσαι. Δες τα υπόλοιπα παρακάτω." : "Δεν υπάρχουν ακόμα τιμές."}
+        </p>
+      )}
+      {side.offers.length > 0 && (
+        <>
+          <ul className="mt-4 space-y-3">
+            {shown.map((o) => <TelecomOfferCard key={o.plan.id} o={o} recommended={o.plan.id === side.best?.plan.id} />)}
+          </ul>
+          {side.offers.length > shown.length || showAll ? (
+            <button type="button" className="mt-3 text-xs font-semibold text-cyan-300 underline" onClick={() => setShowAll((v) => !v)}>
+              {showAll ? "Μόνο όσα καλύπτουν τις ανάγκες σου" : `Όλα τα προγράμματα (${side.offers.length})`}
+            </button>
+          ) : null}
+        </>
+      )}
+    </Card>
+  );
+}
+
+function TelecomResults({ r, onUpload }: { r: TelecomResult; onUpload: () => void }) {
+  const b = r.telecom;
+  const sides = [r.telecomComparison.internet, r.telecomComparison.mobile].filter((x): x is TelecomSide => !!x);
+  return (
+    <>
+      {b ? (
+        <Card title="Ο λογαριασμός σου">
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-gradient-to-r from-blue-500/15 via-cyan-400/10 to-violet-500/15 px-4 py-3 ring-1 ring-white/10">
+            <div className="min-w-0">
+              <div className="truncate font-semibold text-white">{b.provider ?? "Άγνωστος πάροχος"}</div>
+              <div className="truncate text-xs text-slate-400">{b.plan_name ?? ""}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-[11px] uppercase tracking-wider text-slate-400">Σύνολο</div>
+              <div className="whitespace-nowrap text-2xl font-bold text-white">{eur(b.total_due)}</div>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {b.has_internet && <Stat label="Internet" value={`${b.internet_speed_mbps ? `${b.internet_speed_mbps} Mbps` : "—"} · ${eur(b.internet_monthly_eur)}`} />}
+            {b.has_mobile && <Stat label={`Κινητή${b.mobile_lines && b.mobile_lines > 1 ? ` (${b.mobile_lines} γραμμές)` : ""}`} value={`${b.mobile_unlimited_data ? "Απεριόριστα" : b.mobile_data_gb ? `${b.mobile_data_gb} GB` : "—"} · ${eur(b.mobile_monthly_eur)}`} />}
+          </div>
+          {r.warnings.length > 0 && (
+            <ul className="mt-3 space-y-1 rounded-xl bg-amber-400/10 p-3 text-sm text-amber-200 ring-1 ring-amber-300/20">
+              {r.warnings.map((w) => <li key={w}>⚠️ {w}</li>)}
+            </ul>
+          )}
+        </Card>
+      ) : (
+        <Card title="Ο υπολογισμός σου">
+          <p className="mt-2 text-sm text-slate-400">Σύγκριση με βάση αυτό που μας είπες ότι χρειάζεσαι. Για σύγκριση με τις δικές σου χρεώσεις, ανέβασε τον λογαριασμό.</p>
+          <button type="button" className={`${btnSecondary} mt-3`} onClick={onUpload}>📄 Ανέβασε λογαριασμό για ακρίβεια</button>
+        </Card>
+      )}
+      {sides.map((s) => <TelecomSideView key={s.kind} side={s} />)}
+      <p className="mt-4 text-xs text-slate-500">
+        Τιμές με ΦΠΑ, όπως τις διαφημίζουν οι πάροχοι. Η σύγκριση γίνεται με τον μέσο όρο 24 μηνών, ώστε να μετράνε σωστά οι
+        προσφορές των πρώτων μηνών. Η διαθεσιμότητα οπτικής ίνας εξαρτάται από τη διεύθυνση.
+        {r.tariffs_updated_at && <> Τιμές: {new Date(r.tariffs_updated_at).toLocaleDateString("el-GR", { timeZone: "Europe/Athens" })}.</>}
+      </p>
+    </>
+  );
+}
+
+function TelecomCatalog({ offers }: { offers: TelecomOffer[] | null }) {
+  const want = useContext(LeadCtx);
+  const [plans, setPlans] = useState<TelecomPlan[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [kind, setKind] = useState<"all" | "internet" | "mobile">("all");
+  useEffect(() => { getPlans().then((d) => setPlans(d.plans)).catch(() => setFailed(true)); }, []);
+  const byId = useMemo(() => new Map((offers ?? []).map((o) => [o.plan.id, o])), [offers]);
+
+  const groups = useMemo(() => {
+    const list = (plans ?? []).filter((p) => kind === "all" || p.kind === kind);
+    const providers = [...new Set(list.map((p) => p.provider))].sort((a, b) => a.localeCompare(b, "el"));
+    return providers.map((pr) => ({
+      provider: pr,
+      internet: list.filter((p) => p.provider === pr && p.kind === "internet").sort((a, b) => (a.speed_mbps ?? 0) - (b.speed_mbps ?? 0)),
+      mobile: list.filter((p) => p.provider === pr && p.kind === "mobile").sort((a, b) => avgMonthly(a) - avgMonthly(b)),
+    }));
+  }, [plans, kind]);
+
+  const chip = (on: boolean) =>
+    `whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${on ? "bg-cyan-400/15 text-cyan-200 ring-cyan-300/50" : "bg-white/5 text-slate-300 ring-white/15 hover:bg-white/10"}`;
+
+  const row = (p: TelecomPlan) => {
+    const o = byId.get(p.id);
+    return (
+      <li key={p.id} className="rounded-lg bg-white/[0.03] p-3 ring-1 ring-white/10">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-slate-100">{p.name}</div>
+            <div className="mt-0.5 text-xs text-slate-400">{planSpec(p)} · {priceLine(p)}</div>
+            {p.notes && <div className="mt-0.5 text-xs text-slate-500">ℹ️ {p.notes}</div>}
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            <span className="whitespace-nowrap text-sm font-bold text-white">{eur(avgMonthly(p))}<span className="text-[10px] font-normal text-slate-400">/μήνα</span></span>
+            <div className="flex gap-1.5">
+              {p.url && <a href={p.url} target="_blank" rel="noreferrer" className={btnSmall} onClick={() => track("tariff_click", { tariff: `${p.provider} ${p.name}`, category: "telecom" })}>Δες ↗</a>}
+              <button type="button" className={btnWant} onClick={() => want({ plan: p, annual: avgMonthly(p) * 12, savings: o?.savingsMonthly != null ? o.savingsMonthly * 12 : null })}>Θέλω αυτό</button>
+            </div>
+          </div>
+        </div>
+      </li>
+    );
+  };
+
+  return (
+    <Card id="providers" title="Προγράμματα ανά εταιρεία" subtitle="Internet σπιτιού και κινητή, μέσο κόστος 24 μηνών με ΦΠΑ">
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button type="button" className={chip(kind === "all")} onClick={() => setKind("all")}>Όλα</button>
+        <button type="button" className={chip(kind === "internet")} onClick={() => setKind("internet")}>🏠 Internet</button>
+        <button type="button" className={chip(kind === "mobile")} onClick={() => setKind("mobile")}>📱 Κινητή</button>
+      </div>
+      {failed ? (
+        <p className="mt-4 rounded-xl bg-white/5 p-4 text-sm text-slate-400">Δεν φορτώθηκαν τα προγράμματα. Ανανέωσε τη σελίδα.</p>
+      ) : !plans ? (
+        <div className="mt-4 space-y-2">{[0, 1, 2].map((i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-white/[0.04]" />)}</div>
+      ) : (
+        <div className="mt-4 space-y-2">
+          {groups.map((g) => (
+            <Accordion
+              key={g.provider}
+              summary={
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-semibold text-white">{g.provider}</div>
+                    <div className="text-xs text-slate-400">{g.internet.length + g.mobile.length} προγράμματα</div>
+                  </div>
+                  <div className="flex gap-1">{g.internet.length > 0 && <span title="Internet">🏠</span>}{g.mobile.length > 0 && <span title="Κινητή">📱</span>}</div>
+                </div>
+              }
+            >
+              <div className="space-y-4">
+                {g.internet.length > 0 && (
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">🏠 Internet σπιτιού</div>
+                    <ul className="mt-2 space-y-2">{g.internet.map(row)}</ul>
+                  </div>
+                )}
+                {g.mobile.length > 0 && (
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">📱 Κινητή</div>
+                    <ul className="mt-2 space-y-2">{g.mobile.map(row)}</ul>
+                  </div>
+                )}
+              </div>
+            </Accordion>
+          ))}
+        </div>
+      )}
+      <p className="mt-4 text-xs text-slate-500">Ενδεικτικές τιμές όπως τις διαφημίζουν οι πάροχοι. Έλεγξε τη διαθεσιμότητα για τη διεύθυνσή σου.</p>
     </Card>
   );
 }
@@ -663,7 +1088,9 @@ function BillSummary({ bill, warnings }: { bill: Bill; warnings: string[] }) {
 type ColorFilter = "all" | TariffColor;
 type SortKey = "annual" | "kwh" | "fee";
 
-function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bill; updatedAt: string | null }) {
+function ComparisonView({ c, current, updatedAt, category = "electricity" }: { c: Comparison; current: Bill; updatedAt: string | null; category?: EnergyCategory }) {
+  // Gas has no dynamic (orange) tariffs.
+  const colors: TariffColor[] = category === "gas" ? ["blue", "green", "yellow"] : COLORS;
   const want = useContext(LeadCtx);
   const [color, setColor] = useState<ColorFilter>("all");
   const [sort, setSort] = useState<SortKey>("annual");
@@ -757,7 +1184,7 @@ function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bil
         <h3 className="mt-6 text-sm font-semibold text-white">Πότε συμφέρει κάθε χρώμα</h3>
         <p className="mt-1 text-xs text-slate-500">Πάτα σε ένα χρώμα για να δεις πότε σε συμφέρει.</p>
         <div className="mt-3 space-y-2">
-          {COLORS.map((col) => {
+          {colors.map((col) => {
             const best = c.byColor[col];
             const info = COLOR_INFO[col];
             return (
@@ -815,7 +1242,7 @@ function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bil
                 label="Χρώμα"
                 value={color}
                 onChange={setColor}
-                options={[{ value: "all", label: "Όλα" }, ...COLORS.map((x) => ({ value: x, label: `${COLOR_INFO[x].emoji} ${COLOR_INFO[x].label}` }))]}
+                options={[{ value: "all", label: "Όλα" }, ...colors.map((x) => ({ value: x, label: `${COLOR_INFO[x].emoji} ${COLOR_INFO[x].label}` }))]}
               />
               <div className="col-span-2 sm:col-span-1 flex">
               <Select<SortKey>
@@ -912,7 +1339,7 @@ function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bil
 
 /* ───────────── programmes per provider ───────────── */
 
-function ProviderCatalog({ offers }: { offers: Offer[] | null }) {
+function ProviderCatalog({ offers, category }: { offers: Offer[] | null; category: EnergyCategory }) {
   const want = useContext(LeadCtx);
   const offerById = useMemo(() => new Map((offers ?? []).map((o) => [o.tariff.id, o])), [offers]);
   const [tariffs, setTariffs] = useState<Tariff[] | null>(null);
@@ -921,7 +1348,7 @@ function ProviderCatalog({ offers }: { offers: Offer[] | null }) {
   const [color, setColor] = useState<ColorFilter>("all");
 
   useEffect(() => {
-    getTariffs()
+    getTariffs(category)
       .then((d) => { setTariffs(d.tariffs); setUpdatedAt(d.updated_at); })
       .catch(() => setFailed(true));
   }, []);
@@ -956,7 +1383,7 @@ function ProviderCatalog({ offers }: { offers: Offer[] | null }) {
     >
       <div className="mt-4 flex flex-wrap gap-2">
         <button type="button" className={chip(color === "all")} onClick={() => setColor("all")}>Όλα τα χρώματα</button>
-        {COLORS.map((c) => (
+        {COLORS.filter((c) => category !== "gas" || c !== "orange").map((c) => (
           <button key={c} type="button" className={chip(color === c)} onClick={() => setColor(c)}>
             {COLOR_INFO[c].emoji} {COLOR_INFO[c].label}
           </button>
@@ -968,7 +1395,11 @@ function ProviderCatalog({ offers }: { offers: Offer[] | null }) {
       ) : !tariffs ? (
         <div className="mt-4 space-y-2">{[0, 1, 2].map((i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-white/[0.04]" />)}</div>
       ) : groups.length === 0 ? (
-        <p className="mt-4 rounded-xl bg-white/5 p-4 text-sm text-slate-400">Κανένα πρόγραμμα σε αυτό το χρώμα.</p>
+        <p className="mt-4 rounded-xl bg-white/5 p-4 text-sm text-slate-400">
+          {tariffs.length === 0
+            ? "Οι τιμές ενημερώνονται αυτές τις μέρες. Μέχρι τότε, πάτα «Να με καλέσετε» και ένας σύμβουλος θα σου πει τι σε συμφέρει."
+            : "Κανένα πρόγραμμα σε αυτό το χρώμα."}
+        </p>
       ) : (
         <div className="mt-4 space-y-2">
           {groups.map((g) => (
@@ -1059,7 +1490,9 @@ function Field({ label, children, hint }: { label: string; children: React.React
 const inputCls =
   "w-full rounded-xl bg-[#0a1028] px-3 py-2.5 text-sm text-slate-100 ring-1 ring-white/15 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-400/60";
 
-function LeadModal({ target, result, billFile, onClose }: { target: LeadTarget; result: Result | null; billFile: File | null; onClose: () => void }) {
+function LeadModal({ target, result, telecomResult, category, billFile, onClose }: {
+  target: LeadTarget; result: Result | null; telecomResult: TelecomResult | null; category: Category; billFile: File | null; onClose: () => void;
+}) {
   const [form, setForm] = useState({ name: "", phone: "", email: "", preferred_time: PREFERRED_TIMES[0], message: "", consent_contact: false, consent_marketing: false, website: "" });
   const [attach, setAttach] = useState(false);
   const [attachNote, setAttachNote] = useState<string | null>(null);
@@ -1078,9 +1511,14 @@ function LeadModal({ target, result, billFile, onClose }: { target: LeadTarget; 
     };
   }, [onClose]);
 
-  const bill = result?.bill ?? null;
-  const c = result?.comparison ?? null;
+  const bill = category === "telecom" ? null : result?.bill ?? null;
+  const c = category === "telecom" ? null : result?.comparison ?? null;
+  const tb = category === "telecom" ? telecomResult?.telecom ?? null : null;
   const t = target.tariff;
+  const plan = target.plan;
+  const label = t ? `${t.provider} ${t.name}` : plan ? `${plan.provider} ${plan.name}` : null;
+  const currentProvider = bill?.provider ?? tb?.provider ?? null;
+  const currentProgram = bill?.program_name ?? tb?.plan_name ?? null;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -1093,21 +1531,28 @@ function LeadModal({ target, result, billFile, onClose }: { target: LeadTarget; 
         body: JSON.stringify({
           ...form,
           context: {
-            tariff_id: t?.id ?? null,
-            tariff_label: t ? `${t.provider} ${t.name}` : null,
-            current_provider: bill?.provider ?? null,
-            current_program: bill?.program_name ?? null,
+            tariff_id: t?.id ?? plan?.id ?? null,
+            tariff_label: label ? `${CATEGORY_INFO[category].emoji} ${label}` : null,
+            current_provider: currentProvider,
+            current_program: currentProgram,
             annual_kwh: c?.annualKwh ?? null,
             current_annual: c?.currentAnnual !== undefined && c?.currentAnnual !== null ? Math.round(c.currentAnnual * 100) / 100 : null,
             offer_annual: target.annual != null ? Math.round(target.annual * 100) / 100 : null,
             savings: target.savings != null ? Math.round(target.savings * 100) / 100 : null,
             bill: bill
               ? {
+                  category,
                   tariff_color: bill.tariff_color, period: bill.period_start && bill.period_end ? `${bill.period_start} – ${bill.period_end}` : null,
                   kwh_total: bill.kwh_total, billing_days: bill.billing_days, fixed_monthly_fee: bill.fixed_monthly_fee,
                   kwh_rate: bill.kwh_rate, supplier_total: bill.supplier_total, total_due: bill.total_due,
                 }
-              : null,
+              : tb
+                ? {
+                    category, internet_speed_mbps: tb.internet_speed_mbps, internet_monthly_eur: tb.internet_monthly_eur,
+                    mobile_lines: tb.mobile_lines, mobile_data_gb: tb.mobile_data_gb, mobile_unlimited_data: tb.mobile_unlimited_data,
+                    mobile_monthly_eur: tb.mobile_monthly_eur, total_due: tb.total_due,
+                  }
+                : { category },
           },
           source: trafficSource(),
           session_id: sessionId() || undefined,
@@ -1160,7 +1605,7 @@ function LeadModal({ target, result, billFile, onClose }: { target: LeadTarget; 
           </div>
         ) : (
           <form className="mt-4 space-y-3" onSubmit={submit}>
-            {(t || bill) && (
+            {(t || plan || bill || tb) && (
               <div className="rounded-xl bg-white/[0.03] p-3 text-sm ring-1 ring-white/10">
                 {t && (
                   <div className="flex items-center justify-between gap-2">
@@ -1168,12 +1613,19 @@ function LeadModal({ target, result, billFile, onClose }: { target: LeadTarget; 
                     <ColorBadge color={t.color} />
                   </div>
                 )}
-                {target.annual != null && (
-                  <div className="mt-1 text-xs text-slate-400">
-                    ~{eur(target.annual, 0)}/έτος{target.savings != null && target.savings > 0 && <> · κερδίζεις ~{eur(target.savings, 0)}</>}
+                {plan && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-white">{plan.provider} · {plan.name}</span>
+                    <span className="text-xs text-slate-400">{planSpec(plan)}</span>
                   </div>
                 )}
-                {bill?.provider && <div className="mt-1 text-xs text-slate-500">Σήμερα: {bill.provider} {bill.program_name ?? ""}</div>}
+                {target.annual != null && (
+                  <div className="mt-1 text-xs text-slate-400">
+                    {plan ? <>~{eur(target.annual / 12)}/μήνα</> : <>~{eur(target.annual, 0)}/έτος</>}
+                    {target.savings != null && target.savings > 0 && <> · κερδίζεις ~{eur(target.savings, 0)}/έτος</>}
+                  </div>
+                )}
+                {currentProvider && <div className="mt-1 text-xs text-slate-500">Σήμερα: {currentProvider} {currentProgram ?? ""}</div>}
               </div>
             )}
 
@@ -1281,8 +1733,8 @@ function Footer() {
 
 function HowItWorks() {
   const steps = [
-    { icon: "📄", title: "Ανεβάζεις τον λογαριασμό", text: "PDF ή φωτογραφία από οποιονδήποτε πάροχο ρεύματος." },
-    { icon: "⚡", title: "Το Billi τον διαβάζει", text: "Βρίσκει κατανάλωση, πάγιο, τιμή kWh, εκπτώσεις και χρώμα τιμολογίου." },
+    { icon: "📄", title: "Ανεβάζεις τον λογαριασμό", text: "PDF ή φωτογραφία ρεύματος, αερίου, internet ή κινητής, από οποιονδήποτε πάροχο." },
+    { icon: "⚡", title: "Το Billi τον διαβάζει", text: "Βρίσκει κατανάλωση, πάγιο, τιμές, εκπτώσεις, ταχύτητα ή data, ανάλογα με τον λογαριασμό." },
     { icon: "💡", title: "Παίρνεις πρόταση", text: "Υπολογίζουμε το ετήσιο κόστος σε κάθε πρόγραμμα για τη δική σου κατανάλωση." },
   ];
   return (

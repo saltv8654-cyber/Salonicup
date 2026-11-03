@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdmin } from "@/lib/admin-auth";
 import { db, dbConfigured } from "@/lib/db";
-import { TariffInput, clean, slug } from "@/lib/tariff-input";
+import { TariffInput, clean, isMissingCategory, slug, writeTariff } from "@/lib/tariff-input";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +14,9 @@ export async function GET(req: NextRequest) {
     const missing = /relation .*tariffs.* does not exist|Could not find the table/i.test(error.message);
     return NextResponse.json({ error: missing ? "missing_table" : error.message }, { status: missing ? 409 : 500 });
   }
-  return NextResponse.json({ tariffs: data });
+  // Has the gas upgrade (category column) been applied?
+  const probe = await db().from("tariffs").select("category").limit(1);
+  return NextResponse.json({ tariffs: data, has_category: !probe.error || !isMissingCategory(probe.error.message) });
 }
 
 export async function POST(req: NextRequest) {
@@ -24,8 +26,8 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Μη έγκυρα στοιχεία" }, { status: 400 });
   const t = parsed.data;
   const id = `${slug(t.provider)}-${slug(t.name)}-${Date.now().toString(36)}`;
-  const { data, error } = await db().from("tariffs").insert({ id, ...clean(t), active: t.active ?? true }).select().single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const { data, error } = await writeTariff({ id, ...clean(t), active: t.active ?? true }, (r) => db().from("tariffs").insert(r).select().single());
+  if (error) return NextResponse.json({ error: error.message }, { status: error.message === "missing_category" ? 409 : 500 });
   return NextResponse.json({ tariff: data }, { status: 201 });
 }
 
@@ -37,10 +39,15 @@ export async function PATCH(req: NextRequest) {
   if (typeof body.valid_month !== "string" || !/^\d{4}-\d{2}$/.test(body.valid_month)) {
     return NextResponse.json({ error: "Μήνας σε μορφή ΕΕΕΕ-ΜΜ" }, { status: 400 });
   }
-  const { error, count } = await db()
-    .from("tariffs")
-    .update({ valid_month: body.valid_month, updated_at: new Date().toISOString() }, { count: "exact" })
-    .eq("active", true);
+  const update = (withCategory: boolean) => {
+    let q = db().from("tariffs").update({ valid_month: body.valid_month, updated_at: new Date().toISOString() }, { count: "exact" }).eq("active", true);
+    if (withCategory) q = q.eq("category", body.category);
+    return q;
+  };
+  const wanted = body.category === "gas" || body.category === "electricity";
+  let { error, count } = await update(wanted);
+  // Before the gas upgrade every row is electricity.
+  if (error && wanted && isMissingCategory(error.message) && body.category === "electricity") ({ error, count } = await update(false));
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ updated: count ?? null });
 }

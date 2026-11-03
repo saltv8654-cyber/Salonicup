@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdmin } from "@/lib/admin-auth";
 import { db, dbConfigured } from "@/lib/db";
-import { TariffInput, clean } from "@/lib/tariff-input";
+import { TariffInput, clean, writeTariff } from "@/lib/tariff-input";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,8 +11,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (!dbConfigured()) return NextResponse.json({ error: "Δεν έχει συνδεθεί το Supabase" }, { status: 500 });
   const parsed = TariffInput.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Μη έγκυρα στοιχεία" }, { status: 400 });
-  const { data, error } = await db().from("tariffs").update(clean(parsed.data)).eq("id", params.id).select().single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const { data, error } = await writeTariff(clean(parsed.data), (r) => db().from("tariffs").update(r).eq("id", params.id).select().single());
+  if (error) return NextResponse.json({ error: error.message }, { status: error.message === "missing_category" ? 409 : 500 });
   return NextResponse.json({ tariff: data });
 }
 

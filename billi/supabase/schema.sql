@@ -79,3 +79,29 @@ create table if not exists tariffs (
 );
 create index if not exists tariffs_provider_idx on tariffs (provider);
 alter table tariffs enable row level security;
+
+-- Gas upgrade: tariffs carry a category (electricity / gas).
+alter table tariffs add column if not exists category text not null default 'electricity'
+  check (category in ('electricity', 'gas'));
+
+-- Home internet and mobile plans, edited from /admin → Τιμές → Internet & Κινητή.
+create table if not exists telecom_plans (
+  id                text primary key,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now(),
+  kind              text not null check (kind in ('internet', 'mobile')),
+  provider          text not null,
+  name              text not null,
+  monthly_eur       numeric(8, 2) not null,
+  promo_eur         numeric(8, 2),
+  promo_months      integer,
+  commitment_months integer,
+  speed_mbps        integer,
+  tech              text,
+  data_gb           numeric(8, 1),
+  notes             text,
+  valid_month       text not null,
+  url               text,
+  active            boolean not null default true
+);
+alter table telecom_plans enable row level security;

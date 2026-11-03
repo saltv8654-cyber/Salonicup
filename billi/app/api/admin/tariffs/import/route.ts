@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAdmin } from "@/lib/admin-auth";
 import { db, dbConfigured } from "@/lib/db";
 import { bundledTariffs } from "@/lib/tariffs";
+import { isMissingCategory } from "@/lib/tariff-input";
 
 export const runtime = "nodejs";
 
@@ -23,7 +24,9 @@ export async function POST(req: NextRequest) {
     url: t.url ?? null,
     active: true,
   }));
-  const { error } = await db().from("tariffs").upsert(rows, { onConflict: "id", ignoreDuplicates: true });
+  const upsert = (r: Record<string, unknown>[]) => db().from("tariffs").upsert(r, { onConflict: "id", ignoreDuplicates: true });
+  let { error } = await upsert(rows.map((r) => ({ ...r, category: "electricity" })));
+  if (error && isMissingCategory(error.message)) ({ error } = await upsert(rows));
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ imported: rows.length });
 }

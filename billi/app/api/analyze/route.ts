@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { extractBill, validate, type ImageType } from "@/lib/extract";
+import { extractBill, extractTelecom, validate, validateTelecom, type ImageType } from "@/lib/extract";
 import { compare } from "@/lib/compare";
-import { loadTariffs } from "@/lib/tariffs";
+import { loadTariffs, loadTelecom } from "@/lib/tariffs";
+import { compareTelecom, needsFromBill } from "@/lib/telecom";
+import type { Category } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -33,14 +35,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const bill = await extractBill({ buffer: Buffer.from(await file.arrayBuffer()), mimeType });
+    const cat = form.get("category");
+    const category: Category = cat === "gas" || cat === "telecom" ? cat : "electricity";
+    const input = { buffer: Buffer.from(await file.arrayBuffer()), mimeType: mimeType as "application/pdf" | ImageType };
+
+    if (category === "telecom") {
+      const telecom = await extractTelecom(input);
+      const { plans, updated_at } = await loadTelecom();
+      return NextResponse.json({
+        category,
+        telecom,
+        warnings: validateTelecom(telecom),
+        telecomComparison: compareTelecom(plans, needsFromBill(telecom)),
+        tariffs_updated_at: updated_at,
+      });
+    }
+
+    const bill = await extractBill(input, category);
     const warnings = validate(bill);
-    const { tariffs, updated_at } = await loadTariffs();
+    if (category === "gas") warnings.push("Για το αέριο η ετήσια κατανάλωση εκτιμάται με εποχικό προφίλ θέρμανσης, γιατί ο χειμώνας καίει πολύ περισσότερο από το καλοκαίρι.");
+    const { tariffs, updated_at } = await loadTariffs(category);
 
     return NextResponse.json({
+      category,
       bill,
       warnings,
-      comparison: bill.kwh_total ? compare(bill, tariffs) : null,
+      comparison: bill.kwh_total ? compare(bill, tariffs, category) : null,
       tariffs_updated_at: updated_at,
     });
   } catch (err: any) {
