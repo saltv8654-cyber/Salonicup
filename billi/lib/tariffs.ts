@@ -1,6 +1,7 @@
 import { get, put } from "@vercel/blob";
 import bundled from "@/data/tariffs.json";
 import bundledTelecom from "@/data/telecom.json";
+import bundledGas from "@/data/gas.json";
 import type { EnergyCategory, Tariff, TariffFile, TelecomFile, TelecomPlan } from "./types";
 import { db, dbConfigured } from "./db";
 
@@ -63,7 +64,7 @@ async function loadFromDb(category: EnergyCategory): Promise<TariffFile | null> 
 
 /**
  * Admin-edited tariffs first, then (electricity only) the synced Blob snapshot and the bundled file.
- * Gas has no bundled prices: until they are entered in /admin the comparison is empty, never made up.
+ * Gas falls back to data/gas.json, which holds only official, dated prices read from the providers' sites.
  */
 export async function loadTariffs(category: EnergyCategory = "electricity"): Promise<TariffFile> {
   try {
@@ -72,7 +73,7 @@ export async function loadTariffs(category: EnergyCategory = "electricity"): Pro
   } catch (e) {
     console.error("loadTariffs (db):", e);
   }
-  if (category !== "electricity") return { updated_at: null, source: "", tariffs: [] };
+  if (category === "gas") return bundledGas as TariffFile;
   if (!blobConfigured()) return bundled as TariffFile;
   try {
     const res = await get(PATH, { access: "public", useCache: false });
@@ -83,7 +84,8 @@ export async function loadTariffs(category: EnergyCategory = "electricity"): Pro
   return bundled as TariffFile;
 }
 
-export const bundledTariffs = () => bundled as TariffFile;
+export const bundledTariffs = (category: EnergyCategory = "electricity") =>
+  (category === "gas" ? bundledGas : bundled) as TariffFile;
 
 export async function saveTariffs(data: TariffFile) {
   await put(PATH, JSON.stringify(data, null, 2), {
