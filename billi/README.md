@@ -8,14 +8,14 @@
 ## Εκκίνηση
 
 ```bash
-cp .env.example .env.local   # βάλε το OPENAI_API_KEY
+cp .env.example .env.local   # βάλε το ANTHROPIC_API_KEY
 npm install
 npm run dev
 ```
 
 ## Πώς δουλεύει
 
-- `app/api/analyze/route.ts`: δέχεται το αρχείο, το στέλνει στο GPT-4o (PDF απευθείας, χωρίς pdftotext) και
+- `app/api/analyze/route.ts`: δέχεται το αρχείο, το στέλνει στο Claude (PDF απευθείας, χωρίς pdftotext) και
   επιστρέφει τα στοιχεία του λογαριασμού, προειδοποιήσεις και σύγκριση.
 - `lib/extract.ts`: prompt, κανονικοποίηση και έλεγχοι (π.χ. αν τα επιμέρους ποσά βγάζουν το σύνολο).
 - `lib/compare.ts`: ετήσια εκτίμηση και κόστος ανά πρόγραμμα (πάγιο × 12 + kWh × τιμή, με ΦΠΑ 6%).
