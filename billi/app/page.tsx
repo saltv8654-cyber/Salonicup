@@ -189,11 +189,22 @@ function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bil
           <div className="rounded-xl bg-[#081028] p-4">
             <div className="text-xs font-semibold uppercase tracking-wider text-gradient">✦ Πρόταση Billi AI</div>
             <div className="mt-1.5 text-slate-100">{COLOR_INFO[c.recommendation.color].emoji} {c.recommendation.text}</div>
+            {c.recommendation.reasons.length > 0 && (
+              <>
+                <div className="mt-4 text-xs font-semibold uppercase tracking-wider text-slate-400">Γιατί αυτό</div>
+                <ul className="mt-1.5 space-y-1.5 text-sm text-slate-300">
+                  {c.recommendation.reasons.map((r) => (
+                    <li key={r} className="flex gap-2"><span className="text-cyan-300">•</span><span>{r}</span></li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
         </div>
       )}
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
+      <div className="mt-6 text-sm font-semibold text-white">Πότε συμφέρει κάθε χρώμα</div>
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {colors.map((color) => {
           const best = c.byColor[color];
           const info = COLOR_INFO[color];
@@ -208,6 +219,8 @@ function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bil
                 {current.tariff_color === color && <span className="text-[10px] uppercase tracking-wider text-slate-400">το δικό σου</span>}
               </div>
               <div className="mt-2 text-xs text-slate-400">{info.description}</div>
+              <div className="mt-2 text-xs text-slate-300"><span className="font-semibold text-emerald-300">Σε συμφέρει όταν</span> {info.when}</div>
+              <div className="mt-1 text-xs text-slate-300"><span className="font-semibold text-amber-300">Προσοχή:</span> {info.risk}</div>
               {best ? (
                 <div className="mt-2">
                   <div className="whitespace-nowrap text-lg font-semibold text-white">
