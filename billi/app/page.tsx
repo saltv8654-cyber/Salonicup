@@ -173,8 +173,12 @@ function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bil
     !!current.provider && o.tariff.provider.toLowerCase() === current.provider.toLowerCase() &&
     !!current.program_name && o.tariff.name.toLowerCase() === current.program_name.toLowerCase();
 
+  const colors: TariffColor[] = ["blue", "green", "yellow", "orange"];
+  const recommended = c.recommendation ? c.byColor[c.recommendation.color] : null;
+
   return (
-    <Card title="Σύγκριση παρόχων">
+    <>
+    <Card title="Ποιο χρώμα σε συμφέρει">
       <p className="mt-1 text-sm text-slate-400">
         Εκτιμώμενη ετήσια κατανάλωση: <strong className="text-slate-200">{c.annualKwh.toLocaleString("el-GR")} kWh</strong>
         {c.currentAnnual !== null && <> · Σήμερα πληρώνεις ~<strong className="text-slate-200">{eur(c.currentAnnual, 0)}</strong>/έτος για προμήθεια</>}
@@ -189,17 +193,49 @@ function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bil
         </div>
       )}
 
+      <div className="mt-5 grid grid-cols-2 gap-3">
+        {colors.map((color) => {
+          const best = c.byColor[color];
+          const info = COLOR_INFO[color];
+          const picked = c.recommendation?.color === color;
+          return (
+            <div
+              key={color}
+              className={`rounded-xl p-3 ring-1 ${picked ? "bg-cyan-400/[0.07] ring-cyan-300/50" : "bg-white/[0.02] ring-white/10"}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <ColorBadge color={color} />
+                {current.tariff_color === color && <span className="text-[10px] uppercase tracking-wider text-slate-400">το δικό σου</span>}
+              </div>
+              <div className="mt-2 text-xs text-slate-400">{info.description}</div>
+              {best ? (
+                <div className="mt-2">
+                  <div className="whitespace-nowrap text-lg font-semibold text-white">
+                    {eur(offerAnnual(best), 0)}<span className="text-xs font-normal text-slate-400">/έτος</span>
+                  </div>
+                  <div className="text-xs text-slate-400">φθηνότερο: {best.tariff.provider}</div>
+                </div>
+              ) : (
+                <div className="mt-2 text-xs text-slate-500">Δεν υπάρχουν τιμές</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+
+    <Card title="Σύγκριση παρόχων">
       {c.offers.length === 0 ? (
         <p className="mt-4 rounded-xl bg-white/5 p-4 text-sm text-slate-400">
-          Δεν έχουν καταχωριστεί ακόμα τιμές παρόχων. Συμπλήρωσε το <code>data/tariffs.json</code>.
+          Δεν υπάρχουν ακόμα τιμές παρόχων. Ενημερώνονται αυτόματα κάθε πρωί.
         </p>
       ) : (
         <>
           <ul className="mt-5 space-y-3 sm:hidden">
-            {c.offers.map((o, i) => (
+            {c.offers.map((o) => (
               <li
                 key={o.tariff.id}
-                className={`rounded-xl p-4 ring-1 ${i === 0 ? "bg-cyan-400/[0.07] ring-cyan-300/40" : "bg-white/[0.02] ring-white/10"}`}
+                className={`rounded-xl p-4 ring-1 ${o.tariff.id === recommended?.tariff.id ? "bg-cyan-400/[0.07] ring-cyan-300/40" : "bg-white/[0.02] ring-white/10"}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -241,8 +277,8 @@ function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bil
                 </tr>
               </thead>
               <tbody className="text-slate-200">
-                {c.offers.map((o, i) => (
-                  <tr key={o.tariff.id} className={`border-t border-white/10 ${i === 0 ? "bg-cyan-400/[0.06]" : ""} ${isCurrent(o) ? "font-medium" : ""}`}>
+                {c.offers.map((o) => (
+                  <tr key={o.tariff.id} className={`border-t border-white/10 ${o.tariff.id === recommended?.tariff.id ? "bg-cyan-400/[0.06]" : ""} ${isCurrent(o) ? "font-medium" : ""}`}>
                     <td className="py-3 pr-3">
                       {o.tariff.url ? <a href={o.tariff.url} target="_blank" rel="noreferrer" className="underline decoration-white/30">{o.tariff.provider}</a> : o.tariff.provider}
                       <div className="text-xs text-slate-400">{o.tariff.name}{isCurrent(o) && " (τρέχον)"}</div>
@@ -268,8 +304,9 @@ function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bil
       <p className="mt-5 text-xs text-slate-500">
         Ποσά με ΦΠΑ 6%, μόνο χρεώσεις προμήθειας. Οι ρυθμιζόμενες χρεώσεις, οι δημοτικοί φόροι και η ΕΡΤ είναι ίδια σε
         όλους τους παρόχους. Η ετήσια κατανάλωση είναι γραμμική προέκταση της περιόδου του λογαριασμού.
-        {updatedAt && <> Τιμές: {updatedAt}.</>}
+        {updatedAt && <> Τιμές ενημερώθηκαν: {new Date(updatedAt).toLocaleString("el-GR", { timeZone: "Europe/Athens", dateStyle: "short", timeStyle: "short" })}.</>}
       </p>
     </Card>
+    </>
   );
 }
