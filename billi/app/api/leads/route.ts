@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db, dbConfigured, type Lead } from "@/lib/db";
 import { notifyNewLead } from "@/lib/notify";
+import { attachToken } from "@/lib/bill-files";
 
 export const runtime = "nodejs";
 
@@ -91,5 +92,6 @@ export async function POST(req: NextRequest) {
 
   await db().from("lead_activities").insert({ lead_id: data.id, type: "system", body: "Νέο αίτημα από τη φόρμα του site" });
   await notifyNewLead(data as Lead);
-  return NextResponse.json({ ok: true }, { status: 201 });
+  // The token lets this browser attach the bill file it analysed (only if the visitor ticked the box).
+  return NextResponse.json({ ok: true, id: data.id, attach_token: attachToken(data.id) }, { status: 201 });
 }

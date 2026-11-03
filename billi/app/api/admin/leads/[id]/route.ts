@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { isAdmin } from "@/lib/admin-auth";
 import { db, dbConfigured, LEAD_STATUSES } from "@/lib/db";
+import { billFileOf, removeBill } from "@/lib/bill-files";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,7 +36,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const parsed = Patch.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Μη έγκυρα στοιχεία" }, { status: 400 });
 
-  const before = await db().from("leads").select("status").eq("id", params.id).single();
+  const before = await db().from("leads").select("status, bill").eq("id", params.id).single();
   if (before.error) return NextResponse.json({ error: before.error.message }, { status: 404 });
 
   const { data, error } = await db()
@@ -45,6 +46,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     .select()
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Once the deal is done or lost the bill isn't needed any more: delete it (data minimisation).
+  const file = billFileOf(before.data.bill);
+  if (file && parsed.data.status && ["active", "lost"].includes(parsed.data.status)) {
+    try {
+      await removeBill(file.path);
+      const { _file, ...rest } = (before.data.bill ?? {}) as Record<string, unknown>;
+      await db().from("leads").update({ bill: rest }).eq("id", params.id);
+      data.bill = rest;
+      await db().from("lead_activities").insert({ lead_id: params.id, type: "system", body: "🗑 Το αρχείο του λογαριασμού διαγράφηκε αυτόματα" });
+    } catch (e) {
+      console.error("auto-delete bill failed:", e);
+    }
+  }
 
   // Status changes go into the contact history automatically.
   if (parsed.data.status && parsed.data.status !== before.data.status) {
