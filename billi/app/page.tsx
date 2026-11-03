@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Bill, TariffColor } from "@/lib/types";
+import type { Bill, Tariff, TariffColor } from "@/lib/types";
 import { COLOR_INFO } from "@/lib/types";
 import type { Comparison, Offer } from "@/lib/compare";
 
@@ -250,6 +250,8 @@ export default function Home() {
           </div>
         )}
 
+        <ProviderCatalog offers={result?.comparison?.offers ?? null} />
+
         <HowItWorks />
       </main>
     </>
@@ -283,6 +285,7 @@ function TopBar({ onNew }: { onNew?: () => void }) {
     { id: "upload", icon: "⚡", label: "Ανάλυση λογαριασμού" },
     { id: "colors", icon: "🎨", label: "Ποιο χρώμα με συμφέρει" },
     { id: "compare", icon: "📊", label: "Σύγκριση παρόχων" },
+    { id: "providers", icon: "🏢", label: "Προγράμματα ανά εταιρεία" },
     { id: "how", icon: "❓", label: "Πώς δουλεύει" },
   ];
 
@@ -426,6 +429,8 @@ function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bil
   const [sort, setSort] = useState<SortKey>("annual");
   const [noFee, setNoFee] = useState(false);
   const [noLockIn, setNoLockIn] = useState(false);
+  const [provider, setProvider] = useState("all");
+  const providers = useMemo(() => [...new Set(c.offers.map((o) => o.tariff.provider))].sort((a, b) => a.localeCompare(b, "el")), [c.offers]);
 
   const recommended = c.recommendation ? c.byColor[c.recommendation.color] : null;
 
@@ -441,10 +446,11 @@ function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bil
     };
     return c.offers
       .filter((o) => color === "all" || o.tariff.color === color)
+      .filter((o) => provider === "all" || o.tariff.provider === provider)
       .filter((o) => !noFee || o.tariff.fixed_monthly_eur === 0)
       .filter((o) => !noLockIn || !o.tariff.min_duration_months)
       .sort((a, b) => key[sort](a) - key[sort](b));
-  }, [c.offers, color, sort, noFee, noLockIn]);
+  }, [c.offers, color, provider, sort, noFee, noLockIn]);
 
   const filterChip = (on: boolean) =>
     `rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${on ? "bg-cyan-400/15 text-cyan-200 ring-cyan-300/50" : "bg-white/5 text-slate-300 ring-white/15 hover:bg-white/10"}`;
@@ -556,13 +562,20 @@ function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bil
           <p className="mt-4 rounded-xl bg-white/5 p-4 text-sm text-slate-400">Δεν υπάρχουν ακόμα τιμές παρόχων.</p>
         ) : (
           <>
-            <div className="mt-4 flex gap-3">
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <Select<string>
+                label="Πάροχος"
+                value={provider}
+                onChange={setProvider}
+                options={[{ value: "all", label: "Όλοι" }, ...providers.map((p) => ({ value: p, label: p }))]}
+              />
               <Select<ColorFilter>
                 label="Χρώμα"
                 value={color}
                 onChange={setColor}
                 options={[{ value: "all", label: "Όλα" }, ...COLORS.map((x) => ({ value: x, label: `${COLOR_INFO[x].emoji} ${COLOR_INFO[x].label}` }))]}
               />
+              <div className="col-span-2 sm:col-span-1 flex">
               <Select<SortKey>
                 label="Ταξινόμηση"
                 value={sort}
@@ -573,12 +586,13 @@ function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bil
                   { value: "fee", label: "Πάγιο" },
                 ]}
               />
+              </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <button type="button" className={filterChip(noFee)} onClick={() => setNoFee((v) => !v)}>{noFee ? "✓ " : ""}Χωρίς πάγιο</button>
               <button type="button" className={filterChip(noLockIn)} onClick={() => setNoLockIn((v) => !v)}>{noLockIn ? "✓ " : ""}Χωρίς δέσμευση</button>
-              {(color !== "all" || noFee || noLockIn) && (
-                <button type="button" className="px-2 text-xs font-semibold text-slate-400 underline" onClick={() => { setColor("all"); setNoFee(false); setNoLockIn(false); }}>
+              {(color !== "all" || provider !== "all" || noFee || noLockIn) && (
+                <button type="button" className="px-2 text-xs font-semibold text-slate-400 underline" onClick={() => { setColor("all"); setProvider("all"); setNoFee(false); setNoLockIn(false); }}>
                   Καθαρισμός
                 </button>
               )}
@@ -645,6 +659,128 @@ function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bil
         </p>
       </Card>
     </>
+  );
+}
+
+/* ───────────── programmes per provider ───────────── */
+
+function ProviderCatalog({ offers }: { offers: Offer[] | null }) {
+  const [tariffs, setTariffs] = useState<Tariff[] | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [color, setColor] = useState<ColorFilter>("all");
+
+  useEffect(() => {
+    fetch("/api/tariffs")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => { setTariffs(d.tariffs); setUpdatedAt(d.updated_at); })
+      .catch(() => setFailed(true));
+  }, []);
+
+  // Annual cost for the uploaded bill's consumption, when there is one.
+  const annualById = useMemo(() => new Map((offers ?? []).map((o) => [o.tariff.id, offerAnnual(o)])), [offers]);
+
+  const groups = useMemo(() => {
+    const byProvider = new Map<string, Tariff[]>();
+    for (const t of tariffs ?? []) {
+      if (color !== "all" && t.color !== color) continue;
+      byProvider.set(t.provider, [...(byProvider.get(t.provider) ?? []), t]);
+    }
+    return [...byProvider.entries()]
+      .sort(([a], [b]) => a.localeCompare(b, "el"))
+      .map(([provider, list]) => ({
+        provider,
+        byColor: COLORS.map((c) => ({ color: c, list: list.filter((t) => t.color === c).sort((a, b) => a.price_per_kwh_eur - b.price_per_kwh_eur) }))
+          .filter((g) => g.list.length > 0),
+        count: list.length,
+      }));
+  }, [tariffs, color]);
+
+  const chip = (on: boolean) =>
+    `whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${on ? "bg-cyan-400/15 text-cyan-200 ring-cyan-300/50" : "bg-white/5 text-slate-300 ring-white/15 hover:bg-white/10"}`;
+
+  return (
+    <Card
+      id="providers"
+      title="Προγράμματα ανά εταιρεία"
+      subtitle={offers ? "Με το ετήσιο κόστος για τη δική σου κατανάλωση" : "Ανέβασε λογαριασμό για να δεις και το ετήσιο κόστος για σένα"}
+    >
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button type="button" className={chip(color === "all")} onClick={() => setColor("all")}>Όλα τα χρώματα</button>
+        {COLORS.map((c) => (
+          <button key={c} type="button" className={chip(color === c)} onClick={() => setColor(c)}>
+            {COLOR_INFO[c].emoji} {COLOR_INFO[c].label}
+          </button>
+        ))}
+      </div>
+
+      {failed ? (
+        <p className="mt-4 rounded-xl bg-white/5 p-4 text-sm text-slate-400">Δεν φορτώθηκαν τα προγράμματα. Ανανέωσε τη σελίδα.</p>
+      ) : !tariffs ? (
+        <div className="mt-4 space-y-2">{[0, 1, 2].map((i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-white/[0.04]" />)}</div>
+      ) : groups.length === 0 ? (
+        <p className="mt-4 rounded-xl bg-white/5 p-4 text-sm text-slate-400">Κανένα πρόγραμμα σε αυτό το χρώμα.</p>
+      ) : (
+        <div className="mt-4 space-y-2">
+          {groups.map((g) => (
+            <Accordion
+              key={g.provider}
+              summary={
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-white">{g.provider}</div>
+                    <div className="text-xs text-slate-400">{g.count} {g.count === 1 ? "πρόγραμμα" : "προγράμματα"}</div>
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    {g.byColor.map((c) => <span key={c.color} title={COLOR_INFO[c.color].label}>{COLOR_INFO[c.color].emoji}</span>)}
+                  </div>
+                </div>
+              }
+            >
+              <div className="space-y-4">
+                {g.byColor.map((c) => (
+                  <div key={c.color}>
+                    <div className="flex items-center gap-2">
+                      <ColorBadge color={c.color} />
+                      <span className="text-xs text-slate-500">{COLOR_INFO[c.color].description}</span>
+                    </div>
+                    <ul className="mt-2 space-y-2">
+                      {c.list.map((t) => {
+                        const annual = annualById.get(t.id);
+                        return (
+                          <li key={t.id} className="rounded-lg bg-white/[0.03] p-3 ring-1 ring-white/10">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="text-sm font-semibold text-slate-100">{t.name}</div>
+                                <div className="mt-0.5 text-xs text-slate-400">
+                                  {(t.price_per_kwh_with_discount_eur ?? t.price_per_kwh_eur).toFixed(3)} €/kWh · πάγιο {eur(t.fixed_monthly_eur)}
+                                  {t.min_duration_months ? ` · δέσμευση ${t.min_duration_months} μήνες` : ""}
+                                </div>
+                                {t.discount_condition && <div className="mt-0.5 text-xs text-slate-500">ℹ️ {t.discount_condition}</div>}
+                              </div>
+                              <div className="flex shrink-0 flex-col items-end gap-1.5">
+                                {annual !== undefined && (
+                                  <span className="whitespace-nowrap text-sm font-bold text-white">{eur(annual, 0)}<span className="text-[10px] font-normal text-slate-400">/έτος</span></span>
+                                )}
+                                {t.url && <a href={t.url} target="_blank" rel="noreferrer" className={btnSmall}>Δες ↗</a>}
+                              </div>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </Accordion>
+          ))}
+        </div>
+      )}
+
+      <p className="mt-4 text-xs text-slate-500">
+        Τιμές χωρίς ΦΠΑ, μόνο χρεώσεις προμήθειας{updatedAt && <> · ενημέρωση {new Date(updatedAt).toLocaleDateString("el-GR", { timeZone: "Europe/Athens" })}</>}.
+      </p>
+    </Card>
   );
 }
 
