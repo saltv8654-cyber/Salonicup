@@ -655,8 +655,50 @@ interface TariffRow {
   id: string; created_at: string; updated_at: string; provider: string; name: string;
   color: "blue" | "green" | "yellow" | "orange"; fixed_monthly_eur: number | string; price_per_kwh_eur: number | string;
   price_per_kwh_with_discount_eur: number | string | null; discount_condition: string | null; min_duration_months: number | null;
-  valid_month: string; url: string | null; active: boolean;
+  valid_month: string; url: string | null; active: boolean; category?: "electricity" | "gas";
 }
+type EnergyCat = "electricity" | "gas";
+const rowCat = (r: TariffRow): EnergyCat => r.category ?? "electricity";
+const UPGRADE_SQL = `alter table tariffs add column if not exists category text not null default 'electricity'
+  check (category in ('electricity', 'gas'));
+
+create table if not exists telecom_plans (
+  id text primary key,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  kind text not null check (kind in ('internet', 'mobile')),
+  provider text not null,
+  name text not null,
+  monthly_eur numeric(8, 2) not null,
+  promo_eur numeric(8, 2),
+  promo_months integer,
+  commitment_months integer,
+  speed_mbps integer,
+  tech text,
+  data_gb numeric(8, 1),
+  notes text,
+  valid_month text not null,
+  url text,
+  active boolean not null default true
+);
+alter table telecom_plans enable row level security;`;
+
+function SqlStep({ title, text, sql, onRetry }: { title: string; text: React.ReactNode; sql: string; onRetry: () => void }) {
+  const [msg, setMsg] = useState<string | null>(null);
+  return (
+    <div className={`${card} space-y-3`}>
+      <h2 className="text-lg font-semibold text-white">{title}</h2>
+      <p className="text-sm text-slate-300">{text} Στο Supabase: <b>SQL Editor → New query</b>, επικόλλησε το παρακάτω και πάτα <b>Run</b>. Μετά πάτα «Έλεγχος ξανά».</p>
+      <pre className="max-h-64 overflow-auto rounded-xl bg-black/40 p-3 text-[11px] leading-relaxed text-slate-300 ring-1 ring-white/10">{sql}</pre>
+      <div className="flex gap-2">
+        <button className={btn} onClick={() => navigator.clipboard?.writeText(sql).then(() => setMsg("Αντιγράφηκε"))}>📋 Αντιγραφή</button>
+        <button className={btnGhost} onClick={onRetry}>↻ Έλεγχος ξανά</button>
+      </div>
+      {msg && <p className="text-sm text-emerald-300">{msg}</p>}
+    </div>
+  );
+}
+
 const COLOR_OPTS = [
   { v: "blue", l: "🔵 Μπλε (σταθερό)" }, { v: "green", l: "🟢 Πράσινο (ανακοινώνεται 1η του μήνα)" },
   { v: "yellow", l: "🟡 Κίτρινο (χονδρεμπορική)" }, { v: "orange", l: "🟠 Πορτοκαλί (δυναμικό)" },
@@ -686,7 +728,7 @@ type TariffForm = {
   provider: string; name: string; color: TariffRow["color"]; fixed_monthly_eur: string; price_per_kwh_eur: string;
   price_per_kwh_with_discount_eur: string; discount_condition: string; min_duration_months: string; valid_month: string; url: string; active: boolean;
 };
-const toForm = (t?: TariffRow): TariffForm => ({
+const toForm = (t?: TariffRow, category?: EnergyCat): TariffForm => ({
   provider: t?.provider ?? "", name: t?.name ?? "", color: t?.color ?? "blue",
   fixed_monthly_eur: t ? String(Number(t.fixed_monthly_eur)) : "", price_per_kwh_eur: t ? String(Number(t.price_per_kwh_eur)) : "",
   price_per_kwh_with_discount_eur: t?.price_per_kwh_with_discount_eur != null ? String(Number(t.price_per_kwh_with_discount_eur)) : "",
@@ -701,7 +743,7 @@ function L({ t, children, hint }: { t: string; children: React.ReactNode; hint?:
   );
 }
 
-function TariffEditor({ initial, providers, onClose, onSaved }: { initial?: TariffRow; providers: string[]; onClose: () => void; onSaved: () => void }) {
+function TariffEditor({ initial, providers, onClose, onSaved, category }: { initial?: TariffRow; providers: string[]; onClose: () => void; onSaved: () => void; category: EnergyCat }) {
   const [f, setF] = useState<TariffForm>(toForm(initial));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -717,13 +759,13 @@ function TariffEditor({ initial, providers, onClose, onSaved }: { initial?: Tari
       price_per_kwh_with_discount_eur: dec(f.price_per_kwh_with_discount_eur),
       discount_condition: f.discount_condition || null,
       min_duration_months: f.min_duration_months ? Math.round(Number(f.min_duration_months)) : null,
-      valid_month: f.valid_month, url: f.url, active: f.active,
+      valid_month: f.valid_month, url: f.url, active: f.active, category,
     };
     try {
       await api(initial ? `/api/admin/tariffs/${encodeURIComponent(initial.id)}` : "/api/admin/tariffs", { method: initial ? "PUT" : "POST", body: JSON.stringify(body) });
       onSaved();
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message === "missing_category" ? "Πρώτα τρέξε το SQL της αναβάθμισης για το αέριο (καρτέλα Αέριο)." : err.message);
     } finally {
       setBusy(false);
     }
@@ -733,7 +775,7 @@ function TariffEditor({ initial, providers, onClose, onSaved }: { initial?: Tari
     <div className="fixed inset-0 z-40 flex justify-end bg-black/60" onClick={onClose}>
       <aside className="h-full w-full max-w-lg overflow-y-auto bg-[#060a1c] p-5 ring-1 ring-white/15" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">{initial ? "Αλλαγή προγράμματος" : "Νέο πρόγραμμα"}</h2>
+          <h2 className="text-lg font-semibold text-white">{initial ? "Αλλαγή προγράμματος" : "Νέο πρόγραμμα"} · {category === "gas" ? "🔥 Αέριο" : "⚡ Ρεύμα"}</h2>
           <button className={btnGhost} onClick={onClose}>✕</button>
         </div>
         <form className="mt-4 space-y-3" onSubmit={save}>
@@ -744,12 +786,12 @@ function TariffEditor({ initial, providers, onClose, onSaved }: { initial?: Tari
           <L t="Όνομα προγράμματος *"><input className={input} value={f.name} onChange={(e) => set("name", e.target.value)} required /></L>
           <L t="Χρώμα *">
             <select className={input} value={f.color} onChange={(e) => set("color", e.target.value as TariffRow["color"])}>
-              {COLOR_OPTS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
+              {COLOR_OPTS.filter((c) => category !== "gas" || c.v !== "orange").map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
             </select>
           </L>
           <div className="grid grid-cols-2 gap-3">
             <L t="Πάγιο €/μήνα *" hint="χωρίς ΦΠΑ"><input className={input} inputMode="decimal" value={f.fixed_monthly_eur} onChange={(e) => set("fixed_monthly_eur", e.target.value)} placeholder="5" required /></L>
-            <L t="Τιμή €/kWh *" hint="χωρίς ΦΠΑ, σε € (π.χ. 0.135)"><input className={input} inputMode="decimal" value={f.price_per_kwh_eur} onChange={(e) => set("price_per_kwh_eur", e.target.value)} placeholder="0.135" required /></L>
+            <L t="Τιμή €/kWh *" hint={category === "gas" ? "χωρίς ΦΠΑ, σε € ανά kWh (όχι m³), π.χ. 0.11" : "χωρίς ΦΠΑ, σε € (π.χ. 0.135)"}><input className={input} inputMode="decimal" value={f.price_per_kwh_eur} onChange={(e) => set("price_per_kwh_eur", e.target.value)} placeholder={category === "gas" ? "0.110" : "0.135"} required /></L>
             <L t="Τιμή με έκπτωση €/kWh" hint="αν υπάρχει έκπτωση υπό όρους"><input className={input} inputMode="decimal" value={f.price_per_kwh_with_discount_eur} onChange={(e) => set("price_per_kwh_with_discount_eur", e.target.value)} placeholder="0.120" /></L>
             <L t="Δέσμευση (μήνες)"><input className={input} inputMode="numeric" value={f.min_duration_months} onChange={(e) => set("min_duration_months", e.target.value)} placeholder="12" /></L>
           </div>
@@ -769,8 +811,9 @@ function TariffEditor({ initial, providers, onClose, onSaved }: { initial?: Tari
   );
 }
 
-function TariffsView() {
-  const [rows, setRows] = useState<TariffRow[] | null>(null);
+function TariffsView({ category }: { category: EnergyCat }) {
+  const [all, setAll] = useState<TariffRow[] | null>(null);
+  const [hasCategory, setHasCategory] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
   const [editing, setEditing] = useState<TariffRow | "new" | null>(null);
@@ -781,16 +824,18 @@ function TariffsView() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const d = await api<{ tariffs: TariffRow[] }>("/api/admin/tariffs");
-      setRows(d.tariffs);
+      const d = await api<{ tariffs: TariffRow[]; has_category?: boolean }>("/api/admin/tariffs");
+      setAll(d.tariffs);
+      setHasCategory(d.has_category !== false);
       setMissing(false);
     } catch (e: any) {
       if (e.message === "missing_table") setMissing(true);
       else setError(e.message);
-      setRows([]);
+      setAll([]);
     }
   }, []);
   useEffect(() => { load(); }, [load]);
+  const rows = useMemo(() => (all ? all.filter((r) => rowCat(r) === category) : null), [all, category]);
 
   const providers = useMemo(() => [...new Set((rows ?? []).map((r) => r.provider))].sort((a, b) => a.localeCompare(b, "el")), [rows]);
   const groups = useMemo(() => {
@@ -814,28 +859,17 @@ function TariffsView() {
   if (!rows) return <p className="text-sm text-slate-500">Φόρτωση…</p>;
 
   if (missing) {
-    return (
-      <div className={`${card} space-y-3`}>
-        <h2 className="text-lg font-semibold text-white">Ένα βήμα πριν</h2>
-        <p className="text-sm text-slate-300">
-          Για να αλλάζεις τιμές από εδώ, φτιάξε μία φορά τον πίνακα στο Supabase: <b>SQL Editor → New query</b>, επικόλλησε το
-          παρακάτω και πάτα <b>Run</b>. Μετά πάτα «Έλεγχος ξανά».
-        </p>
-        <pre className="max-h-64 overflow-auto rounded-xl bg-black/40 p-3 text-[11px] leading-relaxed text-slate-300 ring-1 ring-white/10">{TARIFFS_SQL}</pre>
-        <div className="flex gap-2">
-          <button className={btn} onClick={() => navigator.clipboard?.writeText(TARIFFS_SQL).then(() => setMsg("Αντιγράφηκε"))}>📋 Αντιγραφή</button>
-          <button className={btnGhost} onClick={load}>↻ Έλεγχος ξανά</button>
-        </div>
-        {msg && <p className="text-sm text-emerald-300">{msg}</p>}
-      </div>
-    );
+    return <SqlStep title="Ένα βήμα πριν" text="Για να αλλάζεις τιμές από εδώ, φτιάξε μία φορά τους πίνακες." sql={`${TARIFFS_SQL}\n\n${UPGRADE_SQL}`} onRetry={load} />;
+  }
+  if (category === "gas" && !hasCategory) {
+    return <SqlStep title="Αναβάθμιση για αέριο και τηλεπικοινωνίες" text="Για να βάλεις τιμές αερίου και internet/κινητής, χρειάζεται μία μικρή αναβάθμιση της βάσης (μία φορά)." sql={UPGRADE_SQL} onRetry={load} />;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-white">Τιμές παρόχων</h2>
+          <h2 className="text-lg font-semibold text-white">{category === "gas" ? "🔥 Τιμές αερίου" : "⚡ Τιμές ρεύματος"}</h2>
           <p className="text-xs text-slate-400">Ό,τι αλλάζεις εδώ εμφανίζεται αμέσως στο site. Τιμές χωρίς ΦΠΑ, μόνο προμήθεια.</p>
         </div>
         <button className={btn} onClick={() => setEditing("new")}>＋ Νέο πρόγραμμα</button>
@@ -845,12 +879,19 @@ function TariffsView() {
       {msg && <p className="rounded-xl bg-emerald-400/10 p-3 text-sm text-emerald-200">✓ {msg}</p>}
 
       {rows.length === 0 ? (
-        <div className={`${card} space-y-3 text-sm text-slate-300`}>
-          <p>Δεν υπάρχουν ακόμα τιμές εδώ, οπότε το site δείχνει τις ενσωματωμένες τιμές Νοεμβρίου.</p>
-          <button className={btn} onClick={() => act(() => api("/api/admin/tariffs/import", { method: "POST" }), "Οι τρέχουσες τιμές εισήχθησαν")}>
-            ⬇ Εισαγωγή των τρεχουσών τιμών
-          </button>
-        </div>
+        category === "gas" ? (
+          <div className={`${card} space-y-2 text-sm text-slate-300`}>
+            <p>Δεν υπάρχουν ακόμα τιμές αερίου, οπότε στο site η σύγκριση αερίου είναι κενή και προτείνει «Να με καλέσετε».</p>
+            <p>Πάτα «＋ Νέο πρόγραμμα» και πρόσθεσε τα προγράμματα των παρόχων (πάγιο €/μήνα και τιμή €/kWh χωρίς ΦΠΑ).</p>
+          </div>
+        ) : (
+          <div className={`${card} space-y-3 text-sm text-slate-300`}>
+            <p>Δεν υπάρχουν ακόμα τιμές εδώ, οπότε το site δείχνει τις ενσωματωμένες τιμές Νοεμβρίου.</p>
+            <button className={btn} onClick={() => act(() => api("/api/admin/tariffs/import", { method: "POST" }), "Οι τρέχουσες τιμές εισήχθησαν")}>
+              ⬇ Εισαγωγή των τρεχουσών τιμών
+            </button>
+          </div>
+        )
       ) : (
         <>
           <div className={`${card} flex flex-wrap items-end gap-2`}>
@@ -860,7 +901,7 @@ function TariffsView() {
             <button
               className={btnGhost}
               onClick={() => confirm(`Να γίνουν όλα τα ενεργά προγράμματα «${month}»; Έλεγξε πρώτα ότι οι τιμές τους ισχύουν.`) &&
-                act(() => api("/api/admin/tariffs", { method: "PATCH", body: JSON.stringify({ valid_month: month }) }), `Ο μήνας άλλαξε σε ${month}`)}
+                act(() => api("/api/admin/tariffs", { method: "PATCH", body: JSON.stringify({ valid_month: month, category }) }), `Ο μήνας άλλαξε σε ${month}`)}
             >
               📅 Εφαρμογή
             </button>
@@ -915,6 +956,7 @@ function TariffsView() {
         <TariffEditor
           initial={editing === "new" ? undefined : editing}
           providers={providers}
+          category={category}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); setMsg("Αποθηκεύτηκε"); load(); }}
         />
@@ -929,7 +971,210 @@ function toBody(t: TariffRow) {
     fixed_monthly_eur: Number(t.fixed_monthly_eur), price_per_kwh_eur: Number(t.price_per_kwh_eur),
     price_per_kwh_with_discount_eur: t.price_per_kwh_with_discount_eur != null ? Number(t.price_per_kwh_with_discount_eur) : null,
     discount_condition: t.discount_condition, min_duration_months: t.min_duration_months, valid_month: t.valid_month, url: t.url ?? "",
+    category: rowCat(t),
   };
+}
+
+/* ───────────── prices: category switch + telecom ───────────── */
+
+function PricesView() {
+  const [cat, setCat] = useState<"electricity" | "gas" | "telecom">("electricity");
+  const tabs = [
+    { v: "electricity", l: "⚡ Ρεύμα" },
+    { v: "gas", l: "🔥 Αέριο" },
+    { v: "telecom", l: "📶 Internet & Κινητή" },
+  ] as const;
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        {tabs.map((t) => <button key={t.v} className={cat === t.v ? btn : btnGhost} onClick={() => setCat(t.v)}>{t.l}</button>)}
+      </div>
+      {cat === "telecom" ? <TelecomAdminView /> : <TariffsView key={cat} category={cat} />}
+    </div>
+  );
+}
+
+interface TelecomRow {
+  id: string; created_at: string; updated_at: string; kind: "internet" | "mobile"; provider: string; name: string;
+  monthly_eur: number | string; promo_eur: number | string | null; promo_months: number | null; commitment_months: number | null;
+  speed_mbps: number | null; tech: string | null; data_gb: number | string | null; notes: string | null; valid_month: string; url: string | null; active: boolean;
+}
+type TelecomForm = Record<"provider" | "name" | "monthly_eur" | "promo_eur" | "promo_months" | "commitment_months" | "speed_mbps" | "tech" | "data_gb" | "notes" | "valid_month" | "url", string> & { kind: "internet" | "mobile"; active: boolean };
+const str = (v: unknown) => (v === null || v === undefined ? "" : String(Number.isNaN(Number(v)) ? v : Number(v)));
+const toTelecomForm = (t?: TelecomRow, kind: "internet" | "mobile" = "internet"): TelecomForm => ({
+  kind: t?.kind ?? kind, provider: t?.provider ?? "", name: t?.name ?? "", monthly_eur: str(t?.monthly_eur), promo_eur: str(t?.promo_eur),
+  promo_months: str(t?.promo_months), commitment_months: str(t?.commitment_months ?? 24), speed_mbps: str(t?.speed_mbps), tech: t?.tech ?? "",
+  data_gb: str(t?.data_gb), notes: t?.notes ?? "", valid_month: t?.valid_month ?? thisMonth(), url: t?.url ?? "", active: t?.active ?? true,
+});
+const telecomBody = (f: TelecomForm) => ({
+  kind: f.kind, provider: f.provider, name: f.name, monthly_eur: dec(f.monthly_eur) ?? NaN, promo_eur: dec(f.promo_eur),
+  promo_months: f.promo_months ? Math.round(Number(f.promo_months)) : null, commitment_months: f.commitment_months ? Math.round(Number(f.commitment_months)) : null,
+  speed_mbps: f.speed_mbps ? Math.round(Number(f.speed_mbps)) : null, tech: f.tech || null, data_gb: dec(f.data_gb), notes: f.notes || null,
+  valid_month: f.valid_month, url: f.url, active: f.active,
+});
+const telecomSpec = (t: TelecomRow) =>
+  t.kind === "internet" ? `${t.speed_mbps ?? "?"} Mbps${t.tech ? ` · ${t.tech}` : ""}` : t.data_gb !== null ? `${Number(t.data_gb)} GB` : "Απεριόριστα data";
+
+function TelecomEditor({ initial, providers, onClose, onSaved }: { initial?: TelecomRow; providers: string[]; onClose: () => void; onSaved: () => void }) {
+  const [f, setF] = useState<TelecomForm>(toTelecomForm(initial));
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const set = <K extends keyof TelecomForm>(k: K, v: TelecomForm[K]) => setF((x) => ({ ...x, [k]: v }));
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api(initial ? `/api/admin/telecom/${encodeURIComponent(initial.id)}` : "/api/admin/telecom", { method: initial ? "PUT" : "POST", body: JSON.stringify(telecomBody(f)) });
+      onSaved();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="fixed inset-0 z-40 flex justify-end bg-black/60" onClick={onClose}>
+      <aside className="h-full w-full max-w-lg overflow-y-auto bg-[#060a1c] p-5 ring-1 ring-white/15" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-white">{initial ? "Αλλαγή προγράμματος" : "Νέο πρόγραμμα"} · 📶</h2>
+          <button className={btnGhost} onClick={onClose}>✕</button>
+        </div>
+        <form className="mt-4 space-y-3" onSubmit={save}>
+          <div className="flex gap-2">
+            <button type="button" className={f.kind === "internet" ? btn : btnGhost} onClick={() => set("kind", "internet")}>🏠 Internet</button>
+            <button type="button" className={f.kind === "mobile" ? btn : btnGhost} onClick={() => set("kind", "mobile")}>📱 Κινητή</button>
+          </div>
+          <L t="Πάροχος *">
+            <input className={input} list="tproviders" value={f.provider} onChange={(e) => set("provider", e.target.value)} required />
+            <datalist id="tproviders">{providers.map((p) => <option key={p} value={p} />)}</datalist>
+          </L>
+          <L t="Όνομα προγράμματος *"><input className={input} value={f.name} onChange={(e) => set("name", e.target.value)} required /></L>
+          <div className="grid grid-cols-2 gap-3">
+            <L t="Τιμή €/μήνα *" hint="με ΦΠΑ, μετά την προσφορά"><input className={input} inputMode="decimal" value={f.monthly_eur} onChange={(e) => set("monthly_eur", e.target.value)} placeholder="26" required /></L>
+            <L t="Δέσμευση (μήνες)"><input className={input} inputMode="numeric" value={f.commitment_months} onChange={(e) => set("commitment_months", e.target.value)} placeholder="24" /></L>
+            <L t="Τιμή προσφοράς €/μήνα" hint="αν υπάρχει"><input className={input} inputMode="decimal" value={f.promo_eur} onChange={(e) => set("promo_eur", e.target.value)} placeholder="20.80" /></L>
+            <L t="Μήνες προσφοράς"><input className={input} inputMode="numeric" value={f.promo_months} onChange={(e) => set("promo_months", e.target.value)} placeholder="12" /></L>
+            {f.kind === "internet" ? (
+              <>
+                <L t="Ταχύτητα (Mbps) *"><input className={input} inputMode="numeric" value={f.speed_mbps} onChange={(e) => set("speed_mbps", e.target.value)} placeholder="300" required /></L>
+                <L t="Τεχνολογία"><input className={input} value={f.tech} onChange={(e) => set("tech", e.target.value)} placeholder="Οπτική ίνα / VDSL / 5G" /></L>
+              </>
+            ) : (
+              <L t="Data (GB/μήνα)" hint="κενό = απεριόριστα"><input className={input} inputMode="decimal" value={f.data_gb} onChange={(e) => set("data_gb", e.target.value)} placeholder="20" /></L>
+            )}
+          </div>
+          <L t="Σημείωση" hint="π.χ. «απεριόριστα λεπτά & SMS», «+3 € μετά τον 12ο μήνα»"><input className={input} value={f.notes} onChange={(e) => set("notes", e.target.value)} /></L>
+          <div className="grid grid-cols-2 gap-3">
+            <L t="Μήνας τιμής *"><input type="month" className={input} value={f.valid_month} onChange={(e) => set("valid_month", e.target.value)} required /></L>
+            <label className="flex items-end gap-2 pb-2 text-sm text-slate-300">
+              <input type="checkbox" className="h-4 w-4 accent-cyan-400" checked={f.active} onChange={(e) => set("active", e.target.checked)} /> Εμφανίζεται στο site
+            </label>
+          </div>
+          <L t="Link προγράμματος"><input className={input} value={f.url} onChange={(e) => set("url", e.target.value)} placeholder="https://..." /></L>
+          {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">⚠️ {error}</p>}
+          <button className={`${btn} w-full`} disabled={busy}>{busy ? "Αποθήκευση…" : "Αποθήκευση"}</button>
+        </form>
+      </aside>
+    </div>
+  );
+}
+
+function TelecomAdminView() {
+  const [rows, setRows] = useState<TelecomRow[] | null>(null);
+  const [missing, setMissing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [editing, setEditing] = useState<TelecomRow | "new" | null>(null);
+
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const d = await api<{ plans: TelecomRow[] }>("/api/admin/telecom");
+      setRows(d.plans);
+      setMissing(false);
+    } catch (e: any) {
+      if (e.message === "missing_table") setMissing(true);
+      else setError(e.message);
+      setRows([]);
+    }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const providers = useMemo(() => [...new Set((rows ?? []).map((r) => r.provider))].sort((a, b) => a.localeCompare(b, "el")), [rows]);
+  const act = async (fn: () => Promise<unknown>, ok: string) => {
+    setMsg(null);
+    setError(null);
+    try {
+      await fn();
+      setMsg(ok);
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
+  if (!rows) return <p className="text-sm text-slate-500">Φόρτωση…</p>;
+  if (missing) return <SqlStep title="Αναβάθμιση για αέριο και τηλεπικοινωνίες" text="Για να αλλάζεις τιμές internet/κινητής από εδώ, χρειάζεται μία μικρή αναβάθμιση της βάσης (μία φορά)." sql={UPGRADE_SQL} onRetry={load} />;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-white">📶 Internet & Κινητή</h2>
+          <p className="text-xs text-slate-400">Τιμές με ΦΠΑ, όπως τις διαφημίζουν οι πάροχοι. Η σύγκριση στο site γίνεται με τον μέσο όρο 24 μηνών.</p>
+        </div>
+        <button className={btn} onClick={() => setEditing("new")}>＋ Νέο πρόγραμμα</button>
+      </div>
+      {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">⚠️ {error}</p>}
+      {msg && <p className="rounded-xl bg-emerald-400/10 p-3 text-sm text-emerald-200">✓ {msg}</p>}
+      {rows.length === 0 ? (
+        <div className={`${card} space-y-3 text-sm text-slate-300`}>
+          <p>Δεν υπάρχουν ακόμα προγράμματα εδώ, οπότε το site δείχνει τα ενσωματωμένα ενδεικτικά (Nova, Cosmote, Vodafone).</p>
+          <button className={btn} onClick={() => act(() => api("/api/admin/telecom/import", { method: "POST" }), "Τα ενδεικτικά προγράμματα εισήχθησαν")}>⬇ Εισαγωγή των ενδεικτικών προγραμμάτων</button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {providers.map((p) => (
+            <div key={p} className={card}>
+              <div className="font-semibold text-white">{p}</div>
+              <ul className="mt-2 divide-y divide-white/5">
+                {rows.filter((r) => r.provider === p).map((t) => (
+                  <li key={t.id} className={`flex flex-wrap items-center justify-between gap-2 py-2.5 ${t.active ? "" : "opacity-50"}`}>
+                    <div className="min-w-0">
+                      <div className="text-sm text-slate-100">{t.kind === "internet" ? "🏠" : "📱"} {t.name}{!t.active && <span className="ml-2 text-xs text-slate-500">(κρυφό)</span>}</div>
+                      <div className="text-xs text-slate-400">
+                        {telecomSpec(t)} · {Number(t.monthly_eur).toFixed(2)} €/μήνα
+                        {t.promo_eur !== null && t.promo_months ? ` (${Number(t.promo_eur).toFixed(2)} € για ${t.promo_months} μήνες)` : ""} · {t.valid_month}
+                      </div>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <button className={btnGhost + " !px-3 !py-1.5 text-xs"} onClick={() => setEditing(t)}>✏️ Αλλαγή</button>
+                      <button
+                        className={btnGhost + " !px-3 !py-1.5 text-xs"}
+                        onClick={() => act(() => api(`/api/admin/telecom/${encodeURIComponent(t.id)}`, { method: "PUT", body: JSON.stringify({ ...telecomBody(toTelecomForm(t)), active: !t.active }) }), t.active ? "Κρύφτηκε από το site" : "Εμφανίζεται ξανά")}
+                      >
+                        {t.active ? "🙈 Απόκρυψη" : "👁 Εμφάνιση"}
+                      </button>
+                      <button className={btnGhost + " !px-3 !py-1.5 text-xs"} onClick={() => confirm(`Διαγραφή «${t.provider} ${t.name}»;`) && act(() => api(`/api/admin/telecom/${encodeURIComponent(t.id)}`, { method: "DELETE" }), "Διαγράφηκε")}>🗑</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+      {editing && (
+        <TelecomEditor
+          initial={editing === "new" ? undefined : editing}
+          providers={providers}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); setMsg("Αποθηκεύτηκε"); load(); }}
+        />
+      )}
+    </div>
+  );
 }
 
 /* ───────────── page ───────────── */
@@ -1015,7 +1260,7 @@ export default function Admin() {
       {error && <p className="mt-4 rounded-xl bg-red-500/10 p-3 text-sm text-red-300 ring-1 ring-red-400/30">⚠️ {error}</p>}
 
       {tab === "tariffs" ? (
-        <div className="mt-6"><TariffsView /></div>
+        <div className="mt-6"><PricesView /></div>
       ) : tab === "stats" ? (
         <div className="mt-6"><StatsView onOpenLead={setOpenId} /></div>
       ) : (

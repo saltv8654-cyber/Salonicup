@@ -62,10 +62,19 @@ export interface Bill {
   is_estimate: boolean | null;
 }
 
-/** One retail electricity programme as published by the provider (supply charges, without VAT). */
+export type Category = "electricity" | "gas" | "telecom";
+export type EnergyCategory = Exclude<Category, "telecom">;
+
+export const CATEGORY_INFO: Record<Category, { label: string; emoji: string; bill: string }> = {
+  electricity: { label: "Ρεύμα", emoji: "⚡", bill: "λογαριασμό ρεύματος" },
+  gas: { label: "Αέριο", emoji: "🔥", bill: "λογαριασμό φυσικού αερίου" },
+  telecom: { label: "Internet & Κινητή", emoji: "📶", bill: "λογαριασμό internet ή κινητής" },
+};
+
+/** One retail electricity or gas programme as published by the provider (supply charges, without VAT). */
 export interface Tariff {
   id: string;
-  category: "electricity";
+  category: EnergyCategory;
   provider: string;
   name: string;
   color: TariffColor;
@@ -86,4 +95,50 @@ export interface TariffFile {
   updated_at: string | null;
   source: string;
   tariffs: Tariff[];
+}
+
+/** A home internet or mobile plan. Prices incl. VAT, as advertised. */
+export interface TelecomPlan {
+  id: string;
+  kind: "internet" | "mobile";
+  provider: string;
+  name: string;
+  /** €/month after any promo period */
+  monthly_eur: number;
+  /** €/month during the promo period, if any */
+  promo_eur?: number;
+  promo_months?: number;
+  commitment_months?: number;
+  /** internet: download speed */
+  speed_mbps?: number;
+  /** internet: FTTH, VDSL, 5G/FWA … */
+  tech?: string;
+  /** mobile: data per month; omitted = unlimited */
+  data_gb?: number;
+  notes?: string;
+  valid_month: string;
+  url?: string;
+}
+
+export interface TelecomFile {
+  updated_at: string | null;
+  source: string;
+  plans: TelecomPlan[];
+}
+
+/** What we read from a telecom bill. */
+export interface TelecomBill {
+  provider: string | null;
+  plan_name: string | null;
+  has_internet: boolean;
+  has_mobile: boolean;
+  internet_speed_mbps: number | null;
+  internet_monthly_eur: number | null;
+  mobile_lines: number | null;
+  mobile_data_gb: number | null;
+  mobile_unlimited_data: boolean | null;
+  mobile_monthly_eur: number | null;
+  total_due: number | null;
+  period_start: string | null;
+  period_end: string | null;
 }
