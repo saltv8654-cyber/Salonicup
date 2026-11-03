@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { Bill, Tariff, TariffColor } from "@/lib/types";
 import { COLOR_INFO } from "@/lib/types";
-import type { Comparison, Offer } from "@/lib/compare";
+import { compare, type Comparison, type Offer } from "@/lib/compare";
 import { sessionId, track, trafficSource } from "@/lib/track";
 import { CookieSettingsLink } from "./consent";
 
@@ -23,6 +23,20 @@ interface Result {
   warnings: string[];
   comparison: Comparison | null;
   tariffs_updated_at: string | null;
+  /** Estimated from a typed-in consumption instead of an uploaded bill. */
+  manual?: { kwhMonth: number };
+}
+
+/** One shared request for the tariff catalogue (used by the calculator and the per-provider list). */
+let tariffsPromise: Promise<{ tariffs: Tariff[]; updated_at: string | null }> | null = null;
+function getTariffs() {
+  tariffsPromise ??= fetch("/api/tariffs")
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error("tariffs"))))
+    .catch((e) => {
+      tariffsPromise = null;
+      throw e;
+    });
+  return tariffsPromise;
 }
 
 const eur = (n: number | null | undefined, digits = 2) =>
@@ -268,6 +282,14 @@ export default function Home() {
           <p className="mt-3 text-center text-xs text-slate-500">🔒 Το billi δεν αποθηκεύει τον λογαριασμό σου. Τον στέλνει μόνο για ανάλυση.</p>
         </section>
 
+        <ManualCalc
+          onResult={(r) => {
+            setError(null);
+            setResult(r);
+            setTimeout(() => document.getElementById("results")?.scrollIntoView({ behavior: "smooth" }), 50);
+          }}
+        />
+
         {error && (
           <div className="mt-6 flex items-start justify-between gap-3 rounded-xl bg-red-500/10 p-4 text-red-300 ring-1 ring-red-400/30">
             <span>⚠️ {error}</span>
@@ -277,7 +299,11 @@ export default function Home() {
 
         {result && (
           <div id="results" className="scroll-mt-20">
-            <BillSummary bill={result.bill} warnings={result.warnings} />
+            {result.manual ? (
+              <ManualSummary kwhMonth={result.manual.kwhMonth} bill={result.bill} annualKwh={result.comparison?.annualKwh ?? 0} onUpload={() => fileInput.current?.click()} />
+            ) : (
+              <BillSummary bill={result.bill} warnings={result.warnings} />
+            )}
             {result.comparison && (
               <ComparisonView c={result.comparison} current={result.bill} updatedAt={result.tariffs_updated_at} />
             )}
@@ -326,6 +352,7 @@ function TopBar({ onNew }: { onNew?: () => void }) {
 
   const items: { id: string; icon: string; label: string }[] = [
     { id: "upload", icon: "⚡", label: "Ανάλυση λογαριασμού" },
+    { id: "calc", icon: "🧮", label: "Υπολογισμός χωρίς λογαριασμό" },
     { id: "colors", icon: "🎨", label: "Ποιο χρώμα με συμφέρει" },
     { id: "compare", icon: "📊", label: "Σύγκριση παρόχων" },
     { id: "providers", icon: "🏢", label: "Προγράμματα ανά εταιρεία" },
@@ -394,6 +421,167 @@ function Steps({ current }: { current: number }) {
         );
       })}
     </ol>
+  );
+}
+
+/* ───────────── calculator without a bill ───────────── */
+
+const PRESETS = [
+  { label: "🏠 Μικρό σπίτι", kwh: 150 },
+  { label: "🏢 Διαμέρισμα", kwh: 250 },
+  { label: "👨‍👩‍👧 Οικογένεια", kwh: 400 },
+  { label: "❄️ Με κλιματιστικά / θέρμανση", kwh: 700 },
+];
+
+function ManualCalc({ onResult }: { onResult: (r: Result) => void }) {
+  const [open, setOpen] = useState(false);
+  const [kwh, setKwh] = useState(250);
+  const [tariffs, setTariffs] = useState<Tariff[] | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [provider, setProvider] = useState("");
+  const [currentId, setCurrentId] = useState("");
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!open || tariffs) return;
+    getTariffs().then((d) => { setTariffs(d.tariffs); setUpdatedAt(d.updated_at); }).catch(() => setFailed(true));
+  }, [open, tariffs]);
+
+  const providers = useMemo(() => [...new Set((tariffs ?? []).map((t) => t.provider))].sort((a, b) => a.localeCompare(b, "el")), [tariffs]);
+  const programs = (tariffs ?? []).filter((t) => t.provider === provider);
+  const current = programs.find((t) => t.id === currentId) ?? null;
+
+  function calculate() {
+    if (!tariffs) return;
+    const bill: Bill = {
+      provider: current?.provider ?? (provider || null),
+      program_name: current?.name ?? null,
+      tariff_color: current?.color ?? null,
+      period_start: null, period_end: null,
+      billing_days: 365,
+      kwh_total: kwh * 12,
+      kwh_day: null, kwh_night: null,
+      kwh_rate: current ? current.price_per_kwh_with_discount_eur ?? current.price_per_kwh_eur : null,
+      kwh_rate_night: null,
+      fixed_monthly_fee: current?.fixed_monthly_eur ?? null,
+      energy_charge_gross: null, consistency_discount: null, net_energy_charge: null,
+      supplier_total: null, regulated_total: null, municipal_total: null, efk_total: null, vat_amount: null, total_due: null,
+      is_estimate: true,
+    };
+    const comparison = compare(bill, tariffs);
+    track("manual_calc", { kwh_month: kwh, provider: bill.provider, program: bill.program_name });
+    onResult({ bill, warnings: [], comparison, tariffs_updated_at: updatedAt, manual: { kwhMonth: kwh } });
+  }
+
+  const chip = (on: boolean) =>
+    `rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${on ? "bg-cyan-400/15 text-cyan-200 ring-cyan-300/50" : "bg-white/5 text-slate-300 ring-white/15 hover:bg-white/10"}`;
+
+  return (
+    <section id="calc" className="mt-4 scroll-mt-20">
+      <div className={`rounded-2xl ring-1 transition ${open ? "bg-white/[0.03] ring-white/15" : "bg-white/[0.02] ring-white/10"}`}>
+        <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between gap-3 p-4 text-left">
+          <div>
+            <div className="font-semibold text-white">🧮 Δεν έχεις τον λογαριασμό πρόχειρο;</div>
+            <div className="text-sm text-slate-400">Υπολόγισε με την κατανάλωσή σου, σε 10 δευτερόλεπτα</div>
+          </div>
+          <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/5 text-slate-300 ring-1 ring-white/10 transition ${open ? "rotate-180" : ""}`}>▾</span>
+        </button>
+
+        {open && (
+          <div className="border-t border-white/10 p-4 sm:p-5">
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Πόσο καις τον μήνα;</div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {PRESETS.map((p) => (
+                <button key={p.kwh} type="button" className={chip(kwh === p.kwh)} onClick={() => setKwh(p.kwh)}>{p.label} · {p.kwh}</button>
+              ))}
+            </div>
+
+            <div className="mt-4 flex items-center gap-3">
+              <input
+                type="range" min={30} max={1500} step={10} value={kwh}
+                onChange={(e) => setKwh(Number(e.target.value))}
+                className="h-2 w-full cursor-pointer accent-cyan-400"
+                aria-label="kWh τον μήνα"
+              />
+              <label className="flex shrink-0 items-center gap-1.5 rounded-xl bg-[#0a1028] px-3 py-2 ring-1 ring-white/15">
+                <input
+                  type="number" inputMode="numeric" min={1} max={5000} value={kwh}
+                  onChange={(e) => setKwh(Math.max(1, Math.min(5000, Number(e.target.value) || 0)))}
+                  className="w-16 bg-transparent text-right text-sm font-semibold text-white focus:outline-none"
+                />
+                <span className="text-xs text-slate-400">kWh/μήνα</span>
+              </label>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              ≈ {(kwh * 12).toLocaleString("el-GR")} kWh τον χρόνο. Τη βρίσκεις στον λογαριασμό ως «Κατανάλωση», διαιρεμένη με τους μήνες της περιόδου.
+            </p>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="text-xs font-semibold text-slate-300">Πάροχος σήμερα (προαιρετικό)</span>
+                <span className="relative mt-1 block">
+                  <select
+                    className="w-full appearance-none rounded-xl bg-[#0a1028] py-2.5 pl-3 pr-9 text-sm text-slate-100 ring-1 ring-white/15 focus:outline-none focus:ring-2 focus:ring-cyan-400/60"
+                    value={provider}
+                    onChange={(e) => { setProvider(e.target.value); setCurrentId(""); }}
+                  >
+                    <option value="">Δεν ξέρω / άλλος</option>
+                    {providers.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">▾</span>
+                </span>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-slate-300">Πρόγραμμα σήμερα (προαιρετικό)</span>
+                <span className="relative mt-1 block">
+                  <select
+                    disabled={!provider}
+                    className="w-full appearance-none rounded-xl bg-[#0a1028] py-2.5 pl-3 pr-9 text-sm text-slate-100 ring-1 ring-white/15 focus:outline-none focus:ring-2 focus:ring-cyan-400/60 disabled:opacity-50"
+                    value={currentId}
+                    onChange={(e) => setCurrentId(e.target.value)}
+                  >
+                    <option value="">Δεν ξέρω</option>
+                    {programs.map((t) => <option key={t.id} value={t.id}>{COLOR_INFO[t.color].emoji} {t.name}</option>)}
+                  </select>
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">▾</span>
+                </span>
+              </label>
+            </div>
+
+            {failed && <p className="mt-3 text-sm text-red-300">Δεν φορτώθηκαν οι τιμές. Ανανέωσε τη σελίδα.</p>}
+            <button type="button" disabled={!tariffs} onClick={calculate} className={`${btnPrimary} mt-5 w-full`}>
+              {tariffs ? "⚡ Δες τι σε συμφέρει" : "Φόρτωση τιμών…"}
+            </button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ManualSummary({ kwhMonth, bill, annualKwh, onUpload }: { kwhMonth: number; bill: Bill; annualKwh: number; onUpload: () => void }) {
+  return (
+    <Card title="Ο υπολογισμός σου">
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <Stat label="Κατανάλωση" value={`${kwhMonth.toLocaleString("el-GR")} kWh/μήνα`} />
+        <Stat label="Ανά έτος" value={`${annualKwh.toLocaleString("el-GR")} kWh`} />
+      </div>
+      {bill.provider && (
+        <div className="mt-2 rounded-xl bg-white/[0.03] px-3 py-2.5 text-sm ring-1 ring-white/10">
+          <span className="text-slate-400">Σήμερα: </span>
+          <span className="font-semibold text-white">{bill.provider}{bill.program_name ? ` · ${bill.program_name}` : ""}</span>
+          {bill.tariff_color && <span className="ml-2"><ColorBadge color={bill.tariff_color} /></span>}
+        </div>
+      )}
+      <p className="mt-3 text-xs text-slate-400">
+        Εκτίμηση με τις δημοσιευμένες τιμές{bill.program_name ? " του προγράμματός σου" : ""}. Για ακριβή σύγκριση με τις δικές σου
+        χρεώσεις και εκπτώσεις, ανέβασε τον λογαριασμό.
+      </p>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <button type="button" className={btnSecondary} onClick={onUpload}>📄 Ανέβασε λογαριασμό για ακρίβεια</button>
+        <button type="button" className={btnSecondary} onClick={() => document.getElementById("calc")?.scrollIntoView({ behavior: "smooth" })}>✏️ Άλλαξε κατανάλωση</button>
+      </div>
+    </Card>
   );
 }
 
@@ -726,8 +914,7 @@ function ProviderCatalog({ offers }: { offers: Offer[] | null }) {
   const [color, setColor] = useState<ColorFilter>("all");
 
   useEffect(() => {
-    fetch("/api/tariffs")
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
+    getTariffs()
       .then((d) => { setTariffs(d.tariffs); setUpdatedAt(d.updated_at); })
       .catch(() => setFailed(true));
   }, []);

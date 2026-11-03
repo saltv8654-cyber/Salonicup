@@ -59,3 +59,23 @@ create index if not exists events_name_idx on events (name, created_at desc);
 alter table leads enable row level security;
 alter table lead_activities enable row level security;
 alter table events enable row level security;
+
+-- Tariff catalogue, edited from /admin → Τιμές. When empty, the site uses data/tariffs.json.
+create table if not exists tariffs (
+  id                              text primary key,
+  created_at                      timestamptz not null default now(),
+  updated_at                      timestamptz not null default now(),
+  provider                        text not null,
+  name                            text not null,
+  color                           text not null check (color in ('blue', 'green', 'yellow', 'orange')),
+  fixed_monthly_eur               numeric(8, 2) not null,
+  price_per_kwh_eur               numeric(8, 5) not null,
+  price_per_kwh_with_discount_eur numeric(8, 5),
+  discount_condition              text,
+  min_duration_months             integer,
+  valid_month                     text not null,
+  url                             text,
+  active                          boolean not null default true
+);
+create index if not exists tariffs_provider_idx on tariffs (provider);
+alter table tariffs enable row level security;

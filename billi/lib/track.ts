@@ -1,7 +1,7 @@
 import { analyticsAllowed } from "./consent";
 
 /** Funnel events we record. Anything else is ignored so the table can't be filled with junk. */
-export const EVENT_NAMES = ["page_view", "upload_start", "analysis_ok", "analysis_error", "tariff_click", "lead_open", "lead_submit", "contact_click"] as const;
+export const EVENT_NAMES = ["page_view", "upload_start", "analysis_ok", "analysis_error", "tariff_click", "lead_open", "lead_submit", "contact_click", "manual_calc"] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 
 const SID_KEY = "billi_sid";

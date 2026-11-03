@@ -22,6 +22,7 @@ const EVENT_LABEL: Record<string, string> = {
   tariff_click: "Πάτησαν πρόγραμμα",
   lead_open: "Άνοιξαν φόρμα",
   lead_submit: "Έστειλαν φόρμα",
+  manual_calc: "Υπολόγισαν χωρίς λογαριασμό",
 };
 
 const eur = (n: number | null | undefined) =>
@@ -245,7 +246,7 @@ type FilterType = string;
 interface Row { key: string; label: string; count: number; filter: { type: FilterType; value: string } }
 interface Stats {
   days: number;
-  kpis: { visitors: number; returning: number; analyses: number; leads: number; signed: number; conversion: number; avgSavings: number | null; avgKwh: number | null };
+  kpis: { visitors: number; returning: number; analyses: number; manual?: number; leads: number; signed: number; conversion: number; avgSavings: number | null; avgKwh: number | null };
   daily: { date: string; visitors: number; analyses: number; leads: number }[];
   funnel: { name: string; sessions: number }[];
   breakdowns: Record<string, Row[]>;
@@ -259,15 +260,16 @@ interface SessionSummary {
 interface Drill { title: string; type?: FilterType; value?: string }
 
 const STEP_ICON: Record<string, string> = {
-  page_view: "👀", upload_start: "📄", analysis_ok: "✅", analysis_error: "⚠️", tariff_click: "🔗", lead_open: "📝", lead_submit: "🎯", contact_click: "📞",
+  page_view: "👀", upload_start: "📄", manual_calc: "🧮", analysis_ok: "✅", analysis_error: "⚠️", tariff_click: "🔗", lead_open: "📝", lead_submit: "🎯", contact_click: "📞",
 };
 const STEP_LABEL: Record<string, string> = {
   page_view: "Μπήκε στο site", upload_start: "Ανέβασε λογαριασμό", analysis_ok: "Πήρε ανάλυση", analysis_error: "Σφάλμα ανάλυσης",
   tariff_click: "Πάτησε πρόγραμμα", lead_open: "Άνοιξε τη φόρμα", lead_submit: "Έστειλε τη φόρμα", contact_click: "Πάτησε επικοινωνία",
+  manual_calc: "Υπολόγισε χωρίς λογαριασμό",
 };
 const PROP_LABEL: Record<string, string> = {
   provider: "Πάροχος", color: "Χρώμα", annual_kwh: "kWh/έτος", current_annual: "Σήμερα €/έτος", recommended_color: "Πρόταση",
-  best_savings: "Κέρδος €/έτος", tariff: "Πρόγραμμα", channel: "Κανάλι", message: "Μήνυμα", type: "Αρχείο",
+  best_savings: "Κέρδος €/έτος", tariff: "Πρόγραμμα", kwh_month: "kWh/μήνα", program: "Πρόγραμμα σήμερα", channel: "Κανάλι", message: "Μήνυμα", type: "Αρχείο",
 };
 const COLOR_WORD: Record<string, string> = { blue: "🔵 Μπλε", green: "🟢 Πράσινο", yellow: "🟡 Κίτρινο", orange: "🟠 Πορτοκαλί" };
 const DEVICE_ICON: Record<string, string> = { "Κινητό": "📱", "Υπολογιστής": "💻", "Tablet": "📲" };
@@ -483,6 +485,7 @@ function StatsView({ onOpenLead }: { onOpenLead: (id: string) => void }) {
   const kpiCards: { label: string; value: string; sub?: string; drill?: Drill }[] = k ? [
     { label: "Επισκέπτες", value: String(k.visitors), sub: `${k.returning} ξαναήρθαν`, drill: { title: "Όλοι οι επισκέπτες" } },
     { label: "Αναλύσεις", value: String(k.analyses), sub: k.visitors ? pct(k.analyses / k.visitors) : undefined, drill: { title: "Πήραν ανάλυση", type: "step", value: "analysis_ok" } },
+    { label: "Υπολογισμοί", value: String(k.manual ?? 0), sub: "χωρίς λογαριασμό", drill: { title: "Υπολόγισαν χωρίς λογαριασμό", type: "step", value: "manual_calc" } },
     { label: "Leads", value: String(k.leads), sub: `μετατροπή ${pct(k.conversion)}`, drill: { title: "Έστειλαν φόρμα", type: "lead", value: "yes" } },
     { label: "Υπογραφές", value: String(k.signed) },
     { label: "Μέση εξοικονόμηση", value: k.avgSavings !== null ? eur(k.avgSavings) : "—", sub: "ανά έτος, στην πρόταση" },
@@ -587,6 +590,289 @@ function StatsView({ onOpenLead }: { onOpenLead: (id: string) => void }) {
   );
 }
 
+/* ───────────── tariffs ───────────── */
+
+interface TariffRow {
+  id: string; created_at: string; updated_at: string; provider: string; name: string;
+  color: "blue" | "green" | "yellow" | "orange"; fixed_monthly_eur: number | string; price_per_kwh_eur: number | string;
+  price_per_kwh_with_discount_eur: number | string | null; discount_condition: string | null; min_duration_months: number | null;
+  valid_month: string; url: string | null; active: boolean;
+}
+const COLOR_OPTS = [
+  { v: "blue", l: "🔵 Μπλε (σταθερό)" }, { v: "green", l: "🟢 Πράσινο (ανακοινώνεται 1η του μήνα)" },
+  { v: "yellow", l: "🟡 Κίτρινο (χονδρεμπορική)" }, { v: "orange", l: "🟠 Πορτοκαλί (δυναμικό)" },
+] as const;
+const COLOR_DOT: Record<string, string> = { blue: "🔵", green: "🟢", yellow: "🟡", orange: "🟠" };
+const thisMonth = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Athens" }).slice(0, 7);
+const TARIFFS_SQL = `create table if not exists tariffs (
+  id text primary key,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  provider text not null,
+  name text not null,
+  color text not null check (color in ('blue', 'green', 'yellow', 'orange')),
+  fixed_monthly_eur numeric(8, 2) not null,
+  price_per_kwh_eur numeric(8, 5) not null,
+  price_per_kwh_with_discount_eur numeric(8, 5),
+  discount_condition text,
+  min_duration_months integer,
+  valid_month text not null,
+  url text,
+  active boolean not null default true
+);
+create index if not exists tariffs_provider_idx on tariffs (provider);
+alter table tariffs enable row level security;`;
+
+type TariffForm = {
+  provider: string; name: string; color: TariffRow["color"]; fixed_monthly_eur: string; price_per_kwh_eur: string;
+  price_per_kwh_with_discount_eur: string; discount_condition: string; min_duration_months: string; valid_month: string; url: string; active: boolean;
+};
+const toForm = (t?: TariffRow): TariffForm => ({
+  provider: t?.provider ?? "", name: t?.name ?? "", color: t?.color ?? "blue",
+  fixed_monthly_eur: t ? String(Number(t.fixed_monthly_eur)) : "", price_per_kwh_eur: t ? String(Number(t.price_per_kwh_eur)) : "",
+  price_per_kwh_with_discount_eur: t?.price_per_kwh_with_discount_eur != null ? String(Number(t.price_per_kwh_with_discount_eur)) : "",
+  discount_condition: t?.discount_condition ?? "", min_duration_months: t?.min_duration_months != null ? String(t.min_duration_months) : "",
+  valid_month: t?.valid_month ?? thisMonth(), url: t?.url ?? "", active: t?.active ?? true,
+});
+const dec = (v: string) => (v.trim() === "" ? null : Number(v.replace(",", ".")));
+
+function L({ t, children, hint }: { t: string; children: React.ReactNode; hint?: string }) {
+  return (
+    <label className="block text-xs text-slate-400">{t}<div className="mt-1">{children}</div>{hint && <div className="mt-0.5 text-[11px] text-slate-500">{hint}</div>}</label>
+  );
+}
+
+function TariffEditor({ initial, providers, onClose, onSaved }: { initial?: TariffRow; providers: string[]; onClose: () => void; onSaved: () => void }) {
+  const [f, setF] = useState<TariffForm>(toForm(initial));
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const set = <K extends keyof TariffForm>(k: K, v: TariffForm[K]) => setF((x) => ({ ...x, [k]: v }));
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    const body = {
+      provider: f.provider, name: f.name, color: f.color,
+      fixed_monthly_eur: dec(f.fixed_monthly_eur) ?? NaN, price_per_kwh_eur: dec(f.price_per_kwh_eur) ?? NaN,
+      price_per_kwh_with_discount_eur: dec(f.price_per_kwh_with_discount_eur),
+      discount_condition: f.discount_condition || null,
+      min_duration_months: f.min_duration_months ? Math.round(Number(f.min_duration_months)) : null,
+      valid_month: f.valid_month, url: f.url, active: f.active,
+    };
+    try {
+      await api(initial ? `/api/admin/tariffs/${encodeURIComponent(initial.id)}` : "/api/admin/tariffs", { method: initial ? "PUT" : "POST", body: JSON.stringify(body) });
+      onSaved();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex justify-end bg-black/60" onClick={onClose}>
+      <aside className="h-full w-full max-w-lg overflow-y-auto bg-[#060a1c] p-5 ring-1 ring-white/15" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-white">{initial ? "Αλλαγή προγράμματος" : "Νέο πρόγραμμα"}</h2>
+          <button className={btnGhost} onClick={onClose}>✕</button>
+        </div>
+        <form className="mt-4 space-y-3" onSubmit={save}>
+          <L t="Πάροχος *">
+            <input className={input} list="providers" value={f.provider} onChange={(e) => set("provider", e.target.value)} required />
+            <datalist id="providers">{providers.map((p) => <option key={p} value={p} />)}</datalist>
+          </L>
+          <L t="Όνομα προγράμματος *"><input className={input} value={f.name} onChange={(e) => set("name", e.target.value)} required /></L>
+          <L t="Χρώμα *">
+            <select className={input} value={f.color} onChange={(e) => set("color", e.target.value as TariffRow["color"])}>
+              {COLOR_OPTS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
+            </select>
+          </L>
+          <div className="grid grid-cols-2 gap-3">
+            <L t="Πάγιο €/μήνα *" hint="χωρίς ΦΠΑ"><input className={input} inputMode="decimal" value={f.fixed_monthly_eur} onChange={(e) => set("fixed_monthly_eur", e.target.value)} placeholder="5" required /></L>
+            <L t="Τιμή €/kWh *" hint="χωρίς ΦΠΑ, σε € (π.χ. 0.135)"><input className={input} inputMode="decimal" value={f.price_per_kwh_eur} onChange={(e) => set("price_per_kwh_eur", e.target.value)} placeholder="0.135" required /></L>
+            <L t="Τιμή με έκπτωση €/kWh" hint="αν υπάρχει έκπτωση υπό όρους"><input className={input} inputMode="decimal" value={f.price_per_kwh_with_discount_eur} onChange={(e) => set("price_per_kwh_with_discount_eur", e.target.value)} placeholder="0.120" /></L>
+            <L t="Δέσμευση (μήνες)"><input className={input} inputMode="numeric" value={f.min_duration_months} onChange={(e) => set("min_duration_months", e.target.value)} placeholder="12" /></L>
+          </div>
+          <L t="Όρος / σημείωση" hint="π.χ. «με έγκαιρη εξόφληση», «έως 200 kWh/μήνα»"><input className={input} value={f.discount_condition} onChange={(e) => set("discount_condition", e.target.value)} /></L>
+          <div className="grid grid-cols-2 gap-3">
+            <L t="Μήνας τιμής *"><input type="month" className={input} value={f.valid_month} onChange={(e) => set("valid_month", e.target.value)} required /></L>
+            <label className="flex items-end gap-2 pb-2 text-sm text-slate-300">
+              <input type="checkbox" className="h-4 w-4 accent-cyan-400" checked={f.active} onChange={(e) => set("active", e.target.checked)} /> Εμφανίζεται στο site
+            </label>
+          </div>
+          <L t="Link προγράμματος"><input className={input} value={f.url} onChange={(e) => set("url", e.target.value)} placeholder="https://..." /></L>
+          {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">⚠️ {error}</p>}
+          <button className={`${btn} w-full`} disabled={busy}>{busy ? "Αποθήκευση…" : "Αποθήκευση"}</button>
+        </form>
+      </aside>
+    </div>
+  );
+}
+
+function TariffsView() {
+  const [rows, setRows] = useState<TariffRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [missing, setMissing] = useState(false);
+  const [editing, setEditing] = useState<TariffRow | "new" | null>(null);
+  const [q, setQ] = useState("");
+  const [month, setMonth] = useState(thisMonth());
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const d = await api<{ tariffs: TariffRow[] }>("/api/admin/tariffs");
+      setRows(d.tariffs);
+      setMissing(false);
+    } catch (e: any) {
+      if (e.message === "missing_table") setMissing(true);
+      else setError(e.message);
+      setRows([]);
+    }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const providers = useMemo(() => [...new Set((rows ?? []).map((r) => r.provider))].sort((a, b) => a.localeCompare(b, "el")), [rows]);
+  const groups = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const list = (rows ?? []).filter((r) => !needle || `${r.provider} ${r.name}`.toLowerCase().includes(needle));
+    return providers.map((p) => ({ provider: p, list: list.filter((r) => r.provider === p) })).filter((g) => g.list.length > 0);
+  }, [rows, providers, q]);
+
+  const act = async (fn: () => Promise<unknown>, ok: string) => {
+    setMsg(null);
+    setError(null);
+    try {
+      await fn();
+      setMsg(ok);
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
+  if (!rows) return <p className="text-sm text-slate-500">Φόρτωση…</p>;
+
+  if (missing) {
+    return (
+      <div className={`${card} space-y-3`}>
+        <h2 className="text-lg font-semibold text-white">Ένα βήμα πριν</h2>
+        <p className="text-sm text-slate-300">
+          Για να αλλάζεις τιμές από εδώ, φτιάξε μία φορά τον πίνακα στο Supabase: <b>SQL Editor → New query</b>, επικόλλησε το
+          παρακάτω και πάτα <b>Run</b>. Μετά πάτα «Έλεγχος ξανά».
+        </p>
+        <pre className="max-h-64 overflow-auto rounded-xl bg-black/40 p-3 text-[11px] leading-relaxed text-slate-300 ring-1 ring-white/10">{TARIFFS_SQL}</pre>
+        <div className="flex gap-2">
+          <button className={btn} onClick={() => navigator.clipboard?.writeText(TARIFFS_SQL).then(() => setMsg("Αντιγράφηκε"))}>📋 Αντιγραφή</button>
+          <button className={btnGhost} onClick={load}>↻ Έλεγχος ξανά</button>
+        </div>
+        {msg && <p className="text-sm text-emerald-300">{msg}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-white">Τιμές παρόχων</h2>
+          <p className="text-xs text-slate-400">Ό,τι αλλάζεις εδώ εμφανίζεται αμέσως στο site. Τιμές χωρίς ΦΠΑ, μόνο προμήθεια.</p>
+        </div>
+        <button className={btn} onClick={() => setEditing("new")}>＋ Νέο πρόγραμμα</button>
+      </div>
+
+      {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">⚠️ {error}</p>}
+      {msg && <p className="rounded-xl bg-emerald-400/10 p-3 text-sm text-emerald-200">✓ {msg}</p>}
+
+      {rows.length === 0 ? (
+        <div className={`${card} space-y-3 text-sm text-slate-300`}>
+          <p>Δεν υπάρχουν ακόμα τιμές εδώ, οπότε το site δείχνει τις ενσωματωμένες τιμές Νοεμβρίου.</p>
+          <button className={btn} onClick={() => act(() => api("/api/admin/tariffs/import", { method: "POST" }), "Οι τρέχουσες τιμές εισήχθησαν")}>
+            ⬇ Εισαγωγή των τρεχουσών τιμών
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className={`${card} flex flex-wrap items-end gap-2`}>
+            <label className="text-xs text-slate-400">Νέος μήνας για όλα τα ενεργά
+              <input type="month" className={`${input} mt-1 w-44`} value={month} onChange={(e) => setMonth(e.target.value)} />
+            </label>
+            <button
+              className={btnGhost}
+              onClick={() => confirm(`Να γίνουν όλα τα ενεργά προγράμματα «${month}»; Έλεγξε πρώτα ότι οι τιμές τους ισχύουν.`) &&
+                act(() => api("/api/admin/tariffs", { method: "PATCH", body: JSON.stringify({ valid_month: month }) }), `Ο μήνας άλλαξε σε ${month}`)}
+            >
+              📅 Εφαρμογή
+            </button>
+            <input className={`${input} min-w-0 flex-1`} placeholder="Αναζήτηση…" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+
+          <div className="space-y-3">
+            {groups.map((g) => (
+              <div key={g.provider} className={card}>
+                <div className="flex items-center justify-between">
+                  <div className="font-semibold text-white">{g.provider}</div>
+                  <div className="text-xs text-slate-500">{g.list.length} προγράμματα</div>
+                </div>
+                <ul className="mt-2 divide-y divide-white/5">
+                  {g.list.map((t) => (
+                    <li key={t.id} className={`flex flex-wrap items-center justify-between gap-2 py-2.5 ${t.active ? "" : "opacity-50"}`}>
+                      <div className="min-w-0">
+                        <div className="text-sm text-slate-100">{COLOR_DOT[t.color]} {t.name}{!t.active && <span className="ml-2 text-xs text-slate-500">(κρυφό)</span>}</div>
+                        <div className="text-xs text-slate-400">
+                          {Number(t.price_per_kwh_with_discount_eur ?? t.price_per_kwh_eur).toFixed(4)} €/kWh · πάγιο {Number(t.fixed_monthly_eur).toFixed(2)} € · {t.valid_month}
+                          {t.discount_condition ? ` · ${t.discount_condition}` : ""}
+                        </div>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button className={btnGhost + " !px-3 !py-1.5 text-xs"} onClick={() => setEditing(t)}>✏️ Αλλαγή</button>
+                        <button
+                          className={btnGhost + " !px-3 !py-1.5 text-xs"}
+                          onClick={() => act(() => api(`/api/admin/tariffs/${encodeURIComponent(t.id)}`, {
+                            method: "PUT",
+                            body: JSON.stringify({ ...toBody(t), active: !t.active }),
+                          }), t.active ? "Κρύφτηκε από το site" : "Εμφανίζεται ξανά")}
+                        >
+                          {t.active ? "🙈 Απόκρυψη" : "👁 Εμφάνιση"}
+                        </button>
+                        <button
+                          className={btnGhost + " !px-3 !py-1.5 text-xs"}
+                          onClick={() => confirm(`Διαγραφή «${t.provider} ${t.name}»;`) && act(() => api(`/api/admin/tariffs/${encodeURIComponent(t.id)}`, { method: "DELETE" }), "Διαγράφηκε")}
+                        >
+                          🗑
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {editing && (
+        <TariffEditor
+          initial={editing === "new" ? undefined : editing}
+          providers={providers}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); setMsg("Αποθηκεύτηκε"); load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function toBody(t: TariffRow) {
+  return {
+    provider: t.provider, name: t.name, color: t.color,
+    fixed_monthly_eur: Number(t.fixed_monthly_eur), price_per_kwh_eur: Number(t.price_per_kwh_eur),
+    price_per_kwh_with_discount_eur: t.price_per_kwh_with_discount_eur != null ? Number(t.price_per_kwh_with_discount_eur) : null,
+    discount_condition: t.discount_condition, min_duration_months: t.min_duration_months, valid_month: t.valid_month, url: t.url ?? "",
+  };
+}
+
 /* ───────────── page ───────────── */
 
 function toCsv(leads: Lead[]) {
@@ -602,7 +888,7 @@ export default function Admin() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"leads" | "stats">("leads");
+  const [tab, setTab] = useState<"leads" | "stats" | "tariffs">("leads");
   const [status, setStatus] = useState<"all" | "open" | LeadStatus>("open");
   const [q, setQ] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -654,6 +940,7 @@ export default function Admin() {
         <div className="flex gap-2">
           <button className={tab === "leads" ? btn : btnGhost} onClick={() => setTab("leads")}>Πελάτες</button>
           <button className={tab === "stats" ? btn : btnGhost} onClick={() => setTab("stats")}>Στατιστικά</button>
+          <button className={tab === "tariffs" ? btn : btnGhost} onClick={() => setTab("tariffs")}>Τιμές</button>
           <button
             className={btnGhost}
             onClick={async () => {
@@ -668,7 +955,9 @@ export default function Admin() {
 
       {error && <p className="mt-4 rounded-xl bg-red-500/10 p-3 text-sm text-red-300 ring-1 ring-red-400/30">⚠️ {error}</p>}
 
-      {tab === "stats" ? (
+      {tab === "tariffs" ? (
+        <div className="mt-6"><TariffsView /></div>
+      ) : tab === "stats" ? (
         <div className="mt-6"><StatsView onOpenLead={setOpenId} /></div>
       ) : (
         <>

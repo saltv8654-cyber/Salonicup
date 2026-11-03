@@ -203,6 +203,7 @@ export function buildStats(map: Map<string, SessionSummary>, leads: LeadRef[], d
       visitors: sessions.length,
       returning: sessions.filter((s) => s.days.length > 1).length,
       analyses: analysed.length,
+      manual: sessions.filter((s) => s.steps.includes("manual_calc")).length,
       leads: leads.length,
       signed: leads.filter((l) => ["signed", "active"].includes(l.status)).length,
       conversion: sessions.length ? leads.length / sessions.length : 0,
