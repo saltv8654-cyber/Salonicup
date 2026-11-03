@@ -108,8 +108,8 @@ export async function extractBill(file: { buffer: Buffer; mimeType: "application
     messages: [{ role: "user", content: [source, { type: "text", text: "Ανάλυσε αυτόν τον λογαριασμό ρεύματος." }] }],
   });
 
-  if (res.stop_reason === "refusal") throw new Error("Το AI αρνήθηκε να αναλύσει το αρχείο. Δοκίμασε άλλο αρχείο.");
-  if (res.stop_reason === "max_tokens" || !res.parsed_output) throw new Error("Το AI δεν επέστρεψε έγκυρα δεδομένα. Δοκίμασε ξανά.");
+  if (res.stop_reason === "refusal") throw new Error("Το Billi δεν μπόρεσε να αναλύσει αυτό το αρχείο. Δοκίμασε άλλο αρχείο.");
+  if (res.stop_reason === "max_tokens" || !res.parsed_output) throw new Error("Το Billi δεν κατάφερε να διαβάσει τον λογαριασμό. Δοκίμασε ξανά.");
 
   const bill = res.parsed_output;
   if (bill.consistency_discount !== null) bill.consistency_discount = Math.abs(bill.consistency_discount);

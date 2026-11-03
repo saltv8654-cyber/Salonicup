@@ -59,10 +59,10 @@ export async function POST(req: NextRequest) {
       if (/image|5 ?MB|dimensions/i.test(detail)) {
         return NextResponse.json({ error: "Η φωτογραφία δεν έγινε δεκτή (πολύ μεγάλη ή μη έγκυρη). Δοκίμασε στιγμιότυπο οθόνης ή PDF." }, { status: 422 });
       }
-      return NextResponse.json({ error: `Σφάλμα AI (400): ${detail}` }, { status: 502 });
+      return NextResponse.json({ error: `Σφάλμα ανάλυσης (400): ${detail}` }, { status: 502 });
     }
     if (err instanceof Anthropic.APIError) {
-      return NextResponse.json({ error: `Σφάλμα AI (${err.status ?? "δίκτυο"}). Δοκίμασε ξανά.` }, { status: 502 });
+      return NextResponse.json({ error: `Σφάλμα ανάλυσης (${err.status ?? "δίκτυο"}). Δοκίμασε ξανά.` }, { status: 502 });
     }
     return NextResponse.json({ error: err?.message ?? "Άγνωστο σφάλμα" }, { status: 500 });
   }

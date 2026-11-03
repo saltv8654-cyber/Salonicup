@@ -189,7 +189,7 @@ export default function Home() {
               {loading ? (
                 <>
                   <div className="h-12 w-12 animate-spin rounded-full border-2 border-white/10 border-t-cyan-300" />
-                  <p className="mt-4 font-semibold text-white">Το AI διαβάζει τον λογαριασμό…</p>
+                  <p className="mt-4 font-semibold text-white">Το Billi διαβάζει τον λογαριασμό…</p>
                   <p className="mt-1 text-sm text-slate-400">Συνήθως 5–15 δευτερόλεπτα</p>
                 </>
               ) : (
@@ -329,7 +329,7 @@ function TopBar({ onNew }: { onNew?: () => void }) {
 }
 
 function Steps({ current }: { current: number }) {
-  const steps = ["Ανέβασμα", "Ανάλυση AI", "Πρόταση"];
+  const steps = ["Ανέβασμα", "Ανάλυση Billi", "Πρόταση"];
   return (
     <ol className="mt-6 flex items-center justify-center gap-2 text-xs sm:gap-3">
       {steps.map((s, i) => {
@@ -464,7 +464,7 @@ function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bil
         {c.recommendation && (
           <div className="gradient-border mt-5 rounded-xl">
             <div className="rounded-xl bg-[#081028] p-4 sm:p-5">
-              <div className="text-xs font-semibold uppercase tracking-wider text-gradient">✦ Πρόταση Billi AI</div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-gradient">✦ Πρόταση Billi</div>
               <div className="mt-1.5 text-lg font-semibold text-white">{COLOR_INFO[c.recommendation.color].emoji} {c.recommendation.text}</div>
 
               {recommended && (
@@ -653,7 +653,7 @@ function ComparisonView({ c, current, updatedAt }: { c: Comparison; current: Bil
 function HowItWorks() {
   const steps = [
     { icon: "📄", title: "Ανεβάζεις τον λογαριασμό", text: "PDF ή φωτογραφία από οποιονδήποτε πάροχο ρεύματος." },
-    { icon: "🤖", title: "Το AI τον διαβάζει", text: "Βρίσκει κατανάλωση, πάγιο, τιμή kWh, εκπτώσεις και χρώμα τιμολογίου." },
+    { icon: "⚡", title: "Το Billi τον διαβάζει", text: "Βρίσκει κατανάλωση, πάγιο, τιμή kWh, εκπτώσεις και χρώμα τιμολογίου." },
     { icon: "💡", title: "Παίρνεις πρόταση", text: "Υπολογίζουμε το ετήσιο κόστος σε κάθε πρόγραμμα για τη δική σου κατανάλωση." },
   ];
   return (
