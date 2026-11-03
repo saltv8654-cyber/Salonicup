@@ -107,6 +107,22 @@ function recommend(offers: Offer[], currentAnnual: number | null, kwh: number): 
   if (fixedShare >= 0.2) {
     reasons.push(`Με τη δική σου κατανάλωση το πάγιο είναι το ${Math.round(fixedShare * 100)}% του κόστους, γι' αυτό μετράει όσο και η τιμή της kWh.`);
   }
+  // Low consumers often ask whether a no-fixed-fee plan with a pricier kWh would be cheaper: give the break-even.
+  if (pick.tariff.fixed_monthly_eur > 0 && kwh > 0) {
+    const breakEven = cost(pick) / (1 + VAT) / kwh;
+    const zero = eligible.find((o) => o.tariff.fixed_monthly_eur === 0);
+    let line = `Ένα πρόγραμμα χωρίς πάγιο θα σε συνέφερε μόνο αν η kWh του ήταν κάτω από ~${breakEven.toFixed(3).replace(".", ",")} €.`;
+    if (zero) {
+      const zp = zero.tariff.price_per_kwh_with_discount_eur ?? zero.tariff.price_per_kwh_eur;
+      const diff = cost(zero) - cost(pick);
+      line += diff > 0
+        ? ` Το φθηνότερο χωρίς πάγιο (${zero.tariff.provider} ${zero.tariff.name}) έχει ${zp.toFixed(3).replace(".", ",")} €, άρα βγαίνει ~${fmt(diff)}/έτος ακριβότερο.`
+        : ` Το ${zero.tariff.provider} ${zero.tariff.name} χωρίς πάγιο βγαίνει φθηνότερο, αλλά με κυμαινόμενη τιμή.`;
+    }
+    reasons.push(line);
+  } else if (pick.tariff.fixed_monthly_eur === 0) {
+    reasons.push("Δεν έχει πάγιο, κάτι που με χαμηλή κατανάλωση μετράει πολύ.");
+  }
   if (pick.tariff.discount_condition) reasons.push(`Η τιμή ισχύει ${pick.tariff.discount_condition}.`);
 
   if (currentAnnual !== null) {
