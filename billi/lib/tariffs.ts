@@ -1,14 +1,8 @@
-import { get, put } from "@vercel/blob";
 import bundled from "@/data/tariffs.json";
 import bundledTelecom from "@/data/telecom.json";
 import bundledGas from "@/data/gas.json";
 import type { EnergyCategory, Tariff, TariffFile, TelecomFile, TelecomPlan } from "./types";
 import { db, dbConfigured } from "./db";
-
-const PATH = "tariffs/latest.json";
-
-/** A connected store exposes either a read-write token or, on newer projects, a store id used with Vercel OIDC. */
-export const blobConfigured = () => !!(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
 
 export interface TariffRow {
   id: string;
@@ -27,6 +21,17 @@ export interface TariffRow {
   active: boolean;
   /** missing before the gas upgrade (= electricity) */
   category?: EnergyCategory;
+  /** the columns below arrive with the energy-data migration */
+  segment?: "residential" | "business";
+  day_night?: boolean;
+  price_per_kwh_night_eur?: number | string | null;
+  promo_discount?: string | null;
+  early_termination_fee?: string | null;
+  conditions?: string | null;
+  valid_from?: string | null;
+  valid_until?: string | null;
+  last_verified_at?: string | null;
+  data_status?: "verified" | "unverified";
 }
 
 /** Supabase numerics arrive as strings; nulls become absent fields like in the JSON file. */
@@ -45,6 +50,15 @@ export function rowToTariff(r: TariffRow): Tariff {
     min_duration_months: n(r.min_duration_months),
     valid_month: r.valid_month,
     url: r.url ?? undefined,
+    day_night: r.day_night || undefined,
+    price_per_kwh_night_eur: n(r.price_per_kwh_night_eur),
+    promo_discount: r.promo_discount ?? undefined,
+    early_termination_fee: r.early_termination_fee ?? undefined,
+    conditions: r.conditions ?? undefined,
+    valid_from: r.valid_from ?? undefined,
+    valid_until: r.valid_until ?? undefined,
+    last_verified_at: r.last_verified_at ?? undefined,
+    data_status: r.data_status ?? "unverified",
   };
 }
 
@@ -53,7 +67,8 @@ async function loadFromDb(category: EnergyCategory): Promise<TariffFile | null> 
   if (!dbConfigured()) return null;
   const { data, error } = await db().from("tariffs").select("*").eq("active", true).order("provider").limit(1000);
   if (error || !data) return null;
-  const rows = (data as TariffRow[]).filter((r) => (r.category ?? "electricity") === category);
+  // Only published, active, residential programmes reach visitors; pending changes live in tariff_update_queue.
+  const rows = (data as TariffRow[]).filter((r) => (r.category ?? "electricity") === category && (r.segment ?? "residential") === "residential");
   if (rows.length === 0) return null;
   return {
     updated_at: rows.reduce((m, r) => (r.updated_at > m ? r.updated_at : m), rows[0].updated_at),
@@ -62,10 +77,7 @@ async function loadFromDb(category: EnergyCategory): Promise<TariffFile | null> 
   };
 }
 
-/**
- * Admin-edited tariffs first, then (electricity only) the synced Blob snapshot and the bundled file.
- * Gas falls back to data/gas.json, which holds only official, dated prices read from the providers' sites.
- */
+/** Published tariffs from the database first, then the bundled indicative files (data/tariffs.json, data/gas.json). */
 export async function loadTariffs(category: EnergyCategory = "electricity"): Promise<TariffFile> {
   try {
     const fromDb = await loadFromDb(category);
@@ -73,29 +85,11 @@ export async function loadTariffs(category: EnergyCategory = "electricity"): Pro
   } catch (e) {
     console.error("loadTariffs (db):", e);
   }
-  if (category === "gas") return bundledGas as TariffFile;
-  if (!blobConfigured()) return bundled as TariffFile;
-  try {
-    const res = await get(PATH, { access: "public", useCache: false });
-    if (res) return (await new Response(res.stream).json()) as TariffFile;
-  } catch (e) {
-    console.error("loadTariffs:", e);
-  }
-  return bundled as TariffFile;
+  return bundledTariffs(category);
 }
 
 export const bundledTariffs = (category: EnergyCategory = "electricity") =>
   (category === "gas" ? bundledGas : bundled) as TariffFile;
-
-export async function saveTariffs(data: TariffFile) {
-  await put(PATH, JSON.stringify(data, null, 2), {
-    access: "public",
-    contentType: "application/json",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    cacheControlMaxAge: 60,
-  });
-}
 
 export interface TelecomRow {
   id: string;

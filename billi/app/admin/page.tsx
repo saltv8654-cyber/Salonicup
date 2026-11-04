@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Lead, LeadActivity, LeadStatus } from "@/lib/db";
+import { L, SqlStep, api, btn, btnGhost, card, eur, input, when } from "./ui";
+import { EnergyView } from "./energy";
 
 const STATUS: Record<LeadStatus, { label: string; cls: string }> = {
   new: { label: "Νέο", cls: "bg-cyan-400/15 text-cyan-200 ring-cyan-300/40" },
@@ -25,23 +27,7 @@ const EVENT_LABEL: Record<string, string> = {
   manual_calc: "Υπολόγισαν χωρίς λογαριασμό",
 };
 
-const eur = (n: number | null | undefined) =>
-  n === null || n === undefined ? "—" : `${Number(n).toLocaleString("el-GR", { maximumFractionDigits: 0 })} €`;
-const when = (iso: string) => new Date(iso).toLocaleString("el-GR", { timeZone: "Europe/Athens", dateStyle: "short", timeStyle: "short" });
 
-const card = "rounded-2xl bg-white/[0.03] p-4 ring-1 ring-white/10";
-const input =
-  "w-full rounded-xl bg-[#0a1028] px-3 py-2 text-sm text-slate-100 ring-1 ring-white/15 focus:outline-none focus:ring-2 focus:ring-cyan-400/60";
-const btn = "rounded-xl bg-gradient-to-r from-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50";
-const btnGhost = "rounded-xl bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 ring-1 ring-white/15 hover:bg-white/10";
-
-async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, { ...init, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } });
-  const json = await res.json().catch(() => ({}));
-  if (res.status === 401) throw Object.assign(new Error("unauthorized"), { status: 401 });
-  if (!res.ok) throw new Error(json.error ?? `Σφάλμα ${res.status}`);
-  return json as T;
-}
 
 function Badge({ status }: { status: LeadStatus }) {
   return <span className={`whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${STATUS[status].cls}`}>{STATUS[status].label}</span>;
@@ -51,6 +37,9 @@ function Badge({ status }: { status: LeadStatus }) {
 
 function Login({ onDone }: { onDone: () => void }) {
   const [password, setPassword] = useState("");
+  const [name, setName] = useState(() => {
+    try { return localStorage.getItem("billi_admin_name") ?? ""; } catch { return ""; }
+  });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   return (
@@ -62,7 +51,8 @@ function Login({ onDone }: { onDone: () => void }) {
           setBusy(true);
           setError(null);
           try {
-            await api("/api/admin/login", { method: "POST", body: JSON.stringify({ password }) });
+            try { localStorage.setItem("billi_admin_name", name.trim()); } catch { /* private mode */ }
+            await api("/api/admin/login", { method: "POST", body: JSON.stringify({ password, name }) });
             onDone();
           } catch (err: any) {
             setError(err.message === "unauthorized" ? "Λάθος κωδικός" : err.message);
@@ -72,6 +62,7 @@ function Login({ onDone }: { onDone: () => void }) {
         }}
       >
         <h1 className="text-lg font-semibold text-white">Billi CRM</h1>
+        <input className={input} placeholder="Το όνομά σου (για το ιστορικό αλλαγών)" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} autoComplete="name" />
         <input type="password" autoFocus className={input} placeholder="Κωδικός" value={password} onChange={(e) => setPassword(e.target.value)} />
         {error && <p className="text-sm text-red-300">{error}</p>}
         <button className={`${btn} w-full`} disabled={busy}>{busy ? "…" : "Είσοδος"}</button>
@@ -656,6 +647,9 @@ interface TariffRow {
   color: "blue" | "green" | "yellow" | "orange"; fixed_monthly_eur: number | string; price_per_kwh_eur: number | string;
   price_per_kwh_with_discount_eur: number | string | null; discount_condition: string | null; min_duration_months: number | null;
   valid_month: string; url: string | null; active: boolean; category?: "electricity" | "gas";
+  day_night?: boolean; price_per_kwh_night_eur?: number | string | null; promo_discount?: string | null; early_termination_fee?: string | null;
+  conditions?: string | null; valid_from?: string | null; valid_until?: string | null; last_verified_at?: string | null;
+  data_status?: "verified" | "unverified"; updated_by?: string | null;
 }
 type EnergyCat = "electricity" | "gas";
 const rowCat = (r: TariffRow): EnergyCat => r.category ?? "electricity";
@@ -683,21 +677,6 @@ create table if not exists telecom_plans (
 );
 alter table telecom_plans enable row level security;`;
 
-function SqlStep({ title, text, sql, onRetry }: { title: string; text: React.ReactNode; sql: string; onRetry: () => void }) {
-  const [msg, setMsg] = useState<string | null>(null);
-  return (
-    <div className={`${card} space-y-3`}>
-      <h2 className="text-lg font-semibold text-white">{title}</h2>
-      <p className="text-sm text-slate-300">{text} Στο Supabase: <b>SQL Editor → New query</b>, επικόλλησε το παρακάτω και πάτα <b>Run</b>. Μετά πάτα «Έλεγχος ξανά».</p>
-      <pre className="max-h-64 overflow-auto rounded-xl bg-black/40 p-3 text-[11px] leading-relaxed text-slate-300 ring-1 ring-white/10">{sql}</pre>
-      <div className="flex gap-2">
-        <button className={btn} onClick={() => navigator.clipboard?.writeText(sql).then(() => setMsg("Αντιγράφηκε"))}>📋 Αντιγραφή</button>
-        <button className={btnGhost} onClick={onRetry}>↻ Έλεγχος ξανά</button>
-      </div>
-      {msg && <p className="text-sm text-emerald-300">{msg}</p>}
-    </div>
-  );
-}
 
 const COLOR_OPTS = [
   { v: "blue", l: "🔵 Μπλε (σταθερό)" }, { v: "green", l: "🟢 Πράσινο (ανακοινώνεται 1η του μήνα)" },
@@ -727,6 +706,8 @@ alter table tariffs enable row level security;`;
 type TariffForm = {
   provider: string; name: string; color: TariffRow["color"]; fixed_monthly_eur: string; price_per_kwh_eur: string;
   price_per_kwh_with_discount_eur: string; discount_condition: string; min_duration_months: string; valid_month: string; url: string; active: boolean;
+  day_night: boolean; price_per_kwh_night_eur: string; promo_discount: string; early_termination_fee: string; conditions: string;
+  valid_from: string; valid_until: string; verified: boolean;
 };
 const toForm = (t?: TariffRow, category?: EnergyCat): TariffForm => ({
   provider: t?.provider ?? "", name: t?.name ?? "", color: t?.color ?? "blue",
@@ -734,14 +715,12 @@ const toForm = (t?: TariffRow, category?: EnergyCat): TariffForm => ({
   price_per_kwh_with_discount_eur: t?.price_per_kwh_with_discount_eur != null ? String(Number(t.price_per_kwh_with_discount_eur)) : "",
   discount_condition: t?.discount_condition ?? "", min_duration_months: t?.min_duration_months != null ? String(t.min_duration_months) : "",
   valid_month: t?.valid_month ?? thisMonth(), url: t?.url ?? "", active: t?.active ?? true,
+  day_night: !!t?.day_night, price_per_kwh_night_eur: t?.price_per_kwh_night_eur != null ? String(Number(t.price_per_kwh_night_eur)) : "",
+  promo_discount: t?.promo_discount ?? "", early_termination_fee: t?.early_termination_fee ?? "", conditions: t?.conditions ?? "",
+  valid_from: t?.valid_from ?? "", valid_until: t?.valid_until ?? "", verified: false,
 });
 const dec = (v: string) => (v.trim() === "" ? null : Number(v.replace(",", ".")));
 
-function L({ t, children, hint }: { t: string; children: React.ReactNode; hint?: string }) {
-  return (
-    <label className="block text-xs text-slate-400">{t}<div className="mt-1">{children}</div>{hint && <div className="mt-0.5 text-[11px] text-slate-500">{hint}</div>}</label>
-  );
-}
 
 function TariffEditor({ initial, providers, onClose, onSaved, category }: { initial?: TariffRow; providers: string[]; onClose: () => void; onSaved: () => void; category: EnergyCat }) {
   const [f, setF] = useState<TariffForm>(toForm(initial));
@@ -760,6 +739,10 @@ function TariffEditor({ initial, providers, onClose, onSaved, category }: { init
       discount_condition: f.discount_condition || null,
       min_duration_months: f.min_duration_months ? Math.round(Number(f.min_duration_months)) : null,
       valid_month: f.valid_month, url: f.url, active: f.active, category,
+      day_night: f.day_night, price_per_kwh_night_eur: f.day_night ? dec(f.price_per_kwh_night_eur) : null,
+      promo_discount: f.promo_discount || null, early_termination_fee: f.early_termination_fee || null, conditions: f.conditions || null,
+      valid_from: f.valid_from || null, valid_until: f.valid_until || null,
+      ...(f.verified ? { verified: true } : {}),
     };
     try {
       await api(initial ? `/api/admin/tariffs/${encodeURIComponent(initial.id)}` : "/api/admin/tariffs", { method: initial ? "PUT" : "POST", body: JSON.stringify(body) });
@@ -802,7 +785,31 @@ function TariffEditor({ initial, providers, onClose, onSaved, category }: { init
               <input type="checkbox" className="h-4 w-4 accent-cyan-400" checked={f.active} onChange={(e) => set("active", e.target.checked)} /> Εμφανίζεται στο site
             </label>
           </div>
-          <L t="Link προγράμματος"><input className={input} value={f.url} onChange={(e) => set("url", e.target.value)} placeholder="https://..." /></L>
+          <details className="rounded-xl bg-white/[0.02] p-3 ring-1 ring-white/10" open={!!(f.day_night || f.promo_discount || f.early_termination_fee || f.conditions || f.valid_from || f.valid_until)}>
+            <summary className="cursor-pointer text-xs font-semibold text-slate-300">Περισσότερα: νύχτα, προσφορές, όροι, ισχύς</summary>
+            <div className="mt-3 space-y-3">
+              {category === "electricity" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="flex items-end gap-2 pb-2 text-sm text-slate-300">
+                    <input type="checkbox" className="h-4 w-4 accent-cyan-400" checked={f.day_night} onChange={(e) => set("day_night", e.target.checked)} /> Ημέρα / νύχτα
+                  </label>
+                  {f.day_night && <L t="Νυχτερινή €/kWh"><input className={input} inputMode="decimal" value={f.price_per_kwh_night_eur} onChange={(e) => set("price_per_kwh_night_eur", e.target.value)} placeholder="0.090" /></L>}
+                </div>
+              )}
+              <L t="Προωθητική έκπτωση" hint="π.χ. «−20% τους 3 πρώτους μήνες»"><input className={input} value={f.promo_discount} onChange={(e) => set("promo_discount", e.target.value)} /></L>
+              <L t="Χρέωση πρόωρης λήξης"><input className={input} value={f.early_termination_fee} onChange={(e) => set("early_termination_fee", e.target.value)} /></L>
+              <L t="Λοιποί όροι"><input className={input} value={f.conditions} onChange={(e) => set("conditions", e.target.value)} /></L>
+              <div className="grid grid-cols-2 gap-3">
+                <L t="Ισχύει από"><input type="date" className={input} value={f.valid_from} onChange={(e) => set("valid_from", e.target.value)} /></L>
+                <L t="Ισχύει έως"><input type="date" className={input} value={f.valid_until} onChange={(e) => set("valid_until", e.target.value)} /></L>
+              </div>
+            </div>
+          </details>
+          <L t="Link προγράμματος (πηγή)"><input className={input} value={f.url} onChange={(e) => set("url", e.target.value)} placeholder="https://..." /></L>
+          <label className="flex items-start gap-2 rounded-xl bg-emerald-400/[0.05] p-3 text-sm text-slate-300 ring-1 ring-emerald-300/20">
+            <input type="checkbox" className="mt-0.5 h-4 w-4 accent-emerald-400" checked={f.verified} onChange={(e) => set("verified", e.target.checked)} />
+            <span>Έλεγξα τώρα την τιμή στην επίσημη πηγή του παρόχου. <span className="text-xs text-slate-500">Χωρίς αυτό, στο site φαίνεται ως «ενδεικτική».</span></span>
+          </label>
           {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">⚠️ {error}</p>}
           <button className={`${btn} w-full`} disabled={busy}>{busy ? "Αποθήκευση…" : "Αποθήκευση"}</button>
         </form>
@@ -922,7 +929,12 @@ function TariffsView({ category }: { category: EnergyCat }) {
                   {g.list.map((t) => (
                     <li key={t.id} className={`flex flex-wrap items-center justify-between gap-2 py-2.5 ${t.active ? "" : "opacity-50"}`}>
                       <div className="min-w-0">
-                        <div className="text-sm text-slate-100">{COLOR_DOT[t.color]} {t.name}{!t.active && <span className="ml-2 text-xs text-slate-500">(κρυφό)</span>}</div>
+                        <div className="text-sm text-slate-100">
+                          {COLOR_DOT[t.color]} {t.name}{!t.active && <span className="ml-2 text-xs text-slate-500">(κρυφό)</span>}
+                          {t.data_status === "verified" && t.last_verified_at
+                            ? <span className="ml-2 text-[11px] text-emerald-300" title={`Επιβεβαιώθηκε ${when(t.last_verified_at)}`}>✓ {new Date(t.last_verified_at).toLocaleDateString("el-GR")}</span>
+                            : <span className="ml-2 text-[11px] text-amber-200">ενδεικτική</span>}
+                        </div>
                         <div className="text-xs text-slate-400">
                           {Number(t.price_per_kwh_with_discount_eur ?? t.price_per_kwh_eur).toFixed(4)} €/kWh · πάγιο {Number(t.fixed_monthly_eur).toFixed(2)} € · {t.valid_month}
                           {t.discount_condition ? ` · ${t.discount_condition}` : ""}
@@ -1195,7 +1207,7 @@ export default function Admin() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"leads" | "stats" | "tariffs">("leads");
+  const [tab, setTab] = useState<"leads" | "stats" | "tariffs" | "energy">("leads");
   const [status, setStatus] = useState<"all" | "open" | LeadStatus>("open");
   const [q, setQ] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -1244,10 +1256,11 @@ export default function Admin() {
     <main className="mx-auto max-w-5xl px-4 pb-16 pt-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-extrabold text-white">Billi <span className="text-gradient">CRM</span></h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button className={tab === "leads" ? btn : btnGhost} onClick={() => setTab("leads")}>Πελάτες</button>
           <button className={tab === "stats" ? btn : btnGhost} onClick={() => setTab("stats")}>Στατιστικά</button>
           <button className={tab === "tariffs" ? btn : btnGhost} onClick={() => setTab("tariffs")}>Τιμές</button>
+          <button className={tab === "energy" ? btn : btnGhost} onClick={() => setTab("energy")}>⚡ Ενέργεια</button>
           <button
             className={btnGhost}
             onClick={async () => {
@@ -1262,7 +1275,9 @@ export default function Admin() {
 
       {error && <p className="mt-4 rounded-xl bg-red-500/10 p-3 text-sm text-red-300 ring-1 ring-red-400/30">⚠️ {error}</p>}
 
-      {tab === "tariffs" ? (
+      {tab === "energy" ? (
+        <div className="mt-6"><EnergyView /></div>
+      ) : tab === "tariffs" ? (
         <div className="mt-6"><PricesView /></div>
       ) : tab === "stats" ? (
         <div className="mt-6"><StatsView onOpenLead={setOpenId} /></div>

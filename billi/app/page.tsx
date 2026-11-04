@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import type { Bill, Category, EnergyCategory, Tariff, TariffColor, TelecomBill, TelecomPlan } from "@/lib/types";
 import { CATEGORY_INFO, COLOR_INFO } from "@/lib/types";
 import { avgMonthly, compareTelecom, type TelecomComparison, type TelecomOffer, type TelecomSide } from "@/lib/telecom";
-import { compare, type Comparison, type Offer } from "@/lib/compare";
+import { compare, reliability, type Comparison, type Offer } from "@/lib/compare";
 import { sessionId, track, trafficSource } from "@/lib/track";
 import { CookieSettingsLink } from "./consent";
 
@@ -1145,9 +1145,11 @@ function ComparisonView({ c, current, updatedAt, category = "electricity" }: { c
                   <div className="min-w-0">
                     <div className="font-semibold text-white">{recommended.tariff.provider} · {recommended.tariff.name}</div>
                     <div className="text-xs text-slate-400">{offerPrice(recommended).toFixed(3)} €/kWh · πάγιο {eur(recommended.tariff.fixed_monthly_eur)}</div>
+                    <TariffReliability t={recommended.tariff} />
                   </div>
                   <div className="text-right">
                     <div className="whitespace-nowrap text-xl font-bold text-white">{eur(offerAnnual(recommended), 0)}<span className="text-xs font-normal text-slate-400">/έτος</span></div>
+                    <div className="text-xs text-slate-400">~{eur(offerAnnual(recommended) / 12, 0)}/μήνα</div>
                     {recommended.savings !== null && recommended.savings > 0 && (
                       <div className="text-xs text-emerald-300">κερδίζεις {eur(recommended.savings, 0)}</div>
                     )}
@@ -1300,10 +1302,13 @@ function ComparisonView({ c, current, updatedAt, category = "electricity" }: { c
                         <div className="rounded-lg bg-white/[0.03] py-2 ring-1 ring-white/10">
                           <div className="text-[10px] uppercase tracking-wider text-slate-500">Ετήσιο</div>
                           <div className="text-sm font-bold text-white">{eur(offerAnnual(o), 0)}</div>
+                          <div className="text-[10px] text-slate-500">~{eur(offerAnnual(o) / 12, 0)}/μήνα</div>
                         </div>
                       </div>
 
                       {o.tariff.discount_condition && <p className="mt-2 text-xs text-slate-500">ℹ️ {o.tariff.discount_condition}</p>}
+                      <TariffDetails t={o.tariff} />
+                      <TariffReliability t={o.tariff} />
 
                       <div className="mt-3 flex items-center justify-between gap-3">
                         {o.savings !== null ? (
@@ -1327,14 +1332,53 @@ function ComparisonView({ c, current, updatedAt, category = "electricity" }: { c
           </>
         )}
 
-        <p className="mt-5 text-xs text-slate-500">
-          Ποσά με ΦΠΑ 6%, μόνο χρεώσεις προμήθειας. Οι ρυθμιζόμενες χρεώσεις, οι δημοτικοί φόροι και η ΕΡΤ είναι ίδια σε
-          όλους τους παρόχους. Η ετήσια κατανάλωση είναι γραμμική προέκταση της περιόδου του λογαριασμού.
+        <details className="group mt-5 rounded-xl bg-white/[0.02] p-3 ring-1 ring-white/10">
+          <summary className="cursor-pointer list-none text-xs font-semibold text-slate-300">
+            🧮 Πώς υπολογίστηκε <span className="text-slate-500 group-open:hidden">▾</span><span className="hidden text-slate-500 group-open:inline">▴</span>
+          </summary>
+          <ul className="mt-2 space-y-1 text-xs text-slate-400">
+            {(c.assumptions ?? []).map((a) => <li key={a} className="flex gap-2"><span className="text-cyan-300">•</span><span>{a}</span></li>)}
+          </ul>
+        </details>
+        <p className="mt-3 text-xs text-slate-500">
+          Ποσά με ΦΠΑ 6%, μόνο χρεώσεις προμήθειας.
           {updatedAt && <> Τιμές ενημερώθηκαν: {new Date(updatedAt).toLocaleDateString("el-GR", { timeZone: "Europe/Athens" })}.</>}
         </p>
       </Card>
     </>
   );
+}
+
+const shortDay = (d: string) => new Date(d.length === 10 ? `${d}T12:00:00` : d).toLocaleDateString("el-GR", { timeZone: "Europe/Athens", day: "numeric", month: "numeric", year: "2-digit" });
+
+/** Night price, promotions and contract terms, when the provider publishes them. */
+function TariffDetails({ t }: { t: Tariff }) {
+  const bits = [
+    t.day_night && t.price_per_kwh_night_eur !== undefined ? `🌙 νύχτα ${t.price_per_kwh_night_eur.toFixed(3)} €/kWh` : null,
+    t.promo_discount ? `🎁 ${t.promo_discount}` : null,
+    t.min_duration_months ? `📄 διάρκεια ${t.min_duration_months} μήνες` : null,
+    t.early_termination_fee ? `⚠️ πρόωρη λήξη: ${t.early_termination_fee}` : null,
+    t.conditions ? `ℹ️ ${t.conditions}` : null,
+  ].filter(Boolean) as string[];
+  if (bits.length === 0) return null;
+  return <ul className="mt-1.5 space-y-0.5 text-xs text-slate-500">{bits.map((b) => <li key={b}>{b}</li>)}</ul>;
+}
+
+/** Is this price confirmed? Never present an indicative or expired price as a confirmed one. */
+function TariffReliability({ t }: { t: Tariff }) {
+  const { expired, unverified } = reliability(t);
+  const until = t.valid_until ? ` · ισχύει έως ${shortDay(t.valid_until)}` : "";
+  if (expired) {
+    return <p className="mt-2 inline-block rounded-lg bg-red-500/10 px-2 py-1 text-[11px] text-red-300 ring-1 ring-red-400/30">⛔ Η ισχύς του προγράμματος έληξε στις {shortDay(t.valid_until!)}. Επιβεβαίωσε την τιμή με τον πάροχο.</p>;
+  }
+  if (unverified) {
+    return (
+      <p className="mt-2 inline-block rounded-lg bg-amber-400/10 px-2 py-1 text-[11px] text-amber-200 ring-1 ring-amber-300/30">
+        ⚠️ Ενδεικτική τιμή: {t.last_verified_at ? `τελευταία επιβεβαίωση ${shortDay(t.last_verified_at)}` : "δεν έχει επιβεβαιωθεί από την πηγή"}{until}
+      </p>
+    );
+  }
+  return <p className="mt-2 text-[11px] text-emerald-300/80">✓ Επιβεβαιώθηκε από την πηγή στις {shortDay(t.last_verified_at!)}{until}</p>;
 }
 
 /* ───────────── programmes per provider ───────────── */
@@ -1437,6 +1481,8 @@ function ProviderCatalog({ offers, category }: { offers: Offer[] | null; categor
                                   {t.min_duration_months ? ` · δέσμευση ${t.min_duration_months} μήνες` : ""}
                                 </div>
                                 {t.discount_condition && <div className="mt-0.5 text-xs text-slate-500">ℹ️ {t.discount_condition}</div>}
+                                <TariffDetails t={{ ...t, min_duration_months: undefined }} />
+                                <TariffReliability t={t} />
                               </div>
                               <div className="flex shrink-0 flex-col items-end gap-1.5">
                                 {annual !== undefined && (
