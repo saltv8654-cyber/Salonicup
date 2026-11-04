@@ -708,6 +708,14 @@ function SourcesView({ onChanged }: { onChanged: () => void }) {
         <p className="text-xs text-slate-400">Επίσημες σελίδες και PDF των παρόχων. Ελέγχονται αυτόματα κάθε πρωί (06:00).</p>
         <div className="flex gap-2">
           <button className={btn + small} disabled={anyRunning} onClick={runAll}>{anyRunning ? "⏳ Έλεγχος…" : "↻ Έλεγχος όλων τώρα"}</button>
+          <button className={btnGhost + small} disabled={anyRunning} onClick={async () => {
+            try {
+              const r = await api<{ added: number }>("/api/admin/energy/sources/suggested", { method: "POST", body: "{}" });
+              setError(null);
+              setResults([{ source_id: "suggested", label: "Προτεινόμενες πηγές", status: "ok", message: r.added ? `Προστέθηκαν ${r.added} νέες πηγές. Πάτα «Έλεγχος όλων τώρα».` : "Υπάρχουν ήδη όλες.", found: 0, queued: 0, verified: 0 }]);
+              load();
+            } catch (e: any) { setError(e.message); }
+          }}>＋ Προτεινόμενες πηγές</button>
           <button className={btnGhost + small} onClick={() => setEditing("new")}>＋ Νέα πηγή</button>
         </div>
       </div>
