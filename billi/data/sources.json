@@ -1,0 +1,137 @@
+{
+  "note": "Επίσημες σελίδες τιμών, βρέθηκαν με αναζήτηση στα sites των παρόχων (11/2026). Το Billi τις διαβάζει και κάθε τιμή περνά από έγκριση.",
+  "sources": [
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Ιστορικότητα τιμών οικιακών (όλα τα προγράμματα)",
+      "url": "https://zenith.gr/el/for-the-home/pricing-history/",
+      "kind": "html"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Όλα τα προϊόντα ρεύματος & ειδικοί όροι",
+      "url": "https://zenith.gr/el/for-the-home/electricity/all-power-products/",
+      "kind": "html"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Ρεύμα για το σπίτι (λίστα, ZeNergy)",
+      "url": "https://zenith.gr/el/for-the-home/electricity/",
+      "kind": "html"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Home Fixed Protect 2.0",
+      "url": "https://zenith.gr/el/for-the-home/electricity/power-home-fixed-protect-2-0/",
+      "kind": "html"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Home Prime 2Y",
+      "url": "https://zenith.gr/el/for-the-home/electricity/power-home-prime-2y/",
+      "kind": "html"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Home Fixed Safe 12M Promo",
+      "url": "https://zenith.gr/el/for-the-home/electricity/power-home-fixed-safe-12m-promo/",
+      "kind": "html"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Home Fixed Prime",
+      "url": "https://zenith.gr/el/for-the-home/electricity/power-home-fixed-prime/",
+      "kind": "html"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Home Fixed Scale",
+      "url": "https://zenith.gr/el/for-the-home/electricity/power-home-fixed-scale/",
+      "kind": "html"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Home Fixed Protect Digital",
+      "url": "https://zenith.gr/el/for-the-home/electricity/power-home-fixed-1y/",
+      "kind": "html"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Home Flex",
+      "url": "https://zenith.gr/el/for-the-home/electricity/power-home-flex/",
+      "kind": "html"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Home Light",
+      "url": "https://zenith.gr/el/for-the-home/electricity/power-home-light/",
+      "kind": "html"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Home Student GO",
+      "url": "https://zenith.gr/el/for-the-home/electricity/el-for-the-home-electricity-power-home-student/",
+      "kind": "html"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Home Save 3.0",
+      "url": "https://zenith.gr/el/for-the-home/electricity/power-home-save/",
+      "kind": "html"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Home Go Electric Plus",
+      "url": "https://zenith.gr/el/for-the-home/electricity/power-home-go-electric-plus/",
+      "kind": "html"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Home Start",
+      "url": "https://zenith.gr/el/for-the-home/electricity/power-home-start/",
+      "kind": "html"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Home Flow",
+      "url": "https://zenith.gr/el/for-the-home/electricity/power-home-flow/",
+      "kind": "html"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Home Now",
+      "url": "https://zenith.gr/el/for-the-home/electricity/power-home-now/",
+      "kind": "html"
+    },
+    {
+      "provider": "elin",
+      "label": "ΕΛΙΝ · Power On! Home Green (τιμοκατάλογος 2026)",
+      "url": "https://energy.elin.gr/media/jzvfqrci/anartisi_timon_power_on-home_green.pdf",
+      "kind": "pdf"
+    },
+    {
+      "provider": "elin",
+      "label": "ΕΛΙΝ · Power On! Blue Home 12M (ειδικοί όροι)",
+      "url": "https://energy.elin.gr/media/gryn2ghz/eidikoi_oroi_power-on-blue_home_12m_-v1.pdf",
+      "kind": "pdf"
+    },
+    {
+      "provider": "dei",
+      "label": "ΔΕΗ · Γ1/Γ1Ν Οικιακό",
+      "url": "https://www.dei.gr/en/home/electricity/g1-g1n/",
+      "kind": "html"
+    },
+    {
+      "provider": "protergia",
+      "label": "Protergia · Χρεώσεις οικιακών τιμολογίων",
+      "url": "https://www.protergia.gr/el/pricesres/",
+      "kind": "html"
+    },
+    {
+      "provider": "fysikoaerio",
+      "label": "Φυσικό Αέριο ΕΕΕ · Οικιακά ρεύμα",
+      "url": "https://fysikoaerioellados.gr/el/home/revma",
+      "kind": "html"
+    }
+  ]
+}
