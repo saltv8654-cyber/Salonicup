@@ -71,7 +71,7 @@ interface Proposal {
 }
 
 /** Checks one source: fetch → extract → compare with what is published → queue the differences. */
-export async function runSource(source: Source, trigger: "cron" | "manual", admin: string | null = null): Promise<RunResult> {
+export async function runSource(source: Source, trigger: "cron" | "manual", admin: string | null = null, preloaded?: FetchedDoc): Promise<RunResult> {
   const started = new Date().toISOString();
   const base = { source_id: source.id, label: source.label };
   const { data: log } = await db()
@@ -108,7 +108,8 @@ export async function runSource(source: Source, trigger: "cron" | "manual", admi
       return await finish({ status: d.found ? "ok" : "failed", message: d.message, found: d.found, queued: 0, verified: 0 });
     }
 
-    const doc = await fetchDocument(source.url, source.kind);
+    // An uploaded price list arrives already read; everything else is fetched from its page.
+    const doc = preloaded ?? (await fetchDocument(source.url, source.kind as "auto" | "html" | "pdf"));
     const docPath = await storeDocument(doc, folder);
     const docMeta = { document_hash: doc.hash, document_path: docPath };
 
@@ -234,7 +235,7 @@ export async function runSource(source: Source, trigger: "cron" | "manual", admi
       const now = new Date().toISOString();
       const { data } = await db()
         .from("tariffs")
-        .update({ last_verified_at: now, data_status: "verified", source_id: source.id, updated_at: now })
+        .update({ last_verified_at: now, data_status: "verified", ...(preloaded ? {} : { source_id: source.id }), updated_at: now })
         .in("id", confirm)
         .select("id");
       verified = (data ?? []).length;

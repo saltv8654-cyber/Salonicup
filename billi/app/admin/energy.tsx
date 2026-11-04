@@ -665,6 +665,7 @@ function SourcesView({ onChanged }: { onChanged: () => void }) {
   const [sources, setSources] = useState<Source[] | null>(null);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [editing, setEditing] = useState<Source | "new" | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [running, setRunning] = useState<Record<string, boolean>>({});
   const [results, setResults] = useState<RunResult[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -723,6 +724,7 @@ function SourcesView({ onChanged }: { onChanged: () => void }) {
             } catch (e: any) { setError(e.message); }
           }}>＋ Προτεινόμενες πηγές</button>
           <button className={btnGhost + small} onClick={() => setEditing("new")}>＋ Νέα πηγή</button>
+          <button className={btnGhost + small} onClick={() => setUploading(true)}>📄 Ανέβασε τιμοκατάλογο</button>
         </div>
       </div>
       {error === "missing_site_migration" ? (
@@ -750,7 +752,7 @@ function SourcesView({ onChanged }: { onChanged: () => void }) {
                   {!s.enabled && <Chip cls="bg-white/5 text-slate-400 ring-white/15">Ανενεργή</Chip>}
                 </div>
                 <div className="text-xs text-slate-400">{provName(s.provider_id)} · {s.kind === "site" ? "🌐 Ολόκληρο site" : s.kind === "pdf" ? "PDF" : s.discovered_from ? "↳ βρέθηκε αυτόματα" : "Σελίδα"} · {s.segment === "business" ? "επαγγελματικά" : s.segment === "both" ? "οικιακά & επαγγελματικά" : "οικιακά"} · κάθε {s.check_every_hours} ώρες · τελευταίος έλεγχος {ago(s.last_checked_at)}</div>
-                <a href={s.url} target="_blank" rel="noreferrer" className="block truncate text-xs text-cyan-300 underline">{s.url}</a>
+                {s.url.startsWith("upload:") ? <span className="block text-xs text-slate-500">ανεβασμένο αρχείο</span> : <a href={s.url} target="_blank" rel="noreferrer" className="block truncate text-xs text-cyan-300 underline">{s.url}</a>}
                 {s.last_status === "failed" && s.last_error && <p className="mt-1 text-xs text-red-300">⚠️ {s.last_error}</p>}
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -764,9 +766,73 @@ function SourcesView({ onChanged }: { onChanged: () => void }) {
           </div>
         ))}
       </div>
+      {uploading && (
+        <UploadPanel providers={providers} onClose={() => setUploading(false)} onDone={(r) => { setUploading(false); setResults((x) => [r, ...x]); load(); onChanged(); }} />
+      )}
       {editing && (
         <SourceEditor initial={editing === "new" ? undefined : editing} providers={providers} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
       )}
+    </div>
+  );
+}
+
+function UploadPanel({ providers, onClose, onDone }: { providers: Provider[]; onClose: () => void; onDone: (r: RunResult) => void }) {
+  const [provider, setProvider] = useState("");
+  const [segment, setSegment] = useState("both");
+  const [pageUrl, setPageUrl] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const send = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return setError("Διάλεξε αρχείο");
+    setBusy(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.set("file", file);
+      fd.set("provider_id", provider);
+      fd.set("segment", segment);
+      fd.set("page_url", pageUrl.trim() && !/^https?:\/\//i.test(pageUrl.trim()) ? `https://${pageUrl.trim()}` : pageUrl.trim());
+      const res = await fetch("/api/admin/energy/upload", { method: "POST", body: fd });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error ?? `Σφάλμα ${res.status}`);
+      onDone(j.result);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-40 flex justify-end bg-black/60" onClick={onClose}>
+      <aside className="h-full w-full max-w-lg overflow-y-auto bg-[#060a1c] p-5 ring-1 ring-white/15" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-white">📄 Ανέβασε τιμοκατάλογο</h2>
+          <button className={btnGhost} onClick={onClose}>✕</button>
+        </div>
+        <p className="mt-2 text-sm text-slate-400">
+          Για sites που δεν επιτρέπουν αυτόματη ανάγνωση: κατέβασε από το site του παρόχου τον τιμοκατάλογο (PDF) ή αποθήκευσε τη σελίδα τιμών
+          (στον υπολογιστή: Αρχείο → Αποθήκευση ως → «Ιστοσελίδα, μόνο HTML»). Το Billi θα διαβάσει τις τιμές και θα τις βάλει για έγκριση.
+        </p>
+        <form className="mt-4 space-y-3" onSubmit={send}>
+          <L t="Πάροχος">
+            <select className={input} value={provider} onChange={(e) => setProvider(e.target.value)}>
+              <option value="">— Πολλοί πάροχοι —</option>
+              {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </L>
+          <L t="Πελάτες">
+            <select className={input} value={segment} onChange={(e) => setSegment(e.target.value)}>
+              <option value="both">Οικιακοί και επαγγελματικοί</option><option value="residential">Οικιακοί</option><option value="business">Επαγγελματικοί</option>
+            </select>
+          </L>
+          <L t="Από ποια σελίδα το πήρες" hint="Το link της σελίδας του παρόχου. Χρειάζεται ως πηγή για την έγκριση."><input className={input} value={pageUrl} onChange={(e) => setPageUrl(e.target.value)} placeholder="https://zenith.gr/..." /></L>
+          <L t="Αρχείο (PDF ή HTML, έως 4 MB)"><input type="file" accept="application/pdf,.pdf,text/html,.html,.htm" className={input} onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></L>
+          {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">⚠️ {error}</p>}
+          <button className={`${btn} w-full`} disabled={busy}>{busy ? "⏳ Ανάγνωση… (έως 1 λεπτό)" : "Ανάγνωση τιμών"}</button>
+        </form>
+      </aside>
     </div>
   );
 }
