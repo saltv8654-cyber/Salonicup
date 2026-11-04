@@ -1535,6 +1535,7 @@ function ProviderCatalog({ offers, category }: { offers: Offer[] | null; categor
 
 /* ───────────── lead form ───────────── */
 
+const SERVICES = ["Αλλαγή παρόχου ρεύματος", "Αλλαγή παρόχου φυσικού αερίου", "Internet / κινητή", "Έλεγχος λογαριασμού", "Άλλο"];
 const PREFERRED_TIMES = ["Οποιαδήποτε ώρα", "Πρωί (9–12)", "Μεσημέρι (12–15)", "Απόγευμα (15–18)", "Βράδυ (18–21)"];
 
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
@@ -1553,7 +1554,8 @@ const inputCls =
 function LeadModal({ target, result, telecomResult, category, billFile, onClose }: {
   target: LeadTarget; result: Result | null; telecomResult: TelecomResult | null; category: Category; billFile: File | null; onClose: () => void;
 }) {
-  const [form, setForm] = useState({ name: "", phone: "", email: "", preferred_time: PREFERRED_TIMES[0], message: "", consent_contact: false, consent_marketing: false, website: "" });
+  const defaultService = category === "gas" ? "Αλλαγή παρόχου φυσικού αερίου" : category === "telecom" ? "Internet / κινητή" : "Αλλαγή παρόχου ρεύματος";
+  const [form, setForm] = useState({ name: "", phone: "", email: "", preferred_time: PREFERRED_TIMES[0], requested_service: defaultService, message: "", consent_contact: false, consent_marketing: false, website: "" });
   const [attach, setAttach] = useState(false);
   const [attachNote, setAttachNote] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -1700,6 +1702,14 @@ function LeadModal({ target, result, telecomResult, category, billFile, onClose 
                 <input type="email" autoComplete="email" className={inputCls} value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="προαιρετικό" />
               </Field>
             </div>
+            <Field label="Τι χρειάζεσαι;">
+              <span className="relative block">
+                <select className={`${inputCls} appearance-none pr-9`} value={form.requested_service} onChange={(e) => set("requested_service", e.target.value)}>
+                  {SERVICES.map((x) => <option key={x}>{x}</option>)}
+                </select>
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">▾</span>
+              </span>
+            </Field>
             <Field label="Πότε να σε καλέσουμε;">
               <span className="relative block">
                 <select className={`${inputCls} appearance-none pr-9`} value={form.preferred_time} onChange={(e) => set("preferred_time", e.target.value)}>

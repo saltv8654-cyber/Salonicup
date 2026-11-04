@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { db, dbConfigured, type Lead } from "@/lib/db";
+import { db, dbConfigured, REQUESTED_SERVICES, type Lead } from "@/lib/db";
+import { currentUser } from "@/lib/user-auth";
 import { notifyNewLead } from "@/lib/notify";
 import { attachToken } from "@/lib/bill-files";
 
@@ -14,6 +15,7 @@ const LeadInput = z.object({
   phone: str(30).regex(/^\+?[\d\s()-]{8,20}$/, "Μη έγκυρο τηλέφωνο"),
   email: z.union([z.literal(""), z.string().trim().email("Μη έγκυρο email").max(200)]).optional(),
   preferred_time: str(50).optional(),
+  requested_service: z.enum(REQUESTED_SERVICES, { message: "Διάλεξε υπηρεσία από τη λίστα" }).optional(),
   message: str(1000).optional(),
   consent_contact: z.literal(true, { message: "Χρειάζεται η συναίνεσή σου για να σε καλέσουμε" }),
   consent_marketing: z.boolean().optional(),
@@ -60,9 +62,10 @@ export async function POST(req: NextRequest) {
   if (d.website) return NextResponse.json({ ok: true }); // bot: pretend success
 
   const c = d.context ?? {};
-  const { data, error } = await db()
-    .from("leads")
-    .insert({
+  const who = await currentUser(req).catch(() => null);
+  const row: Record<string, unknown> = {
+      requested_service: d.requested_service ?? null,
+      user_id: who?.user.id ?? null,
       name: d.name,
       phone: d.phone,
       email: d.email || null,
@@ -81,9 +84,14 @@ export async function POST(req: NextRequest) {
       bill: c.bill ?? null,
       source: d.source ?? null,
       session_id: d.session_id ?? null,
-    })
-    .select()
-    .single();
+  };
+  let { data, error } = await db().from("leads").insert(row).select().single();
+  // Before the accounts migration the two new columns don't exist yet.
+  if (error && /requested_service|user_id/.test(error.message)) {
+    delete row.requested_service;
+    delete row.user_id;
+    ({ data, error } = await db().from("leads").insert(row).select().single());
+  }
 
   if (error || !data) {
     console.error("lead insert failed:", error);
