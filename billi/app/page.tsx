@@ -7,7 +7,7 @@ import { avgMonthly, compareTelecom, type TelecomComparison, type TelecomOffer, 
 import { compare, reliability, type Comparison, type Offer } from "@/lib/compare";
 import { sessionId, track, trafficSource } from "@/lib/track";
 import { CookieSettingsLink } from "./consent";
-import { BillBreakdown, PicksView, ScoreCard } from "./insights";
+import { BillBreakdown, PicksView, SaveToProfile, ScoreCard } from "./insights";
 import { billiScore } from "@/lib/score";
 
 const CONTACT_PHONE = process.env.NEXT_PUBLIC_CONTACT_PHONE ?? "";
@@ -387,6 +387,7 @@ export default function Home() {
                 <>
                   {score && <ScoreCard s={score} />}
                   {result.comparison.picks && <PicksView c={result.comparison} onWant={openLead} />}
+                  {!result.manual && <SaveToProfile bill={result.bill} />}
                 </>
               );
             })()}
@@ -467,6 +468,7 @@ function TopBar({ onNew }: { onNew?: () => void }) {
         </button>
         <div className="flex items-center gap-2">
           {onNew && <button type="button" className={btnSmall} onClick={onNew}>＋ Νέα ανάλυση</button>}
+          <a href="/account" className={btnSmall} title="Ο λογαριασμός μου">👤<span className="hidden sm:inline"> Ο λογαριασμός μου</span></a>
           <div ref={ref} className="relative">
             <button
               type="button"

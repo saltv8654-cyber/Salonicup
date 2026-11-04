@@ -1,0 +1,96 @@
+/**
+ * Interface strings for the account area. Greek is the default; English is ready for when the site gets a
+ * language switch. Add a key to both dictionaries; a missing English string falls back to Greek.
+ */
+const el = {
+  account: "Ο λογαριασμός μου",
+  login: "Σύνδεση",
+  signup: "Δημιουργία λογαριασμού",
+  logout: "Αποσύνδεση",
+  email: "Email",
+  password: "Κωδικός (τουλάχιστον 8 χαρακτήρες)",
+  name: "Όνομα (προαιρετικό)",
+  forgot: "Ξέχασα τον κωδικό",
+  sendReset: "Στείλε μου σύνδεσμο",
+  newPassword: "Νέος κωδικός",
+  savePassword: "Αποθήκευση κωδικού",
+  consent: "Αποδέχομαι την Πολιτική Απορρήτου. Το Billi κρατά μόνο τα στοιχεία κατανάλωσης και κόστους που αποθηκεύω, όχι τα αρχεία των λογαριασμών.",
+  whyAccount: "Αποθήκευσε το προφίλ σου, κράτα ιστορικό λογαριασμών και πάρε ειδοποίηση όταν βγει φθηνότερο πρόγραμμα ή λήγει η σύμβασή σου.",
+  overview: "Η ενέργειά μου",
+  provider: "Πάροχος",
+  program: "Πρόγραμμα",
+  category: "Τιμολόγιο",
+  monthlyKwh: "Κατανάλωση / μήνα",
+  monthlyCost: "Εκτίμηση / μήνα",
+  annualCost: "Εκτίμηση / έτος",
+  perKwh: "Μέσο κόστος / kWh",
+  supplyOnly: "Χρεώσεις προμήθειας με ΦΠΑ",
+  avgBill: "Μέσος λογαριασμός / μήνα (όλες οι χρεώσεις)",
+  savings: "Εξοικονόμηση",
+  potentialSavings: "Πιθανή εξοικονόμηση / έτος",
+  cheapestAlt: "Φθηνότερη επιβεβαιωμένη επιλογή",
+  difference: "Διαφορά από το τωρινό",
+  estimateNote: "Εκτίμηση με επιβεβαιωμένες τιμές, όχι εγγύηση.",
+  noVerified: "Δεν υπάρχουν ακόμα επιβεβαιωμένες τιμές για σύγκριση.",
+  contract: "Σύμβαση",
+  contractEnd: "Λήξη",
+  remaining: "Απομένουν",
+  days: "ημέρες",
+  ended: "Έληξε",
+  earlyTermination: "Πρόωρη λήξη",
+  history: "Ιστορικό",
+  noBills: "Δεν έχεις αποθηκευμένους λογαριασμούς. Ανέβασε έναν στην αρχική και πάτα «Αποθήκευση στο προφίλ μου».",
+  consumption: "Κατανάλωση ανά μήνα (kWh)",
+  spending: "Κόστος ανά μήνα (€, χωρίς υπόλοιπα)",
+  yearly: "Ανά έτος",
+  alerts: "Ειδοποιήσεις",
+  noAlerts: "Καμία ειδοποίηση ακόμα. Ελέγχουμε κάθε πρωί.",
+  markRead: "Σήμανση όλων ως αναγνωσμένων",
+  checkNow: "Έλεγχος τώρα",
+  profile: "Το προφίλ μου",
+  saveProfile: "Αποθήκευση προφίλ",
+  settings: "Ρυθμίσεις ειδοποιήσεων",
+  inapp: "Ειδοποιήσεις μέσα στο Billi",
+  emailAlerts: "Ειδοποιήσεις με email",
+  verifyEmail: "Επιβεβαίωση email",
+  verified: "Το email επιβεβαιώθηκε",
+  minSavings: "Ειδοποίησέ με όταν η εξοικονόμηση ξεπερνά (€/έτος)",
+  reminderDays: "Υπενθύμιση πριν λήξει η σύμβαση (ημέρες)",
+  push: "Ειδοποιήσεις push στο κινητό: σύντομα",
+  deleteAccount: "Διαγραφή λογαριασμού",
+  deleteConfirm: "Οριστική διαγραφή του λογαριασμού και όλων των αποθηκευμένων στοιχείων;",
+  saved: "Αποθηκεύτηκε",
+  upload: "Ανάλυση νέου λογαριασμού",
+  fillProfile: "Συμπλήρωσε το προφίλ σου (ή ανέβασε έναν λογαριασμό) για να δεις κόστος, εξοικονόμηση και Billi Score.",
+} as const;
+
+export type MsgKey = keyof typeof el;
+
+const en: Partial<Record<MsgKey, string>> = {
+  account: "My account", login: "Sign in", signup: "Create account", logout: "Sign out", email: "Email",
+  password: "Password (at least 8 characters)", name: "Name (optional)", forgot: "Forgot password", sendReset: "Send me a link",
+  newPassword: "New password", savePassword: "Save password",
+  consent: "I accept the Privacy Policy. Billi keeps only the consumption and cost figures I save, never the bill files.",
+  whyAccount: "Save your profile, keep a history of your bills and get notified when a cheaper plan appears or your contract ends.",
+  overview: "My energy", provider: "Provider", program: "Plan", category: "Tariff", monthlyKwh: "Consumption / month",
+  monthlyCost: "Estimate / month", annualCost: "Estimate / year", perKwh: "Average cost / kWh", supplyOnly: "Supply charges incl. VAT",
+  avgBill: "Average bill / month (all charges)", savings: "Savings", potentialSavings: "Potential savings / year",
+  cheapestAlt: "Cheapest verified option", difference: "Difference from current", estimateNote: "Estimate with verified prices, not a guarantee.",
+  noVerified: "No verified prices to compare yet.", contract: "Contract", contractEnd: "Ends", remaining: "Remaining", days: "days",
+  ended: "Ended", earlyTermination: "Early termination", history: "History",
+  noBills: "No saved bills yet. Upload one on the home page and press “Save to my profile”.",
+  consumption: "Consumption per month (kWh)", spending: "Cost per month (€, without balances)", yearly: "Per year",
+  alerts: "Alerts", noAlerts: "No alerts yet. We check every morning.", markRead: "Mark all as read", checkNow: "Check now",
+  profile: "My profile", saveProfile: "Save profile", settings: "Alert settings", inapp: "In-app alerts", emailAlerts: "Email alerts",
+  verifyEmail: "Verify email", verified: "Email verified", minSavings: "Alert me when savings exceed (€/year)",
+  reminderDays: "Remind me before the contract ends (days)", push: "Mobile push notifications: coming soon",
+  deleteAccount: "Delete account", deleteConfirm: "Permanently delete the account and all saved data?", saved: "Saved",
+  upload: "Analyse a new bill", fillProfile: "Fill in your profile (or upload a bill) to see costs, savings and your Billi Score.",
+};
+
+export const dictionaries = { el, en };
+export type Locale = keyof typeof dictionaries;
+
+export function translator(locale: Locale = "el") {
+  return (k: MsgKey): string => (locale === "en" ? en[k] ?? el[k] : el[k]);
+}
