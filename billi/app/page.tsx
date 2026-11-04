@@ -52,8 +52,8 @@ function fetchOnce<T>(key: string, url: string): Promise<T> {
   }
   return catalogue.get(key)!;
 }
-const getTariffs = (category: EnergyCategory = "electricity") =>
-  fetchOnce<{ tariffs: Tariff[]; updated_at: string | null }>(`tariffs-${category}`, `/api/tariffs?category=${category}`);
+const getTariffs = (category: EnergyCategory = "electricity", segment: "residential" | "business" = "residential") =>
+  fetchOnce<{ tariffs: Tariff[]; updated_at: string | null }>(`tariffs-${category}-${segment}`, `/api/tariffs?category=${category}${segment === "business" ? "&segment=business" : ""}`);
 const getPlans = () => fetchOnce<{ plans: TelecomPlan[]; updated_at: string | null }>("telecom", "/api/tariffs?category=telecom");
 
 const eur = (n: number | null | undefined, digits = 2) =>
@@ -1404,15 +1404,18 @@ function ProviderCatalog({ offers, category }: { offers: Offer[] | null; categor
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [color, setColor] = useState<ColorFilter>("all");
+  const [segment, setSegment] = useState<"residential" | "business">("residential");
 
   useEffect(() => {
-    getTariffs(category)
+    setTariffs(null);
+    setFailed(false);
+    getTariffs(category, segment)
       .then((d) => { setTariffs(d.tariffs); setUpdatedAt(d.updated_at); })
       .catch(() => setFailed(true));
-  }, []);
+  }, [category, segment]);
 
-  // Annual cost for the uploaded bill's consumption, when there is one.
-  const annualById = useMemo(() => new Map((offers ?? []).map((o) => [o.tariff.id, offerAnnual(o)])), [offers]);
+  // Annual cost for the uploaded bill's consumption (a household bill: not for business programmes).
+  const annualById = useMemo(() => new Map(segment === "business" ? [] : (offers ?? []).map((o) => [o.tariff.id, offerAnnual(o)])), [offers, segment]);
 
   const groups = useMemo(() => {
     const byProvider = new Map<string, Tariff[]>();
@@ -1437,8 +1440,18 @@ function ProviderCatalog({ offers, category }: { offers: Offer[] | null; categor
     <Card
       id="providers"
       title="Προγράμματα ανά εταιρεία"
-      subtitle={offers ? "Με το ετήσιο κόστος για τη δική σου κατανάλωση" : "Ανέβασε λογαριασμό για να δεις και το ετήσιο κόστος για σένα"}
+      subtitle={segment === "business" ? "Επαγγελματικά τιμολόγια. Για σύγκριση με τον λογαριασμό της επιχείρησής σου, πάτα «Θέλω αυτό» και θα σε καλέσουμε." : offers ? "Με το ετήσιο κόστος για τη δική σου κατανάλωση" : "Ανέβασε λογαριασμό για να δεις και το ετήσιο κόστος για σένα"}
     >
+      {category === "electricity" && (
+        <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl bg-white/5 p-1 ring-1 ring-white/10" role="tablist" aria-label="Τύπος πελάτη">
+          {([["residential", "🏠 Για το σπίτι"], ["business", "🏢 Για την επιχείρηση"]] as const).map(([v, l]) => (
+            <button key={v} type="button" role="tab" aria-selected={segment === v} onClick={() => { setSegment(v); setColor("all"); }}
+              className={`rounded-lg py-2 text-sm font-semibold transition ${segment === v ? "bg-gradient-to-r from-blue-500 to-violet-500 text-white" : "text-slate-300 hover:text-white"}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="mt-4 flex flex-wrap gap-2">
         <button type="button" className={chip(color === "all")} onClick={() => setColor("all")}>Όλα τα χρώματα</button>
         {COLORS.filter((c) => category !== "gas" || c !== "orange").map((c) => (
@@ -1454,7 +1467,9 @@ function ProviderCatalog({ offers, category }: { offers: Offer[] | null; categor
         <div className="mt-4 space-y-2">{[0, 1, 2].map((i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-white/[0.04]" />)}</div>
       ) : groups.length === 0 ? (
         <p className="mt-4 rounded-xl bg-white/5 p-4 text-sm text-slate-400">
-          {tariffs.length === 0
+          {tariffs.length === 0 && segment === "business"
+            ? "Τα επαγγελματικά προγράμματα προστίθενται αυτές τις μέρες. Μέχρι τότε, πάτα «Να με καλέσετε» και ένας σύμβουλος θα σου πει τι συμφέρει την επιχείρησή σου."
+            : tariffs.length === 0
             ? "Οι τιμές ενημερώνονται αυτές τις μέρες. Μέχρι τότε, πάτα «Να με καλέσετε» και ένας σύμβουλος θα σου πει τι σε συμφέρει."
             : "Κανένα πρόγραμμα σε αυτό το χρώμα."}
         </p>

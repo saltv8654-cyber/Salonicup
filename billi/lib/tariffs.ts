@@ -63,12 +63,14 @@ export function rowToTariff(r: TariffRow): Tariff {
 }
 
 /** Tariffs of one category edited in /admin, or null when there are none there yet. */
-async function loadFromDb(category: EnergyCategory): Promise<TariffFile | null> {
+export type Segment = "residential" | "business";
+
+async function loadFromDb(category: EnergyCategory, segment: Segment = "residential"): Promise<TariffFile | null> {
   if (!dbConfigured()) return null;
   const { data, error } = await db().from("tariffs").select("*").eq("active", true).order("provider").limit(1000);
   if (error || !data) return null;
   // Only published, active, residential programmes reach visitors; pending changes live in tariff_update_queue.
-  const rows = (data as TariffRow[]).filter((r) => (r.category ?? "electricity") === category && (r.segment ?? "residential") === "residential");
+  const rows = (data as TariffRow[]).filter((r) => (r.category ?? "electricity") === category && (r.segment ?? "residential") === segment);
   if (rows.length === 0) return null;
   return {
     updated_at: rows.reduce((m, r) => (r.updated_at > m ? r.updated_at : m), rows[0].updated_at),
@@ -78,14 +80,15 @@ async function loadFromDb(category: EnergyCategory): Promise<TariffFile | null> 
 }
 
 /** Published tariffs from the database first, then the bundled indicative files (data/tariffs.json, data/gas.json). */
-export async function loadTariffs(category: EnergyCategory = "electricity"): Promise<TariffFile> {
+export async function loadTariffs(category: EnergyCategory = "electricity", segment: Segment = "residential"): Promise<TariffFile> {
   try {
-    const fromDb = await loadFromDb(category);
+    const fromDb = await loadFromDb(category, segment);
     if (fromDb) return fromDb;
   } catch (e) {
     console.error("loadTariffs (db):", e);
   }
-  return bundledTariffs(category);
+  // The bundled files are household programmes only.
+  return segment === "business" ? { updated_at: null, source: "", tariffs: [] } : bundledTariffs(category);
 }
 
 export const bundledTariffs = (category: EnergyCategory = "electricity") =>

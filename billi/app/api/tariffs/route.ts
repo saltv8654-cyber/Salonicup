@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
     const { updated_at, plans } = await loadTelecom();
     return NextResponse.json({ updated_at, plans });
   }
-  const { updated_at, tariffs } = await loadTariffs(category === "gas" ? "gas" : "electricity");
+  const segment = req.nextUrl.searchParams.get("segment") === "business" ? "business" : "residential";
+  const { updated_at, tariffs } = await loadTariffs(category === "gas" ? "gas" : "electricity", segment);
   return NextResponse.json({ updated_at, tariffs });
 }
