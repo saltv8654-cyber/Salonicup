@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import type { FetchedDoc } from "./fetch-source";
 
@@ -141,4 +142,40 @@ export function netOfVat(t: ExtractedTariff): ExtractedTariff {
     price_per_kwh_night_eur: n(t.price_per_kwh_night_eur, 5),
     price_per_kwh_with_discount_eur: n(t.price_per_kwh_with_discount_eur, 5),
   };
+}
+
+/**
+ * AI search: Claude looks the programmes up with web search (the search engine's public index, limited
+ * to the provider's own site) and reports only prices it saw in the results, with the page of each.
+ * Used for providers whose pages can't be read directly; everything is flagged for checking at the source.
+ */
+export async function searchTariffs(provider: { name: string; website: string | null }, segment: "residential" | "business" | "both"): Promise<Extraction> {
+  const host = provider.website ? new URL(provider.website).hostname.replace(/^www\./, "") : null;
+  const which = segment === "both" ? "οικιακά ΚΑΙ επαγγελματικά" : segment === "business" ? "επαγγελματικά" : "οικιακά";
+  const messages: Anthropic.Beta.BetaMessageParam[] = [{
+    role: "user",
+    content: `Ψάξε με το web_search τα ΤΡΕΧΟΝΤΑ ${which} τιμολόγια ρεύματος του προμηθευτή «${provider.name}»` +
+      `${host ? ` στο επίσημο site του (${host})` : ""}: όλα τα προγράμματα (μπλε, πράσινα, κίτρινα, πορτοκαλί). ` +
+      `Κάνε όσες αναζητήσεις χρειάζεται (π.χ. ανά χρώμα ή ανά όνομα προγράμματος). ` +
+      `Για κάθε πρόγραμμα: found_in "document", document_url = η σελίδα του αποτελέσματος όπου είδες την τιμή, ` +
+      `evidence = το απόσπασμα του αποτελέσματος. Αν μια τιμή δεν φαίνεται στα αποτελέσματα, βάλε null: μη συμπληρώνεις από μνήμη.`,
+  }];
+  for (let i = 0; i < 4; i++) {
+    const res = await anthropic().beta.messages.parse({
+      model: "claude-haiku-5-5",
+      max_tokens: 16000,
+      system: SYSTEM,
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 8, ...(host ? { allowed_domains: [host] } : {}) }],
+      output_config: { effort: "medium", format: betaZodOutputFormat(Extraction) },
+      messages,
+    });
+    if (res.stop_reason === "pause_turn") {
+      messages.push({ role: "assistant", content: res.content });
+      continue;
+    }
+    if (res.stop_reason === "refusal") throw new Error("Η αναζήτηση απορρίφθηκε");
+    if (!res.parsed_output) throw new Error("Η αναζήτηση δεν επέστρεψε αποτελέσματα");
+    return res.parsed_output;
+  }
+  throw new Error("Η αναζήτηση δεν ολοκληρώθηκε");
 }

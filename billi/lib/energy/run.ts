@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { notifyText } from "../notify";
-import { extractTariffs, netOfVat, type ExtractedTariff } from "./extract";
+import { extractTariffs, netOfVat, type ExtractedTariff, type Extraction } from "./extract";
 import { fetchDocument, storeDocument, type FetchedDoc } from "./fetch-source";
 import {
   DETAIL_FIELDS, PRICE_FIELDS, changedFields, normKey, rowToValues, sameValue,
@@ -71,7 +71,11 @@ interface Proposal {
 }
 
 /** Checks one source: fetch → extract → compare with what is published → queue the differences. */
-export async function runSource(source: Source, trigger: "cron" | "manual", admin: string | null = null, preloaded?: FetchedDoc): Promise<RunResult> {
+export async function runSource(
+  source: Source, trigger: "cron" | "manual", admin: string | null = null, preloaded?: FetchedDoc,
+  /** results of an AI web search: no page to fetch, no copy kept, every programme flagged for checking */
+  searched?: Extraction,
+): Promise<RunResult> {
   const started = new Date().toISOString();
   const base = { source_id: source.id, label: source.label };
   const { data: log } = await db()
@@ -108,19 +112,21 @@ export async function runSource(source: Source, trigger: "cron" | "manual", admi
       return await finish({ status: d.found ? "ok" : "failed", message: d.message, found: d.found, queued: 0, verified: 0 });
     }
 
-    // An uploaded price list arrives already read; everything else is fetched from its page.
-    const doc = preloaded ?? (await fetchDocument(source.url, source.kind as "auto" | "html" | "pdf"));
-    const docPath = await storeDocument(doc, folder);
-    const docMeta = { document_hash: doc.hash, document_path: docPath };
+    // An uploaded price list arrives already read; an AI search arrives already extracted; the rest is fetched.
+    const doc: FetchedDoc = searched
+      ? { url: source.url, type: "html", bytes: Buffer.alloc(0), text: null, pdfLinks: [], hash: "" }
+      : preloaded ?? (await fetchDocument(source.url, source.kind as "auto" | "html" | "pdf"));
+    const docPath = searched ? null : await storeDocument(doc, folder);
+    const docMeta = searched ? {} : { document_hash: doc.hash, document_path: docPath };
 
     // Unchanged since the last good check: the published programmes of this source are confirmed again.
-    if (source.last_hash === doc.hash && source.last_status !== "failed") {
+    if (!searched && source.last_hash === doc.hash && source.last_status !== "failed") {
       const verified = await reconfirm(source.id);
       return await finish({ status: "unchanged", message: "Η πηγή δεν άλλαξε από τον προηγούμενο έλεγχο", found: 0, queued: 0, verified }, docMeta);
     }
 
     const extra: FetchedDoc[] = [];
-    const { extraction, documents } = await extractTariffs(doc, {
+    const { extraction, documents } = searched ? { extraction: searched, documents: [] as FetchedDoc[] } : await extractTariffs(doc, {
       provider: owner?.name ?? null,
       fetchPdf: async (u) => {
         try {
@@ -184,6 +190,7 @@ export async function runSource(source: Source, trigger: "cron" | "manual", admi
       }
       if (t.found_in === "document" && !t.document_url) flags.push({ code: "no_document", level: "warning", message: "Η τιμή είναι από PDF αλλά δεν δόθηκε το link του" });
       if (t.prices_include_vat) flags.push({ code: "vat_removed", level: "warning", message: "Οι τιμές της πηγής είχαν ΦΠΑ· αφαιρέθηκε 6%" });
+      if (searched) flags.push({ code: "found_via_search", level: "warning", message: "Βρέθηκε με αναζήτηση AI στο web, όχι από ανάγνωση της σελίδας: άνοιξε το link και επιβεβαίωσε την τιμή." });
 
       const common = {
         key, provider: v.provider, provider_id: prov?.id ?? null, program: v.name,
@@ -201,7 +208,7 @@ export async function runSource(source: Source, trigger: "cron" | "manual", admi
       const priceDiff = changedFields(old, merged, PRICE_FIELDS);
       const detailDiff = changedFields(old, merged, DETAIL_FIELDS);
       if (priceDiff.length === 0 && detailDiff.length === 0) {
-        const evidenceOk = !flags.some((f) => f.code === "price_not_in_source" || f.code === "fee_not_in_source");
+        const evidenceOk = !searched && !flags.some((f) => f.code === "price_not_in_source" || f.code === "fee_not_in_source");
         if (evidenceOk) confirm.push(pubMatch!.id);
         continue;
       }
@@ -218,7 +225,7 @@ export async function runSource(source: Source, trigger: "cron" | "manual", admi
 
     // Programmes this source used to list and no longer does.
     for (const r of published) {
-      if (r.source_id !== source.id || !r.active || matchedIds.has(r.id)) continue;
+      if (searched || r.source_id !== source.id || !r.active || matchedIds.has(r.id)) continue;
       if (!wantedSegment(((r.segment as string) ?? "residential"))) continue;
       const old = rowToValues(r);
       proposals.push({

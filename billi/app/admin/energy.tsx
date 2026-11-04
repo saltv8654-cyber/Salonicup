@@ -713,6 +713,26 @@ function SourcesView({ onChanged }: { onChanged: () => void }) {
   };
   const anyRunning = Object.values(running).some(Boolean);
 
+  /** AI web search for one provider: proposals go to the approval queue, flagged for checking. */
+  const aiSearch = async (providerId: string, name: string) => {
+    const key = `ai:${providerId}`;
+    setRunning((r) => ({ ...r, [key]: true }));
+    try {
+      const { result } = await api<{ result: RunResult }>("/api/admin/energy/search", { method: "POST", body: JSON.stringify({ provider_id: providerId, segment: "both" }) });
+      setResults((r) => [{ ...result, source_id: key, label: `🔎 AI · ${name}` }, ...r.filter((x) => x.source_id !== key)]);
+    } catch (e: any) {
+      setResults((r) => [{ source_id: key, label: `🔎 AI · ${name}`, status: "failed", message: e.message, found: 0, queued: 0, verified: 0 }, ...r.filter((x) => x.source_id !== key)]);
+    } finally {
+      setRunning((r) => ({ ...r, [key]: false }));
+    }
+    load();
+    onChanged();
+  };
+  const aiAll = async () => {
+    setResults([]);
+    for (const p of providers.filter((x) => x.active)) await aiSearch(p.id, p.name);
+  };
+
   const [openProv, setOpenProv] = useState<Set<string>>(new Set());
   const groups = useMemo(() => {
     const m = new Map<string, { key: string; name: string; list: Source[] }>();
@@ -743,7 +763,9 @@ function SourcesView({ onChanged }: { onChanged: () => void }) {
         }}>＋ Προτεινόμενες</button>
         <button className={btnGhost + small} onClick={() => setEditing("new")}>＋ Νέα πηγή</button>
         <button className={btnGhost + small} onClick={() => setUploading(true)}>📄 Ανέβασε τιμοκατάλογο</button>
+        <button className={btnGhost + small + " col-span-2"} disabled={anyRunning} onClick={aiAll} title="Το AI ψάχνει στο web τα προγράμματα κάθε παρόχου">🔎 Αναζήτηση με AI σε όλους</button>
       </div>
+      <p className="text-[11px] text-slate-500">🔎 Η αναζήτηση με AI βρίσκει προγράμματα και τιμές μέσω μηχανής αναζήτησης, και για sites που δεν διαβάζονται απευθείας. Ό,τι βρει μπαίνει για έγκριση με σήμανση «έλεγξε στην πηγή».</p>
       {error === "missing_site_migration" ? (
         <SqlStep title="Μικρή αναβάθμιση για πηγές «ολόκληρο site»" text="Για να βάζεις σκέτο το site ενός παρόχου (π.χ. dei.gr), χρειάζεται μία φορά αυτό το SQL." sql={SITE_SQL} onRetry={() => { setError(null); load(); }} />
       ) : error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">⚠️ {error}</p>}
@@ -776,6 +798,12 @@ function SourcesView({ onChanged }: { onChanged: () => void }) {
                   {failed > 0 && <Chip cls={STATUS_CHIP.failed.cls}>✕ {failed}</Chip>}
                   {never > 0 && <Chip cls="bg-white/5 text-slate-400 ring-white/15">νέες {never}</Chip>}
                 </button>
+                {g.key !== "multi" && (
+                  <button className={btnGhost + small} disabled={!!running[`ai:${g.key}`]} title="Αναζήτηση των προγραμμάτων με AI"
+                    onClick={() => aiSearch(g.key, g.name)}>
+                    {running[`ai:${g.key}`] ? "⏳" : "🔎 AI"}
+                  </button>
+                )}
                 <button className={btnGhost + small} disabled={g.list.some((x) => running[x.id])} title="Έλεγχος όλων των πηγών του παρόχου"
                   onClick={async () => { for (const x of g.list.filter((y) => y.enabled)) await runOne(x); load(); onChanged(); }}>
                   {g.list.some((x) => running[x.id]) ? "⏳" : "↻"}
@@ -800,9 +828,9 @@ function SourcesView({ onChanged }: { onChanged: () => void }) {
                                     {!x.enabled && <Chip cls="bg-white/5 text-slate-400 ring-white/15">Ανενεργή</Chip>}
                                   </div>
                                   <div className="text-[11px] text-slate-500">
-                                    {x.kind === "site" ? "🌐 βρίσκει τις σελίδες μόνο του" : x.kind === "pdf" ? "PDF" : x.discovered_from ? "↳ βρέθηκε αυτόματα" : x.url.startsWith("upload:") ? "ανεβασμένο αρχείο" : "σελίδα"} · έλεγχος {ago(x.last_checked_at)}
+                                    {x.url.startsWith("search:") ? "αποτελέσματα αναζήτησης AI" : x.kind === "site" ? "🌐 βρίσκει τις σελίδες μόνο του" : x.kind === "pdf" ? "PDF" : x.discovered_from ? "↳ βρέθηκε αυτόματα" : x.url.startsWith("upload:") ? "ανεβασμένο αρχείο" : "σελίδα"} · έλεγχος {ago(x.last_checked_at)}
                                   </div>
-                                  {!x.url.startsWith("upload:") && <a href={x.url} target="_blank" rel="noreferrer" className="block truncate text-[11px] text-cyan-300/80 underline">{x.url.replace(/^https?:\/\/(www\.)?/, "")}</a>}
+                                  {!/^(upload|search):/.test(x.url) && <a href={x.url} target="_blank" rel="noreferrer" className="block truncate text-[11px] text-cyan-300/80 underline">{x.url.replace(/^https?:\/\/(www\.)?/, "")}</a>}
                                   {x.last_status === "failed" && x.last_error && <p className="mt-1 text-[11px] text-red-300">⚠️ {x.last_error}</p>}
                                 </div>
                               </div>
