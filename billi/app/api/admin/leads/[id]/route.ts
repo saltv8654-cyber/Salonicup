@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const STATUS_LABEL: Record<string, string> = {
-  new: "Νέο", contacted: "Επικοινωνία", offer: "Προσφορά", signed: "Υπογραφή", active: "Ενεργό", lost: "Χάθηκε",
+  new: "Νέο αίτημα", contacted: "Επικοινωνία", evaluation: "Υπό αξιολόγηση", offer: "Προσφορά", signed: "Υπογραφή", active: "Ολοκληρώθηκε", lost: "Απορρίφθηκε",
 };
 
 const Patch = z.object({

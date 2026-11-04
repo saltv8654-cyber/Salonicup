@@ -6,12 +6,13 @@ import { L, SqlStep, api, btn, btnGhost, card, eur, input, when } from "./ui";
 import { EnergyView } from "./energy";
 
 const STATUS: Record<LeadStatus, { label: string; cls: string }> = {
-  new: { label: "Νέο", cls: "bg-cyan-400/15 text-cyan-200 ring-cyan-300/40" },
+  new: { label: "Νέο αίτημα", cls: "bg-cyan-400/15 text-cyan-200 ring-cyan-300/40" },
   contacted: { label: "Επικοινωνία", cls: "bg-blue-400/15 text-blue-200 ring-blue-300/40" },
+  evaluation: { label: "Υπό αξιολόγηση", cls: "bg-indigo-400/15 text-indigo-200 ring-indigo-300/40" },
   offer: { label: "Προσφορά", cls: "bg-violet-400/15 text-violet-200 ring-violet-300/40" },
   signed: { label: "Υπογραφή", cls: "bg-emerald-400/15 text-emerald-200 ring-emerald-300/40" },
-  active: { label: "Ενεργό", cls: "bg-emerald-500/25 text-emerald-100 ring-emerald-300/50" },
-  lost: { label: "Χάθηκε", cls: "bg-white/5 text-slate-400 ring-white/15" },
+  active: { label: "Ολοκληρώθηκε", cls: "bg-emerald-500/25 text-emerald-100 ring-emerald-300/50" },
+  lost: { label: "Απορρίφθηκε", cls: "bg-white/5 text-slate-400 ring-white/15" },
 };
 const STATUS_ORDER = Object.keys(STATUS) as LeadStatus[];
 
@@ -210,6 +211,7 @@ function LeadDetail({ id, onClose, onChanged }: { id: string; onClose: () => voi
             </div>
 
             <div className={`${card} grid grid-cols-2 gap-x-4 gap-y-1 text-sm`}>
+              <span className="text-slate-500">Υπηρεσία</span><span className="text-white">{lead.requested_service ?? "—"}{lead.user_id ? <span className="ml-2 text-[11px] text-cyan-300">👤 έχει λογαριασμό</span> : null}</span>
               <span className="text-slate-500">Θέλει</span><span className="text-white">{lead.tariff_label ?? "Γενική επικοινωνία"}</span>
               <span className="text-slate-500">Τώρα</span><span>{[lead.current_provider, lead.current_program].filter(Boolean).join(" ") || "—"}</span>
               <span className="text-slate-500">Κατανάλωση</span><span>{lead.annual_kwh ? `${lead.annual_kwh.toLocaleString("el-GR")} kWh/έτος` : "—"}</span>
@@ -1195,7 +1197,7 @@ function TelecomAdminView() {
 /* ───────────── page ───────────── */
 
 function toCsv(leads: Lead[]) {
-  const cols: (keyof Lead)[] = ["created_at", "name", "phone", "email", "status", "tariff_label", "current_provider", "current_program", "annual_kwh", "current_annual", "offer_annual", "savings", "signed_provider", "expected_commission", "next_follow_up", "preferred_time", "message", "consent_marketing"];
+  const cols: (keyof Lead)[] = ["created_at", "name", "phone", "email", "status", "requested_service", "tariff_label", "current_provider", "current_program", "annual_kwh", "current_annual", "offer_annual", "savings", "signed_provider", "expected_commission", "next_follow_up", "preferred_time", "message", "consent_marketing"];
   const esc = (v: unknown) => {
     const s = v === null || v === undefined ? "" : String(v);
     return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -1210,6 +1212,7 @@ export default function Admin() {
   const [tab, setTab] = useState<"leads" | "stats" | "tariffs" | "energy">("leads");
   const [status, setStatus] = useState<"all" | "open" | LeadStatus>("open");
   const [q, setQ] = useState("");
+  const [service, setService] = useState("all");
   const [openId, setOpenId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -1235,14 +1238,16 @@ export default function Admin() {
     const needle = q.trim().toLowerCase();
     return leads
       .filter((l) => status === "all" || (status === "open" ? !["active", "lost"].includes(l.status) : l.status === status))
-      .filter((l) => !needle || [l.name, l.phone, l.email, l.tariff_label, l.current_provider].some((v) => v?.toLowerCase().includes(needle)));
-  }, [leads, status, q]);
+      .filter((l) => service === "all" || (l.requested_service ?? "—") === service)
+      .filter((l) => !needle || [l.name, l.phone, l.email, l.tariff_label, l.current_provider, l.current_program, l.requested_service].some((v) => v?.toLowerCase().includes(needle)));
+  }, [leads, status, q, service]);
+  const services = useMemo(() => [...new Set(leads.map((l) => l.requested_service ?? "—"))].sort(), [leads]);
 
   const kpi = useMemo(() => {
     const weekAgo = Date.now() - 7 * 86_400_000;
     return {
       newWeek: leads.filter((l) => new Date(l.created_at).getTime() >= weekAgo).length,
-      open: leads.filter((l) => ["new", "contacted", "offer"].includes(l.status)).length,
+      open: leads.filter((l) => ["new", "contacted", "evaluation", "offer"].includes(l.status)).length,
       signed: leads.filter((l) => ["signed", "active"].includes(l.status)).length,
       commission: leads.filter((l) => ["signed", "active"].includes(l.status)).reduce((s, l) => s + (Number(l.expected_commission) || 0), 0),
       due: leads.filter((l) => l.next_follow_up && l.next_follow_up <= today && !["active", "lost"].includes(l.status)).length,
@@ -1304,7 +1309,11 @@ export default function Admin() {
               <option value="all">Όλα</option>
               {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS[s].label}</option>)}
             </select>
-            <input className={`${input} min-w-0 flex-1`} placeholder="Αναζήτηση: όνομα, τηλέφωνο, πάροχος…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <select className={`${input} w-56`} value={service} onChange={(e) => setService(e.target.value)} aria-label="Υπηρεσία">
+              <option value="all">Όλες οι υπηρεσίες</option>
+              {services.map((x) => <option key={x} value={x}>{x === "—" ? "Χωρίς υπηρεσία" : x}</option>)}
+            </select>
+            <input className={`${input} min-w-0 flex-1`} placeholder="Αναζήτηση: όνομα, τηλέφωνο, πάροχος, υπηρεσία…" value={q} onChange={(e) => setQ(e.target.value)} />
             <button className={btnGhost} onClick={load}>↻</button>
             <button
               className={btnGhost}
@@ -1330,7 +1339,7 @@ export default function Admin() {
                         {l.name} <span className="font-normal text-slate-400">· {l.phone}</span>
                         {(l.bill as { _file?: unknown } | null)?._file ? <span className="ml-1.5" title="Επισύναψε λογαριασμό">📎</span> : null}
                       </div>
-                      <div className="truncate text-sm text-slate-400">{l.tariff_label ?? "Γενική επικοινωνία"}{l.current_provider ? ` · τώρα ${l.current_provider}` : ""}</div>
+                      <div className="truncate text-sm text-slate-400">{l.requested_service ? `${l.requested_service} · ` : ""}{l.tariff_label ?? "Γενική επικοινωνία"}{l.current_provider ? ` · τώρα ${l.current_provider}` : ""}{l.savings ? ` · εξοικονόμηση ~${eur(Number(l.savings))}` : ""}</div>
                     </div>
                     <div className="flex items-center gap-2">
                       {l.next_follow_up && l.next_follow_up <= today && !["active", "lost"].includes(l.status) && (

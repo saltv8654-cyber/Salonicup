@@ -22,7 +22,7 @@ export function db(): SupabaseClient {
   return client;
 }
 
-export const LEAD_STATUSES = ["new", "contacted", "offer", "signed", "active", "lost"] as const;
+export const LEAD_STATUSES = ["new", "contacted", "evaluation", "offer", "signed", "active", "lost"] as const;
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
 export interface Lead {
@@ -51,6 +51,9 @@ export interface Lead {
   signed_provider: string | null;
   expected_commission: number | null;
   next_follow_up: string | null;
+  /** what the customer asked for (arrives with the accounts migration) */
+  requested_service?: string | null;
+  user_id?: string | null;
 }
 
 export interface LeadActivity {
@@ -60,3 +63,12 @@ export interface LeadActivity {
   type: "note" | "call" | "email" | "status" | "system";
   body: string;
 }
+
+/** Services a customer can ask for; shown in the contact form and filtered in the CRM. */
+export const REQUESTED_SERVICES = [
+  "Αλλαγή παρόχου ρεύματος",
+  "Αλλαγή παρόχου φυσικού αερίου",
+  "Internet / κινητή",
+  "Έλεγχος λογαριασμού",
+  "Άλλο",
+] as const;
