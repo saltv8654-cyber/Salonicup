@@ -42,7 +42,7 @@ export type FlagLevel = "error" | "warning";
 export interface Flag { code: string; level: FlagLevel; message: string }
 
 /** Flags from comparing with the source document; they stay after an edit, while field checks are redone. */
-export const SOURCE_FLAG_CODES = ["duplicate", "unknown_provider", "no_evidence", "price_not_in_source", "fee_not_in_source", "no_document", "vat_removed", "missing_from_source"];
+export const SOURCE_FLAG_CODES = ["duplicate", "unknown_provider", "no_evidence", "price_not_in_source", "fee_not_in_source", "no_document", "vat_removed", "missing_from_source", "found_via_search"];
 
 export type ChangeType = "new" | "price_change" | "details_change" | "discontinued";
 export type QueueStatus = "pending" | "approved" | "rejected" | "superseded";
