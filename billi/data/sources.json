@@ -1,6 +1,83 @@
 {
-  "note": "Επίσημες σελίδες τιμών, βρέθηκαν με αναζήτηση στα sites των παρόχων (11/2026). Το Billi τις διαβάζει και κάθε τιμή περνά από έγκριση.",
+  "note": "Τα sites των παρόχων: το Billi βρίσκει μόνο του τις σελίδες τιμών (οικιακές και επαγγελματικές). Ακολουθούν συγκεκριμένες σελίδες που ήδη ξέρουμε.",
   "sources": [
+    {
+      "provider": "dei",
+      "label": "ΔΕΗ · ολόκληρο το site",
+      "url": "https://www.dei.gr/",
+      "kind": "site",
+      "segment": "both"
+    },
+    {
+      "provider": "protergia",
+      "label": "Protergia · ολόκληρο το site",
+      "url": "https://www.protergia.gr/",
+      "kind": "site",
+      "segment": "both"
+    },
+    {
+      "provider": "heron",
+      "label": "ΗΡΩΝ · ολόκληρο το site",
+      "url": "https://www.heron.gr/",
+      "kind": "site",
+      "segment": "both"
+    },
+    {
+      "provider": "nrg",
+      "label": "nrg · ολόκληρο το site",
+      "url": "https://www.nrg.gr/",
+      "kind": "site",
+      "segment": "both"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · ολόκληρο το site",
+      "url": "https://zenith.gr/",
+      "kind": "site",
+      "segment": "both"
+    },
+    {
+      "provider": "elpedison",
+      "label": "Elpedison · ολόκληρο το site",
+      "url": "https://www.elpedison.gr/",
+      "kind": "site",
+      "segment": "both"
+    },
+    {
+      "provider": "volton",
+      "label": "Volton · ολόκληρο το site",
+      "url": "https://www.volton.gr/",
+      "kind": "site",
+      "segment": "both"
+    },
+    {
+      "provider": "eunice",
+      "label": "EUNICE · ολόκληρο το site",
+      "url": "https://www.eunice.gr/",
+      "kind": "site",
+      "segment": "both"
+    },
+    {
+      "provider": "elin",
+      "label": "ΕΛΙΝ · ολόκληρο το site",
+      "url": "https://energy.elin.gr/",
+      "kind": "site",
+      "segment": "both"
+    },
+    {
+      "provider": "fysikoaerio",
+      "label": "Φυσικό Αέριο ΕΕΕ · ολόκληρο το site",
+      "url": "https://fysikoaerioellados.gr/",
+      "kind": "site",
+      "segment": "both"
+    },
+    {
+      "provider": "watt-volt",
+      "label": "Watt+Volt · ολόκληρο το site",
+      "url": "https://www.watt-volt.gr/",
+      "kind": "site",
+      "segment": "both"
+    },
     {
       "provider": "zenith",
       "label": "ZeniΘ · Ιστορικότητα τιμών οικιακών (όλα τα προγράμματα)",
