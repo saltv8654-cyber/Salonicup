@@ -84,6 +84,9 @@ export async function fetchDocument(url: string, expect: "auto" | "html" | "pdf"
     throw new Error(`Δεν ήταν δυνατή η σύνδεση με την πηγή${err.cause?.code ? ` (${err.cause.code})` : ""}`);
   });
   if (res.url && !sourceUrlAllowed(res.url)) throw new Error("Η πηγή ανακατευθύνει σε μη επιτρεπτή διεύθυνση");
+  if (res.status === 401 || res.status === 403 || res.status === 429) {
+    throw new Error(`Το site δεν επιτρέπει αυτόματη ανάγνωση (${res.status}). Κατέβασε τον τιμοκατάλογο (PDF) από το site και ανέβασέ τον με «📄 Ανέβασε τιμοκατάλογο».`);
+  }
   if (!res.ok) throw new Error(`Η πηγή απάντησε ${res.status}`);
   const len = Number(res.headers.get("content-length") ?? 0);
   if (len > MAX_BYTES) throw new Error("Το αρχείο είναι πάνω από 15 MB");
