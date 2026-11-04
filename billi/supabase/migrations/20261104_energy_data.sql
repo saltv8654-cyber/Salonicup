@@ -276,3 +276,6 @@ alter table tariffs              enable row level security;
 
 drop policy if exists "visitors read published tariffs" on tariffs;
 create policy "visitors read published tariffs" on tariffs for select to anon, authenticated using (active);
+alter table tariff_data_sources drop constraint if exists tariff_data_sources_kind_check;
+alter table tariff_data_sources add constraint tariff_data_sources_kind_check check (kind in ('auto', 'html', 'pdf', 'site'));
+alter table tariff_data_sources add column if not exists discovered_from uuid references tariff_data_sources (id) on delete set null;

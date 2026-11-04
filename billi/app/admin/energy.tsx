@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import MIGRATION_SQL from "@/supabase/migrations/20261104_energy_data.sql";
+import SITE_SQL from "@/supabase/migrations/20261106_site_sources.sql";
 import { FIELD_LABEL, SOURCE_FLAG_CODES, type Flag, type Provider, type QueueItem, type RunLog, type Source, type TariffValues } from "@/lib/energy/model";
 import { validateValues } from "@/lib/energy/validate";
 import { L, SqlStep, api, btn, btnGhost, card, input, when } from "./ui";
@@ -597,8 +598,8 @@ type SourceForm = { provider_id: string; label: string; url: string; kind: Sourc
 
 function SourceEditor({ initial, providers, onClose, onSaved }: { initial?: Source; providers: Provider[]; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState<SourceForm>({
-    provider_id: initial?.provider_id ?? "", label: initial?.label ?? "", url: initial?.url ?? "", kind: initial?.kind ?? "auto",
-    segment: initial?.segment ?? "residential", enabled: initial?.enabled ?? true, check_every_hours: String(initial?.check_every_hours ?? 24), notes: initial?.notes ?? "",
+    provider_id: initial?.provider_id ?? "", label: initial?.label ?? "", url: initial?.url ?? "", kind: initial?.kind ?? "site",
+    segment: initial?.segment ?? "both", enabled: initial?.enabled ?? true, check_every_hours: String(initial?.check_every_hours ?? 24), notes: initial?.notes ?? "",
   });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -612,7 +613,7 @@ function SourceEditor({ initial, providers, onClose, onSaved }: { initial?: Sour
       await api(initial ? `/api/admin/energy/sources/${initial.id}` : "/api/admin/energy/sources", { method: initial ? "PUT" : "POST", body: JSON.stringify(body) });
       onSaved();
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message === "missing_site_migration" ? "Χρειάζεται μια μικρή αναβάθμιση της βάσης: κλείσε αυτό το παράθυρο και πάτα «＋ Προτεινόμενες πηγές» για να δεις το SQL." : err.message);
     } finally {
       setBusy(false);
     }
@@ -632,11 +633,11 @@ function SourceEditor({ initial, providers, onClose, onSaved }: { initial?: Sour
             </select>
           </L>
           <L t="Όνομα *"><input className={input} value={f.label} onChange={(e) => set("label", e.target.value)} required placeholder="π.χ. ΔΕΗ · Οικιακά τιμολόγια" /></L>
-          <L t="Link *" hint="Επίσημη σελίδα τιμών ή PDF τιμοκαταλόγου (https)"><input className={input} value={f.url} onChange={(e) => set("url", e.target.value)} required placeholder="https://..." /></L>
+          <L t="Site ή link *" hint={f.kind === "site" ? "Αρκεί η διεύθυνση του παρόχου, π.χ. dei.gr" : "Επίσημη σελίδα τιμών ή PDF τιμοκαταλόγου"}><input className={input} value={f.url} onChange={(e) => set("url", e.target.value)} required placeholder={f.kind === "site" ? "dei.gr" : "https://..."} /></L>
           <div className="grid grid-cols-2 gap-3">
             <L t="Τύπος">
               <select className={input} value={f.kind} onChange={(e) => set("kind", e.target.value as Source["kind"])}>
-                <option value="auto">Αυτόματο</option><option value="html">Σελίδα</option><option value="pdf">PDF</option>
+                <option value="site">🌐 Ολόκληρο site (βρίσκει τις σελίδες μόνο του)</option><option value="auto">Μία σελίδα (αυτόματο)</option><option value="html">Μία σελίδα</option><option value="pdf">PDF</option>
               </select>
             </L>
             <L t="Πελάτες">
@@ -695,7 +696,12 @@ function SourcesView({ onChanged }: { onChanged: () => void }) {
   const runAll = async () => {
     setResults([]);
     // One request per source keeps every call well inside the server's time limit.
-    for (const s of (sources ?? []).filter((x) => x.enabled)) await runOne(s);
+    // Whole sites first: they add the price pages they find, which are then read too.
+    const enabled = (sources ?? []).filter((x) => x.enabled);
+    for (const s of enabled.filter((x) => x.kind === "site")) await runOne(s);
+    const fresh = await api<{ sources: Source[]; providers: Provider[] }>("/api/admin/energy/sources");
+    setSources(fresh.sources);
+    for (const s of fresh.sources.filter((x) => x.enabled && x.kind !== "site")) await runOne(s);
     await load();
     onChanged();
   };
@@ -719,7 +725,9 @@ function SourcesView({ onChanged }: { onChanged: () => void }) {
           <button className={btnGhost + small} onClick={() => setEditing("new")}>＋ Νέα πηγή</button>
         </div>
       </div>
-      {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">⚠️ {error}</p>}
+      {error === "missing_site_migration" ? (
+        <SqlStep title="Μικρή αναβάθμιση για πηγές «ολόκληρο site»" text="Για να βάζεις σκέτο το site ενός παρόχου (π.χ. dei.gr), χρειάζεται μία φορά αυτό το SQL." sql={SITE_SQL} onRetry={() => { setError(null); load(); }} />
+      ) : error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">⚠️ {error}</p>}
       {results.length > 0 && (
         <div className={`${card} space-y-1 text-xs`}>
           {results.map((r) => (
@@ -741,7 +749,7 @@ function SourcesView({ onChanged }: { onChanged: () => void }) {
                   {s.last_status && <Chip cls={STATUS_CHIP[s.last_status].cls}>{STATUS_CHIP[s.last_status].l}</Chip>}
                   {!s.enabled && <Chip cls="bg-white/5 text-slate-400 ring-white/15">Ανενεργή</Chip>}
                 </div>
-                <div className="text-xs text-slate-400">{provName(s.provider_id)} · {s.kind === "pdf" ? "PDF" : s.kind === "html" ? "Σελίδα" : "Αυτόματο"} · κάθε {s.check_every_hours} ώρες · τελευταίος έλεγχος {ago(s.last_checked_at)}</div>
+                <div className="text-xs text-slate-400">{provName(s.provider_id)} · {s.kind === "site" ? "🌐 Ολόκληρο site" : s.kind === "pdf" ? "PDF" : s.discovered_from ? "↳ βρέθηκε αυτόματα" : "Σελίδα"} · {s.segment === "business" ? "επαγγελματικά" : s.segment === "both" ? "οικιακά & επαγγελματικά" : "οικιακά"} · κάθε {s.check_every_hours} ώρες · τελευταίος έλεγχος {ago(s.last_checked_at)}</div>
                 <a href={s.url} target="_blank" rel="noreferrer" className="block truncate text-xs text-cyan-300 underline">{s.url}</a>
                 {s.last_status === "failed" && s.last_error && <p className="mt-1 text-xs text-red-300">⚠️ {s.last_error}</p>}
               </div>

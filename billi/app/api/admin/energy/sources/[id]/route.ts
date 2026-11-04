@@ -1,6 +1,6 @@
 import { logActivity } from "@/lib/audit";
 import { db } from "@/lib/db";
-import { adminRoute, json, must } from "@/lib/energy/http";
+import { adminRoute, isSiteMigrationMissing, json, must } from "@/lib/energy/http";
 import { SourceInput } from "@/lib/energy/inputs";
 
 export const runtime = "nodejs";
@@ -19,6 +19,7 @@ export const PUT = adminRoute(async (req, admin, { params }) => {
     .eq("id", params.id)
     .select()
     .single();
+  if (error && isSiteMigrationMissing(error.message)) return json({ error: "missing_site_migration" }, 409);
   if (error) return json({ error: error.message }, 400);
   await logActivity({ admin, action: "source_update", entity: "tariff_data_sources", entity_id: params.id, before, after: data, source_url: parsed.data.url });
   return json({ source: data });

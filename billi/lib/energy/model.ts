@@ -53,7 +53,9 @@ export interface Provider {
 }
 
 export interface Source {
-  id: string; provider_id: string | null; label: string; url: string; kind: "auto" | "html" | "pdf";
+  id: string; provider_id: string | null; label: string; url: string; kind: "auto" | "html" | "pdf" | "site";
+  /** set on pages found automatically from a "site" source */
+  discovered_from?: string | null;
   segment: "residential" | "business" | "both"; enabled: boolean; check_every_hours: number;
   last_checked_at: string | null; last_success_at: string | null; last_status: "ok" | "unchanged" | "failed" | null;
   last_error: string | null; last_hash: string | null; last_document_path: string | null; notes: string | null;

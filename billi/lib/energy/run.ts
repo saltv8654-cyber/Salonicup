@@ -7,6 +7,7 @@ import {
   type ChangeType, type Flag, type Provider, type QueueItem, type Source, type TariffRowAny, type TariffValues,
 } from "./model";
 import { duplicateNames, priceAppearsIn, validateValues } from "./validate";
+import { discover } from "./discover";
 
 export const AUTO_ACTOR = "Billi (αυτόματος έλεγχος)";
 
@@ -100,6 +101,12 @@ export async function runSource(source: Source, trigger: "cron" | "manual", admi
     const providers = (provRows ?? []) as Provider[];
     const owner = source.provider_id ? providers.find((p) => p.id === source.provider_id) ?? null : null;
     const folder = owner?.slug ?? "multi";
+
+    // A whole site: find its price pages and add them as sources; their prices are read on their own runs.
+    if (source.kind === "site") {
+      const d = await discover(source, owner?.name ?? null);
+      return await finish({ status: d.found ? "ok" : "failed", message: d.message, found: d.found, queued: 0, verified: 0 });
+    }
 
     const doc = await fetchDocument(source.url, source.kind);
     const docPath = await storeDocument(doc, folder);
@@ -312,11 +319,20 @@ export async function runDueSources(budgetMs = 240_000, trigger: "cron" | "manua
   const t0 = Date.now();
   const { data, error } = await db().from("tariff_data_sources").select("*").eq("enabled", true).limit(500);
   if (error) throw new Error(error.message);
-  const due = ((data ?? []) as Source[])
-    .filter((s) => isDue(s, t0))
-    .sort((a, b) => (a.last_checked_at ?? "").localeCompare(b.last_checked_at ?? ""));
+  const byAge = (a: Source, b: Source) => (a.last_checked_at ?? "").localeCompare(b.last_checked_at ?? "");
+  let due = ((data ?? []) as Source[]).filter((s) => isDue(s, t0)).sort(byAge);
   const results: RunResult[] = [];
-  for (const s of due) {
+  // Whole sites first: the pages they find are read in the same run.
+  const sites = due.filter((s) => s.kind === "site");
+  for (const s of sites) {
+    if (Date.now() - t0 > budgetMs) break;
+    results.push(await runSource(s, trigger));
+  }
+  if (sites.length) {
+    const { data: again } = await db().from("tariff_data_sources").select("*").eq("enabled", true).limit(500);
+    due = ((again ?? []) as Source[]).filter((s) => s.kind !== "site" && isDue(s, Date.now())).sort(byAge);
+  }
+  for (const s of due.filter((x) => x.kind !== "site")) {
     if (Date.now() - t0 > budgetMs) break;
     results.push(await runSource(s, trigger));
   }
@@ -328,5 +344,5 @@ export async function runDueSources(budgetMs = 240_000, trigger: "cron" | "manua
     for (const f of failed) lines.push(`🔴 ${f.label}: ${f.message}`);
     await notifyText(lines.join("\n"));
   }
-  return { results, remaining: due.length - results.length };
+  return { results, remaining: Math.max(0, sites.length + due.length - results.length) };
 }

@@ -8,6 +8,9 @@ export const json = (body: unknown, status = 200) => NextResponse.json(body, { s
 /** The new tables are missing until the migration has been run in Supabase. */
 export const isMissingMigration = (msg?: string) => !!msg && (/relation .* does not exist|Could not find the table/i.test(msg));
 
+/** The "whole site" source type needs supabase/migrations/20261106_site_sources.sql. */
+export const isSiteMigrationMissing = (msg?: string) => !!msg && /tariff_data_sources_kind_check|discovered_from/.test(msg);
+
 type Handler = (req: NextRequest, admin: string, ctx: { params: Record<string, string> }) => Promise<NextResponse>;
 
 /** Admin-only route with the same error shape everywhere: 401, 409 missing_migration, 4xx/5xx { error }. */
