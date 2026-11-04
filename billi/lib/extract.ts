@@ -29,6 +29,22 @@ const ELECTRICITY_PROMPT = `
 - Κίτρινο τιμολόγιο / κυμαινόμενο με βάση τη χονδρεμπορική, μηχανισμός διακύμανσης → "yellow"
 - Πορτοκαλί τιμολόγιο / δυναμικό / ωριαίες τιμές → "orange"
 Αν δεν αναγράφεται και δεν προκύπτει καθαρά, επιστρέφεις null.
+
+ΑΝΑΛΥΣΗ ΧΡΕΩΣΕΩΝ (ποσά της περιόδου σε €, όπως αναγράφονται· ό,τι δεν αναγράφεται → null):
+- promo_discount: προωθητικές εκπτώσεις/πιστώσεις του παρόχου ΕΚΤΟΣ της έκπτωσης συνέπειας (θετικός αριθμός).
+- Ρυθμιζόμενες χρεώσεις (ίδιες σε όλους τους παρόχους):
+  network_charges = Χρεώσεις Δικτύου Διανομής (ΔΕΔΔΗΕ) + Μεταφοράς (ΑΔΜΗΕ) μαζί,
+  system_charges = Υπηρεσίες Χρήσης Συστήματος (ΥΧΣ),
+  pso_charges = Υπηρεσίες Κοινής Ωφέλειας (ΥΚΩ),
+  etmear = ΕΤΜΕΑΡ,
+  other_regulated = λοιπές ρυθμιζόμενες χρεώσεις (π.χ. ΕΧΕΠ/ΕΤΜΕΑΡ πρόσθετες χρεώσεις),
+  regulated_total = το σύνολο των ρυθμιζόμενων όπως αναγράφεται.
+- Φόροι: efk_total = Ειδικός Φόρος Κατανάλωσης, special_levy = Ειδικό Τέλος 5‰, vat_amount = ΦΠΑ.
+- Δήμος: municipal_total = Δημοτικά Τέλη + Δημοτικός Φόρος + ΤΑΠ (χωρίς ΕΡΤ), ert_fee = τέλος ΕΡΤ.
+- Λοιπά: previous_balance = υπόλοιπο προηγούμενου λογαριασμού, payments_received = πληρωμές που
+  καταχωρήθηκαν (θετικός αριθμός), credits = πιστώσεις/συμψηφισμοί (θετικός αριθμός), deposit = εγγύηση,
+  other_charges = άλλες χρεώσεις που δεν ανήκουν πουθενά παραπάνω (π.χ. τόκοι, έξοδα επανασύνδεσης).
+- kwh_day / kwh_night: η κατανάλωση ημέρας και νύχτας αν ο λογαριασμός έχει νυχτερινό τιμολόγιο, αλλιώς kwh_night null.
 `;
 
 const GAS_PROMPT = `
@@ -113,6 +129,19 @@ const BillSchema = z.object({
   vat_amount: num,
   total_due: num,
   is_estimate: z.boolean().nullable(),
+  promo_discount: num,
+  network_charges: num,
+  system_charges: num,
+  pso_charges: num,
+  etmear: num,
+  other_regulated: num,
+  special_levy: num,
+  ert_fee: num,
+  previous_balance: num,
+  payments_received: num,
+  credits: num,
+  deposit: num,
+  other_charges: num,
 });
 
 let client: Anthropic | null = null;
@@ -171,7 +200,10 @@ export async function extractBill(file: { buffer: Buffer; mimeType: "application
   if (res.stop_reason === "max_tokens" || !res.parsed_output) throw new Error("Το Billi δεν κατάφερε να διαβάσει τον λογαριασμό. Δοκίμασε ξανά.");
 
   const bill = res.parsed_output;
-  if (bill.consistency_discount !== null) bill.consistency_discount = Math.abs(bill.consistency_discount);
+  // Discounts, payments and credits are reported as positive amounts.
+  for (const k of ["consistency_discount", "promo_discount", "payments_received", "credits"] as const) {
+    if (bill[k] !== null) bill[k] = Math.abs(bill[k]!);
+  }
   return bill;
 }
 

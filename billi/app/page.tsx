@@ -7,6 +7,8 @@ import { avgMonthly, compareTelecom, type TelecomComparison, type TelecomOffer, 
 import { compare, reliability, type Comparison, type Offer } from "@/lib/compare";
 import { sessionId, track, trafficSource } from "@/lib/track";
 import { CookieSettingsLink } from "./consent";
+import { BillBreakdown, PicksView, ScoreCard } from "./insights";
+import { billiScore } from "@/lib/score";
 
 const CONTACT_PHONE = process.env.NEXT_PUBLIC_CONTACT_PHONE ?? "";
 const COMPANY_NAME = process.env.NEXT_PUBLIC_COMPANY_NAME ?? "Billi";
@@ -378,6 +380,16 @@ export default function Home() {
             ) : (
               <BillSummary bill={result.bill} warnings={result.warnings} />
             )}
+            {!result.manual && (result.category ?? "electricity") === "electricity" && <BillBreakdown bill={result.bill} />}
+            {result.comparison && (result.category ?? "electricity") === "electricity" && (() => {
+              const score = result.manual ? null : billiScore(result.comparison, result.bill);
+              return (
+                <>
+                  {score && <ScoreCard s={score} />}
+                  {result.comparison.picks && <PicksView c={result.comparison} onWant={openLead} />}
+                </>
+              );
+            })()}
             {result.comparison && (
               <ComparisonView c={result.comparison} current={result.bill} updatedAt={result.tariffs_updated_at} category={result.category ?? "electricity"} />
             )}
@@ -1134,7 +1146,7 @@ function ComparisonView({ c, current, updatedAt, category = "electricity" }: { c
           </>
         }
       >
-        {c.recommendation && (
+        {c.recommendation && !(c.picks?.length) && (
           <div className="gradient-border mt-5 rounded-xl">
             <div className="rounded-xl bg-[#081028] p-4 sm:p-5">
               <div className="text-xs font-semibold uppercase tracking-wider text-gradient">✦ Πρόταση Billi</div>

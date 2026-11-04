@@ -60,6 +60,20 @@ export interface Bill {
   vat_amount: number | null;
   total_due: number | null;
   is_estimate: boolean | null;
+  // Full breakdown (Billi 2.0). Optional: older results and the manual calculator don't have them.
+  promo_discount?: number | null;
+  network_charges?: number | null;
+  system_charges?: number | null;
+  pso_charges?: number | null;
+  etmear?: number | null;
+  other_regulated?: number | null;
+  special_levy?: number | null;
+  ert_fee?: number | null;
+  previous_balance?: number | null;
+  payments_received?: number | null;
+  credits?: number | null;
+  deposit?: number | null;
+  other_charges?: number | null;
 }
 
 export type Category = "electricity" | "gas" | "telecom";
