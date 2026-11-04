@@ -587,6 +587,11 @@ function HistoryTable({ rows }: { rows: HistoryRow[] }) {
 
 /* ───────────── sources ───────────── */
 
+const tiny = " !px-2.5 !py-1 text-[11px]";
+const SEGMENTS = [["site", "🌐 Ολόκληρο site"], ["residential", "🏠 Οικιακά"], ["both", "🏠🏢 Οικιακά & επαγγελματικά"], ["business", "🏢 Επαγγελματικά"]] as const;
+/** "ZeniΘ · Power Home Flex" → "Power Home Flex" inside the ZeniΘ group. */
+const shortLabel = (label: string, provider: string) => (label.startsWith(`${provider} · `) ? label.slice(provider.length + 3) : label);
+
 const STATUS_CHIP: Record<string, { l: string; cls: string }> = {
   ok: { l: "✓ OK", cls: "bg-emerald-400/15 text-emerald-200 ring-emerald-300/40" },
   unchanged: { l: "= Χωρίς αλλαγή", cls: "bg-white/5 text-slate-300 ring-white/15" },
@@ -708,24 +713,36 @@ function SourcesView({ onChanged }: { onChanged: () => void }) {
   };
   const anyRunning = Object.values(running).some(Boolean);
 
+  const [openProv, setOpenProv] = useState<Set<string>>(new Set());
+  const groups = useMemo(() => {
+    const m = new Map<string, { key: string; name: string; list: Source[] }>();
+    for (const x of sources ?? []) {
+      const key = x.provider_id ?? "multi";
+      const g = m.get(key) ?? { key, name: provName(x.provider_id), list: [] };
+      g.list.push(x);
+      m.set(key, g);
+    }
+    const order: Record<string, number> = { site: 0, residential: 1, both: 2, business: 3 };
+    for (const g of m.values()) g.list.sort((a, b) => order[a.kind === "site" ? "site" : a.segment] - order[b.kind === "site" ? "site" : b.segment] || a.label.localeCompare(b.label, "el"));
+    return [...m.values()].sort((a, b) => (a.key === "multi" ? 1 : b.key === "multi" ? -1 : a.name.localeCompare(b.name, "el")));
+  }, [sources, providers]);
+
   if (!sources) return <p className="text-sm text-slate-500">Φόρτωση…</p>;
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-slate-400">Επίσημες σελίδες και PDF των παρόχων. Ελέγχονται αυτόματα κάθε πρωί (06:00).</p>
-        <div className="flex gap-2">
-          <button className={btn + small} disabled={anyRunning} onClick={runAll}>{anyRunning ? "⏳ Έλεγχος…" : "↻ Έλεγχος όλων τώρα"}</button>
-          <button className={btnGhost + small} disabled={anyRunning} onClick={async () => {
-            try {
-              const r = await api<{ added: number }>("/api/admin/energy/sources/suggested", { method: "POST", body: "{}" });
-              setError(null);
-              setResults([{ source_id: "suggested", label: "Προτεινόμενες πηγές", status: "ok", message: r.added ? `Προστέθηκαν ${r.added} νέες πηγές. Πάτα «Έλεγχος όλων τώρα».` : "Υπάρχουν ήδη όλες.", found: 0, queued: 0, verified: 0 }]);
-              load();
-            } catch (e: any) { setError(e.message); }
-          }}>＋ Προτεινόμενες πηγές</button>
-          <button className={btnGhost + small} onClick={() => setEditing("new")}>＋ Νέα πηγή</button>
-          <button className={btnGhost + small} onClick={() => setUploading(true)}>📄 Ανέβασε τιμοκατάλογο</button>
-        </div>
+      <p className="text-xs text-slate-400">Επίσημες σελίδες και PDF των παρόχων, ανά εταιρεία. Ελέγχονται αυτόματα κάθε πρωί (06:00).</p>
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <button className={btn + small} disabled={anyRunning} onClick={runAll}>{anyRunning ? "⏳ Έλεγχος…" : "↻ Έλεγχος όλων"}</button>
+        <button className={btnGhost + small} disabled={anyRunning} onClick={async () => {
+          try {
+            const r = await api<{ added: number }>("/api/admin/energy/sources/suggested", { method: "POST", body: "{}" });
+            setError(null);
+            setResults([{ source_id: "suggested", label: "Προτεινόμενες πηγές", status: "ok", message: r.added ? `Προστέθηκαν ${r.added} νέες πηγές. Πάτα «Έλεγχος όλων».` : "Υπάρχουν ήδη όλες.", found: 0, queued: 0, verified: 0 }]);
+            load();
+          } catch (e: any) { setError(e.message); }
+        }}>＋ Προτεινόμενες</button>
+        <button className={btnGhost + small} onClick={() => setEditing("new")}>＋ Νέα πηγή</button>
+        <button className={btnGhost + small} onClick={() => setUploading(true)}>📄 Ανέβασε τιμοκατάλογο</button>
       </div>
       {error === "missing_site_migration" ? (
         <SqlStep title="Μικρή αναβάθμιση για πηγές «ολόκληρο site»" text="Για να βάζεις σκέτο το site ενός παρόχου (π.χ. dei.gr), χρειάζεται μία φορά αυτό το SQL." sql={SITE_SQL} onRetry={() => { setError(null); load(); }} />
@@ -742,29 +759,71 @@ function SourcesView({ onChanged }: { onChanged: () => void }) {
         </div>
       )}
       <div className="space-y-2">
-        {sources.map((s) => (
-          <div key={s.id} className={`${card} ${s.enabled ? "" : "opacity-60"}`}>
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-semibold text-white">{s.label}</span>
-                  {s.last_status && <Chip cls={STATUS_CHIP[s.last_status].cls}>{STATUS_CHIP[s.last_status].l}</Chip>}
-                  {!s.enabled && <Chip cls="bg-white/5 text-slate-400 ring-white/15">Ανενεργή</Chip>}
+        {groups.map((g) => {
+          const isOpen = openProv.has(g.key);
+          const failed = g.list.filter((x) => x.enabled && x.last_status === "failed").length;
+          const ok = g.list.filter((x) => x.last_status === "ok" || x.last_status === "unchanged").length;
+          const never = g.list.filter((x) => x.enabled && !x.last_checked_at).length;
+          return (
+            <section key={g.key} className={`${card} !p-0`}>
+              <div className="flex items-center justify-between gap-2 p-3">
+                <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" aria-expanded={isOpen}
+                  onClick={() => setOpenProv((o) => { const n = new Set(o); n.has(g.key) ? n.delete(g.key) : n.add(g.key); return n; })}>
+                  <span className="text-slate-500">{isOpen ? "▾" : "▸"}</span>
+                  <span className="truncate font-semibold text-white">{g.name}</span>
+                  <span className="text-xs text-slate-500">{g.list.length}</span>
+                  {ok > 0 && <Chip cls={STATUS_CHIP.ok.cls}>✓ {ok}</Chip>}
+                  {failed > 0 && <Chip cls={STATUS_CHIP.failed.cls}>✕ {failed}</Chip>}
+                  {never > 0 && <Chip cls="bg-white/5 text-slate-400 ring-white/15">νέες {never}</Chip>}
+                </button>
+                <button className={btnGhost + small} disabled={g.list.some((x) => running[x.id])} title="Έλεγχος όλων των πηγών του παρόχου"
+                  onClick={async () => { for (const x of g.list.filter((y) => y.enabled)) await runOne(x); load(); onChanged(); }}>
+                  {g.list.some((x) => running[x.id]) ? "⏳" : "↻"}
+                </button>
+              </div>
+              {isOpen && (
+                <div className="space-y-3 border-t border-white/5 p-3">
+                  {SEGMENTS.map(([seg, title]) => {
+                    const rows = g.list.filter((x) => (x.kind === "site" ? "site" : x.segment) === seg);
+                    if (!rows.length) return null;
+                    return (
+                      <div key={seg}>
+                        <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{title}</div>
+                        <ul className="space-y-1.5">
+                          {rows.map((x) => (
+                            <li key={x.id} className={`rounded-xl bg-white/[0.02] p-2.5 ring-1 ring-white/10 ${x.enabled ? "" : "opacity-60"}`}>
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="text-sm font-semibold text-slate-100">{shortLabel(x.label, g.name)}</span>
+                                    {x.last_status && <Chip cls={STATUS_CHIP[x.last_status].cls}>{STATUS_CHIP[x.last_status].l}</Chip>}
+                                    {!x.enabled && <Chip cls="bg-white/5 text-slate-400 ring-white/15">Ανενεργή</Chip>}
+                                  </div>
+                                  <div className="text-[11px] text-slate-500">
+                                    {x.kind === "site" ? "🌐 βρίσκει τις σελίδες μόνο του" : x.kind === "pdf" ? "PDF" : x.discovered_from ? "↳ βρέθηκε αυτόματα" : x.url.startsWith("upload:") ? "ανεβασμένο αρχείο" : "σελίδα"} · έλεγχος {ago(x.last_checked_at)}
+                                  </div>
+                                  {!x.url.startsWith("upload:") && <a href={x.url} target="_blank" rel="noreferrer" className="block truncate text-[11px] text-cyan-300/80 underline">{x.url.replace(/^https?:\/\/(www\.)?/, "")}</a>}
+                                  {x.last_status === "failed" && x.last_error && <p className="mt-1 text-[11px] text-red-300">⚠️ {x.last_error}</p>}
+                                </div>
+                              </div>
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                <button className={btnGhost + tiny} disabled={!!running[x.id]} onClick={() => runOne(x).then(() => { load(); onChanged(); })}>{running[x.id] ? "⏳" : "↻ Έλεγχος"}</button>
+                                <button className={btnGhost + tiny} disabled={!!running[x.id]} title="Ξαναδιαβάζει την πηγή ακόμη κι αν δεν άλλαξε" onClick={() => runOne(x, true).then(() => { load(); onChanged(); })}>⟳ Πλήρης</button>
+                                {x.last_document_path && <button className={btnGhost + tiny} title="Αντίγραφο" onClick={() => openDocument(x.last_document_path!)}>📄</button>}
+                                <button className={btnGhost + tiny} title="Αλλαγή" onClick={() => setEditing(x)}>✏️</button>
+                                <button className={btnGhost + tiny} title="Διαγραφή" onClick={async () => { if (confirm(`Διαγραφή πηγής «${x.label}»;`)) { await api(`/api/admin/energy/sources/${x.id}`, { method: "DELETE" }); load(); } }}>🗑</button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="text-xs text-slate-400">{provName(s.provider_id)} · {s.kind === "site" ? "🌐 Ολόκληρο site" : s.kind === "pdf" ? "PDF" : s.discovered_from ? "↳ βρέθηκε αυτόματα" : "Σελίδα"} · {s.segment === "business" ? "επαγγελματικά" : s.segment === "both" ? "οικιακά & επαγγελματικά" : "οικιακά"} · κάθε {s.check_every_hours} ώρες · τελευταίος έλεγχος {ago(s.last_checked_at)}</div>
-                {s.url.startsWith("upload:") ? <span className="block text-xs text-slate-500">ανεβασμένο αρχείο</span> : <a href={s.url} target="_blank" rel="noreferrer" className="block truncate text-xs text-cyan-300 underline">{s.url}</a>}
-                {s.last_status === "failed" && s.last_error && <p className="mt-1 text-xs text-red-300">⚠️ {s.last_error}</p>}
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                <button className={btnGhost + small} disabled={!!running[s.id]} onClick={() => runOne(s).then(() => { load(); onChanged(); })}>{running[s.id] ? "⏳" : "↻ Έλεγχος"}</button>
-                <button className={btnGhost + small} disabled={!!running[s.id]} title="Ξαναδιαβάζει την πηγή ακόμη κι αν δεν άλλαξε" onClick={() => runOne(s, true).then(() => { load(); onChanged(); })}>⟳ Πλήρης</button>
-                {s.last_document_path && <button className={btnGhost + small} onClick={() => openDocument(s.last_document_path!)}>📄</button>}
-                <button className={btnGhost + small} onClick={() => setEditing(s)}>✏️</button>
-                <button className={btnGhost + small} onClick={async () => { if (confirm(`Διαγραφή πηγής «${s.label}»;`)) { await api(`/api/admin/energy/sources/${s.id}`, { method: "DELETE" }); load(); } }}>🗑</button>
-              </div>
-            </div>
-          </div>
-        ))}
+              )}
+            </section>
+          );
+        })}
       </div>
       {uploading && (
         <UploadPanel providers={providers} onClose={() => setUploading(false)} onDone={(r) => { setUploading(false); setResults((x) => [r, ...x]); load(); onChanged(); }} />
