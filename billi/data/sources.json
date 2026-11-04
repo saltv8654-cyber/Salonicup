@@ -132,6 +132,69 @@
       "label": "Φυσικό Αέριο ΕΕΕ · Οικιακά ρεύμα",
       "url": "https://fysikoaerioellados.gr/el/home/revma",
       "kind": "html"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Ιστορικότητα τιμών επαγγελματικών (όλα τα προγράμματα)",
+      "url": "https://zenith.gr/el/services-for-the-business/pricing-history-electricity-business/",
+      "kind": "html",
+      "segment": "business"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Επαγγελματικό ρεύμα (λίστα, Smart)",
+      "url": "https://zenith.gr/el/services-for-the-business/electricity/",
+      "kind": "html",
+      "segment": "business"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Ειδικοί όροι επαγγελματικών προϊόντων",
+      "url": "https://zenith.gr/el/services-for-the-business/electricity/%CE%B5%CE%B9%CE%B4%CE%B9%CE%BA%CE%BF%CE%AF-%CF%8C%CF%81%CE%BF%CE%B9-%CF%80%CF%81%CE%BF%CF%8A%CF%8C%CE%BD%CF%84%CF%89%CE%BD-%CE%B7%CE%BB%CE%B5%CE%BA%CF%84%CF%81%CE%B9%CE%BA%CE%AE%CF%82-%CE%B5%CE%BD%CE%AD%CF%81%CE%B3%CE%B5%CE%B9%CE%B1%CF%82-%CE%B3%CE%B9%CE%B1-%CF%84%CE%B7%CE%BD-%CE%B5%CF%80%CE%B9%CF%87%CE%B5%CE%AF%CF%81%CE%B7%CF%83%CE%B7",
+      "kind": "html",
+      "segment": "business"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Business Direct 2.0",
+      "url": "https://zenith.gr/el/services-for-the-business/electricity/power-business-direct-2-0/",
+      "kind": "html",
+      "segment": "business"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Business Basic",
+      "url": "https://zenith.gr/el/services-for-the-business/electricity/power-business-basic/",
+      "kind": "html",
+      "segment": "business"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Business Start",
+      "url": "https://zenith.gr/el/services-for-the-business/electricity/power-business-start/",
+      "kind": "html",
+      "segment": "business"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Business Flow 2",
+      "url": "https://zenith.gr/el/services-for-the-business/electricity/power-business-flow-2/",
+      "kind": "html",
+      "segment": "business"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Business Basic 3.0",
+      "url": "https://zenith.gr/el/services-for-the-business/electricity/power-business-basic-3-0/",
+      "kind": "html",
+      "segment": "business"
+    },
+    {
+      "provider": "zenith",
+      "label": "ZeniΘ · Power Business More is Less",
+      "url": "https://zenith.gr/el/services-for-the-business/electricity/power-business-more-is-less/",
+      "kind": "html",
+      "segment": "business"
     }
   ]
 }
