@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ADMIN_COOKIE, adminToken, passwordMatches } from "@/lib/admin-auth";
+import { ADMIN_COOKIE, adminCookieValue, cleanAdminName, passwordMatches } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Λάθος κωδικός" }, { status: 401 });
   }
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(ADMIN_COOKIE, adminToken()!, {
+  res.cookies.set(ADMIN_COOKIE, adminCookieValue(cleanAdminName(body.name))!, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",

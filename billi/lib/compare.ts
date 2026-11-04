@@ -12,6 +12,21 @@ export interface Offer {
   annualWithDiscount: number | null;
   /** positive = cheaper than the current programme */
   savings: number | null;
+  /** the validity period has ended: shown with a warning, never recommended */
+  expired: boolean;
+  /** not confirmed from its source recently: shown as indicative */
+  unverified: boolean;
+}
+
+/** Prices older than this are shown as "not verified recently". */
+export const VERIFY_DAYS = 45;
+const athensToday = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Athens" });
+
+export function reliability(t: Tariff, now = Date.now()) {
+  const expired = !!t.valid_until && t.valid_until < athensToday();
+  const verifiedAt = t.last_verified_at ? Date.parse(t.last_verified_at) : NaN;
+  const unverified = t.data_status !== "verified" || !Number.isFinite(verifiedAt) || now - verifiedAt > VERIFY_DAYS * 86_400_000;
+  return { expired, unverified };
 }
 
 export interface Comparison {
@@ -21,6 +36,8 @@ export interface Comparison {
   /** Cheapest offer of each tariff colour, for the "which colour suits you" view */
   byColor: Record<TariffColor, Offer | null>;
   recommendation: { color: TariffColor; text: string; reasons: string[] } | null;
+  /** how the numbers were worked out, shown under the comparison */
+  assumptions: string[];
 }
 
 function supplyCost(kwh: number, fixedMonthly: number, pricePerKwh: number) {
@@ -71,15 +88,35 @@ export function compare(bill: Bill, tariffs: Tariff[], category: EnergyCategory 
           ? supplyCost(kwh, t.fixed_monthly_eur, t.price_per_kwh_with_discount_eur)
           : null;
       const best = annualWithDiscount ?? annual;
-      return { tariff: t, annual, annualWithDiscount, savings: currentAnnual !== null ? currentAnnual - best : null };
+      return { tariff: t, annual, annualWithDiscount, savings: currentAnnual !== null ? currentAnnual - best : null, ...reliability(t) };
     })
     .sort((a, b) => (a.annualWithDiscount ?? a.annual) - (b.annualWithDiscount ?? b.annual));
 
   const byColor = Object.fromEntries(
-    (["blue", "green", "yellow", "orange"] as TariffColor[]).map((c) => [c, offers.find((o) => o.tariff.color === c) ?? null]),
+    (["blue", "green", "yellow", "orange"] as TariffColor[]).map((c) => [c, offers.find((o) => o.tariff.color === c && !o.expired) ?? null]),
   ) as Record<TariffColor, Offer | null>;
 
-  return { annualKwh: kwh, currentAnnual, offers, byColor, recommendation: recommend(offers, currentAnnual, kwh) };
+  return {
+    annualKwh: kwh, currentAnnual, offers, byColor,
+    recommendation: recommend(offers.filter((o) => !o.expired), currentAnnual, kwh),
+    assumptions: assumptions(bill, kwh, currentAnnual, offers, category),
+  };
+}
+
+function assumptions(bill: Bill, kwh: number, currentAnnual: number | null, offers: Offer[], category: EnergyCategory): string[] {
+  const days = bill.billing_days && bill.billing_days > 0 ? bill.billing_days : null;
+  const out: string[] = [];
+  if (bill.is_estimate && bill.total_due === null && bill.supplier_total === null) out.push("Η κατανάλωση είναι αυτή που έδωσες στον υπολογιστή.");
+  else if (category === "gas") out.push(`Ετήσια κατανάλωση ~${kwh.toLocaleString("el-GR")} kWh: η κατανάλωση της περιόδου αναγωγή σε έτος με εποχικό προφίλ θέρμανσης.`);
+  else out.push(`Ετήσια κατανάλωση ~${kwh.toLocaleString("el-GR")} kWh: ${bill.kwh_total ?? "—"} kWh σε ${days ?? 30} ημέρες, αναγωγή σε 365 ημέρες.`);
+  out.push("Υπολογίζονται μόνο οι χρεώσεις προμήθειας (πάγιο + ενέργεια) με ΦΠΑ 6%. Οι ρυθμιζόμενες χρεώσεις, οι φόροι και το ΕΡΤ είναι ίδια σε όλους τους παρόχους και δεν αλλάζουν τη σύγκριση.");
+  out.push("Μηνιαίο κόστος = ετήσιο / 12. Στην πράξη ο λογαριασμός αλλάζει με την εποχή.");
+  if (offers.some((o) => o.annualWithDiscount !== null)) out.push("Όπου υπάρχει έκπτωση υπό όρους (π.χ. έγκαιρη πληρωμή), η κατάταξη θεωρεί ότι την παίρνεις.");
+  if (currentAnnual !== null) out.push(bill.supplier_total ? "Το σημερινό κόστος βγαίνει από το «σύνολο προμήθειας» του λογαριασμού σου, αναγωγή σε έτος." : "Το σημερινό κόστος βγαίνει από το πάγιο και την τιμή kWh του λογαριασμού σου.");
+  out.push("Οι κυμαινόμενες τιμές (πράσινα, κίτρινα) αλλάζουν κάθε μήνα· η σύγκριση χρησιμοποιεί την τελευταία δημοσιευμένη τιμή.");
+  if (offers.some((o) => o.expired)) out.push("Προγράμματα με ληγμένη ισχύ φαίνονται με προειδοποίηση και δεν προτείνονται.");
+  if (offers.some((o) => o.unverified)) out.push(`Τιμές που δεν επιβεβαιώθηκαν από την πηγή τους τις τελευταίες ${VERIFY_DAYS} ημέρες σημειώνονται ως ενδεικτικές.`);
+  return out;
 }
 
 const fmt = (n: number) => `${Math.round(n).toLocaleString("el-GR")} €`;

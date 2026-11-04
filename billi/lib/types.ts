@@ -89,6 +89,18 @@ export interface Tariff {
   /** YYYY-MM the price applies to (green tariffs change monthly) */
   valid_month: string;
   url?: string;
+  day_night?: boolean;
+  price_per_kwh_night_eur?: number;
+  promo_discount?: string;
+  early_termination_fee?: string;
+  conditions?: string;
+  /** YYYY-MM-DD */
+  valid_from?: string;
+  valid_until?: string;
+  /** when an administrator (or an unchanged source) last confirmed the price */
+  last_verified_at?: string;
+  /** "verified": approved from its source; anything else is indicative */
+  data_status?: "verified" | "unverified";
 }
 
 export interface TariffFile {

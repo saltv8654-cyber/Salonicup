@@ -105,3 +105,6 @@ create table if not exists telecom_plans (
   active            boolean not null default true
 );
 alter table telecom_plans enable row level security;
+
+-- Energy data management (sources, approval queue, price history, audit log):
+-- run supabase/migrations/20261104_energy_data.sql next.

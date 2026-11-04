@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAdmin } from "@/lib/admin-auth";
+import { adminName } from "@/lib/admin-auth";
+import { logActivity } from "@/lib/audit";
 import { db, dbConfigured } from "@/lib/db";
 import { bundledTariffs } from "@/lib/tariffs";
 import { isMissingCategory } from "@/lib/tariff-input";
@@ -8,7 +9,8 @@ export const runtime = "nodejs";
 
 /** One-off: copy the programmes from data/tariffs.json (or data/gas.json with ?category=gas) into the editable table. Existing ids are left alone. */
 export async function POST(req: NextRequest) {
-  if (!isAdmin(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const admin = adminName(req);
+  if (!admin) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!dbConfigured()) return NextResponse.json({ error: "Δεν έχει συνδεθεί το Supabase" }, { status: 500 });
   const category = req.nextUrl.searchParams.get("category") === "gas" ? "gas" : "electricity";
   const rows = bundledTariffs(category).tariffs.map((t) => ({
@@ -32,5 +34,6 @@ export async function POST(req: NextRequest) {
     ({ error } = await upsert(rows));
   }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  await logActivity({ admin, action: "tariff_import", entity: "tariffs", after: { category, ids: rows.map((r) => r.id) }, note: "Εισαγωγή ενδεικτικών τιμών (μη επαληθευμένες)" });
   return NextResponse.json({ imported: rows.length });
 }

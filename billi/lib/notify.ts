@@ -30,3 +30,19 @@ export async function notifyNewLead(lead: Lead) {
     console.error("telegram notify failed:", e);
   }
 }
+
+/** Short Telegram message to the owner (tariff sync results). Skipped when Telegram is not configured. */
+export async function notifyText(text: string) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chat = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chat) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ chat_id: chat, text }),
+    });
+  } catch (e) {
+    console.error("telegram notify failed:", e);
+  }
+}
