@@ -226,3 +226,45 @@ function Detail({ title, items, warn }: { title: string; items: string[]; warn?:
     </div>
   );
 }
+
+/* ───────────── save to the personal profile ───────────── */
+
+export function SaveToProfile({ bill }: { bill: Bill }) {
+  const [state, setState] = useState<"idle" | "busy" | "saved" | "error">("idle");
+  const [msg, setMsg] = useState<string | null>(null);
+  const save = async () => {
+    setState("busy");
+    const body = JSON.stringify({ bill });
+    try {
+      const res = await fetch("/api/account/bills", { method: "POST", headers: { "content-type": "application/json" }, body });
+      if (res.status === 401) {
+        // Not signed in: keep the figures for this tab only and finish after sign-in.
+        try { sessionStorage.setItem("billi_pending_bill", body); } catch { /* storage blocked */ }
+        location.href = "/account";
+        return;
+      }
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error === "missing_migration" ? "Οι λογαριασμοί ενεργοποιούνται σύντομα." : j.error ?? "Η αποθήκευση απέτυχε");
+      setState("saved");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Η αποθήκευση απέτυχε");
+      setState("error");
+    }
+  };
+  return (
+    <section className={`${card} flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between`}>
+      <div>
+        <div className="font-semibold text-white">📊 Παρακολούθησε τον λογαριασμό σου</div>
+        <p className="text-sm text-slate-400">Αποθήκευσε τα στοιχεία (όχι το αρχείο) στο προφίλ σου: ιστορικό, Billi Score και ειδοποίηση όταν βγει φθηνότερο πρόγραμμα.</p>
+        {state === "error" && msg && <p className="mt-1 text-sm text-red-300">⚠️ {msg}</p>}
+      </div>
+      {state === "saved" ? (
+        <a href="/account" className="shrink-0 rounded-xl bg-emerald-500/20 px-4 py-2.5 text-sm font-semibold text-emerald-100 ring-1 ring-emerald-300/40">✓ Αποθηκεύτηκε · Άνοιγμα προφίλ</a>
+      ) : (
+        <button type="button" disabled={state === "busy"} onClick={save} className="shrink-0 rounded-xl bg-white/5 px-4 py-2.5 text-sm font-semibold text-slate-100 ring-1 ring-white/15 hover:bg-white/10 disabled:opacity-50">
+          {state === "busy" ? "…" : "💾 Αποθήκευση στο προφίλ μου"}
+        </button>
+      )}
+    </section>
+  );
+}

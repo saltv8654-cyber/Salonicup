@@ -3,6 +3,7 @@ import { timingSafeEqual } from "crypto";
 import { dbConfigured } from "../db";
 import { isMissingMigration } from "./http";
 import { runDueSources } from "./run";
+import { runAlerts } from "../alerts";
 
 // Opened straight in a browser too, so say it is UTF-8 or Safari garbles the Greek.
 const out = (body: unknown, status = 200) =>
@@ -23,7 +24,10 @@ export async function cronResponse(req: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) return out({ error: "Λείπει το ANTHROPIC_API_KEY" }, 500);
   try {
     const { results, remaining } = await runDueSources(240_000, "cron");
+    // Then the users' price alerts, on the tariffs approved so far (accounts migration may not be run yet).
+    const alerts = await runAlerts().catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
     return out({
+      alerts,
       checked: results.length,
       remaining,
       queued: results.reduce((n, r) => n + r.queued, 0),
