@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Bill, Tariff } from "@/lib/types";
 import { COLOR_INFO } from "@/lib/types";
 import { breakdown } from "@/lib/breakdown";
@@ -266,5 +266,95 @@ export function SaveToProfile({ bill }: { bill: Bill }) {
         </button>
       )}
     </section>
+  );
+}
+
+/* ───────────── result first + what to do next ───────────── */
+
+/** The answer at the top: how much you could save, with what, and the next step. Details follow below. */
+export function ResultHero({ c, onWant, phone, kind }: { c: Comparison; onWant: (t: { tariff: Tariff; annual: number; savings: number | null }) => void; phone: string; kind: "ρεύμα" | "αέριο" }) {
+  const best = c.picks.find((p) => p.kind === "value") ?? c.picks[0];
+  if (!best) return null;
+  const t = best.offer.tariff;
+  const annual = best.offer.annualWithDiscount ?? best.offer.annual;
+  const saves = best.savings !== null && best.savings >= 10;
+  const already = best.savings !== null && best.savings < 10;
+  const digits = phone.replace(/[^\d+]/g, "");
+  const intl = digits.startsWith("+") ? digits.slice(1) : digits.startsWith("30") ? digits : `30${digits}`;
+  const msg = `Γεια σας! Έκανα ανάλυση στο Billi για ${kind}: ${t.provider} ${t.name}, ~${eur(annual / 12, 0)}/μήνα${saves ? `, εξοικονόμηση ~${eur(best.savings!, 0)}/έτος` : ""}. Θα ήθελα να μάθω περισσότερα.`;
+  const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+
+  return (
+    <section className="gradient-border mt-6 rounded-2xl" aria-labelledby="hero-title">
+      <div className="rounded-2xl bg-[#081028] p-5 sm:p-6">
+        <div className="text-xs font-semibold uppercase tracking-wider text-gradient">✦ Το αποτέλεσμά σου</div>
+        <h2 id="hero-title" className="mt-1 text-2xl font-extrabold text-white sm:text-3xl">
+          {saves ? <>Γλιτώνεις ~{eur(best.savings!, 0)} τον χρόνο</> : already ? <>Είσαι ήδη σε καλό πρόγραμμα 👍</> : <>Το καλύτερο για σένα: ~{eur(annual / 12, 0)}/μήνα</>}
+        </h2>
+        <p className="mt-1 text-sm text-slate-300">
+          {saves || !already ? <>με το <b className="text-white">{t.provider} · {t.name}</b> ({COLOR_INFO[t.color].emoji} {COLOR_INFO[t.color].label.toLowerCase()}){saves ? <>, ~{eur(annual / 12, 0)}/μήνα</> : null}.</> : <>Η διαφορά από την καλύτερη επιλογή είναι μικρή: δεν αξίζει να αλλάξεις τώρα. Θα σε ειδοποιήσουμε αν βγει κάτι καλύτερο.</>}
+        </p>
+        <p className="mt-1 text-[11px] text-slate-500">Εκτίμηση με επιβεβαιωμένες τιμές, όχι εγγύηση.</p>
+
+        {!already && (
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <button type="button" onClick={() => onWant({ tariff: t, annual, savings: best.savings })} className="rounded-xl bg-gradient-to-r from-blue-500 to-violet-500 px-4 py-3 text-sm font-semibold text-white hover:brightness-110">
+              ✋ Θέλω αυτό, καλέστε με
+            </button>
+            {digits && <a href={`viber://chat?number=%2B${intl}&draft=${encodeURIComponent(msg)}`} className="rounded-xl bg-[#7360f2]/20 px-4 py-3 text-center text-sm font-semibold text-violet-100 ring-1 ring-violet-300/30">💜 Στείλε στο Viber</a>}
+            {digits && <a href={`https://wa.me/${intl}?text=${encodeURIComponent(msg)}`} target="_blank" rel="noreferrer" className="rounded-xl bg-emerald-500/15 px-4 py-3 text-center text-sm font-semibold text-emerald-100 ring-1 ring-emerald-300/30">💬 Στείλε στο WhatsApp</a>}
+          </div>
+        )}
+
+        <ol className="mt-5 grid gap-2 text-sm sm:grid-cols-3">
+          {[
+            ["1", "Διάλεξε πρόγραμμα", "Δες τις 3 προτάσεις ή όλη τη σύγκριση."],
+            ["2", "Σε καλούμε", "Την ώρα που σε βολεύει, δωρεάν και χωρίς δέσμευση."],
+            ["3", "Αλλάζεις", "Χωρίς διακοπή ρεύματος, χωρίς χαρτιά από εσένα."],
+          ].map(([n, title, text]) => (
+            <li key={n} className="flex gap-2.5 rounded-xl bg-white/[0.03] p-3 ring-1 ring-white/10">
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-cyan-400/15 text-xs font-bold text-cyan-200">{n}</span>
+              <span><b className="text-slate-100">{title}</b><span className="block text-xs text-slate-400">{text}</span></span>
+            </li>
+          ))}
+        </ol>
+        <button type="button" onClick={() => scrollTo("picks-title")} className="mt-3 text-xs font-semibold text-cyan-300 underline">Δες τις λεπτομέρειες ↓</button>
+      </div>
+    </section>
+  );
+}
+
+/** What happens while the bill is read: visible steps instead of a bare spinner. */
+export function AnalysisProgress() {
+  const steps = ["Διαβάζω τον λογαριασμό", "Βρίσκω την κατανάλωση και τις χρεώσεις", "Συγκρίνω όλα τα επιβεβαιωμένα προγράμματα", "Ετοιμάζω τις προτάσεις"];
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI((x) => Math.min(x + 1, steps.length - 1)), 3500);
+    return () => clearInterval(t);
+  }, [steps.length]);
+  return (
+    <div className="w-full max-w-xs text-left" role="status" aria-live="polite">
+      <div className="mx-auto h-12 w-12 animate-spin rounded-full border-2 border-white/10 border-t-cyan-300" />
+      <ul className="mt-5 space-y-2">
+        {steps.map((s, k) => (
+          <li key={s} className={`flex items-center gap-2 text-sm transition ${k < i ? "text-emerald-300" : k === i ? "font-semibold text-white" : "text-slate-500"}`}>
+            <span className="w-4 text-center">{k < i ? "✓" : k === i ? "…" : "·"}</span>{s}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-center text-xs text-slate-500">Συνήθως 5–15 δευτερόλεπτα</p>
+    </div>
+  );
+}
+
+/** Why trust the numbers: official prices, nothing kept, free. */
+export function TrustBar({ updatedAt }: { updatedAt: string | null }) {
+  const date = updatedAt ? new Date(updatedAt).toLocaleDateString("el-GR", { timeZone: "Europe/Athens" }) : null;
+  return (
+    <ul className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[11px] text-slate-400">
+      <li>🏛 Τιμές από το εργαλείο της ΡΑΑΕΥ{date ? ` · ενημέρωση ${date}` : ""}</li>
+      <li>🔒 Δεν κρατάμε το αρχείο σου</li>
+      <li>✓ Δωρεάν, χωρίς δέσμευση</li>
+    </ul>
   );
 }

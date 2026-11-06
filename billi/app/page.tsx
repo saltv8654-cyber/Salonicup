@@ -7,7 +7,7 @@ import { avgMonthly, compareTelecom, type TelecomComparison, type TelecomOffer, 
 import { compare, reliability, type Comparison, type Offer } from "@/lib/compare";
 import { sessionId, track, trafficSource } from "@/lib/track";
 import { CookieSettingsLink } from "./consent";
-import { BillBreakdown, PicksView, SaveToProfile, ScoreCard } from "./insights";
+import { AnalysisProgress, BillBreakdown, PicksView, ResultHero, SaveToProfile, ScoreCard, TrustBar } from "./insights";
 import { billiScore } from "@/lib/score";
 
 const CONTACT_PHONE = process.env.NEXT_PUBLIC_CONTACT_PHONE ?? "";
@@ -179,8 +179,11 @@ export default function Home() {
   // The analysed file stays in the browser; it is uploaded only if the visitor ticks "attach" in the lead form.
   const [billFile, setBillFile] = useState<File | null>(null);
 
+  const [trustDate, setTrustDate] = useState<string | null>(null);
+
   useEffect(() => {
     track("page_view");
+    getTariffs("electricity").then((d) => setTrustDate(d.updated_at)).catch(() => {});
   }, []);
 
   const openLead = (t: LeadTarget = {}) => {
@@ -298,11 +301,7 @@ export default function Home() {
           >
             <div className={`flex flex-col items-center rounded-2xl px-5 py-8 text-center sm:px-8 ${dragging ? "bg-[#0c1636]" : "bg-[#060a1c]"}`}>
               {loading ? (
-                <>
-                  <div className="h-12 w-12 animate-spin rounded-full border-2 border-white/10 border-t-cyan-300" />
-                  <p className="mt-4 font-semibold text-white">Το Billi διαβάζει τον λογαριασμό…</p>
-                  <p className="mt-1 text-sm text-slate-400">Συνήθως 5–15 δευτερόλεπτα</p>
-                </>
+                <AnalysisProgress />
               ) : (
                 <>
                   <span className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-blue-500 via-cyan-400 to-violet-500 text-2xl shadow-lg shadow-cyan-500/20">{info.emoji}</span>
@@ -339,7 +338,7 @@ export default function Home() {
               />
             </div>
           </div>
-          <p className="mt-3 text-center text-xs text-slate-500">🔒 Το billi δεν αποθηκεύει τον λογαριασμό σου, εκτός αν το ζητήσεις στη φόρμα επικοινωνίας.</p>
+          <TrustBar updatedAt={trustDate} />
         </section>
 
         <div key={`calc-${category}`}>
@@ -375,12 +374,16 @@ export default function Home() {
 
         {result && (
           <div id="results" className="scroll-mt-20">
+            {result.comparison && (
+              <ResultHero c={result.comparison} onWant={openLead} phone={CONTACT_PHONE} kind={(result.category ?? "electricity") === "gas" ? "αέριο" : "ρεύμα"} />
+            )}
             {result.manual ? (
               <ManualSummary category={result.category ?? "electricity"} kwhMonth={result.manual.kwhMonth} bill={result.bill} annualKwh={result.comparison?.annualKwh ?? 0} onUpload={() => fileInput.current?.click()} />
             ) : (
               <BillSummary bill={result.bill} warnings={result.warnings} />
             )}
             {!result.manual && (result.category ?? "electricity") === "electricity" && <BillBreakdown bill={result.bill} />}
+            {result.comparison && (result.category ?? "electricity") !== "electricity" && result.comparison.picks && <PicksView c={result.comparison} onWant={openLead} />}
             {result.comparison && (result.category ?? "electricity") === "electricity" && (() => {
               const score = result.manual ? null : billiScore(result.comparison, result.bill);
               return (
@@ -1555,6 +1558,40 @@ function ProviderCatalog({ offers, category }: { offers: Offer[] | null; categor
 
 const SERVICES = ["Αλλαγή παρόχου ρεύματος", "Αλλαγή παρόχου φυσικού αερίου", "Internet / κινητή", "Έλεγχος λογαριασμού", "Άλλο"];
 const PREFERRED_TIMES = ["Οποιαδήποτε ώρα", "Πρωί (9–12)", "Μεσημέρι (12–15)", "Απόγευμα (15–18)", "Βράδυ (18–21)"];
+const SLOT_END = [21, 12, 15, 18, 21];
+
+/** Day + time-slot chips; the choice is stored as one readable line ("Αύριο Πέμ 7/11 · Πρωί (9–12)"). */
+function CallbackPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const now = new Date();
+  // Today and the next two days we call on (no Sundays).
+  const offsets = [0, 1, 2, 3, 4].filter((k) => k === 0 || new Date(now.getTime() + k * 86_400_000).toLocaleDateString("en-GB", { weekday: "short", timeZone: "Europe/Athens" }) !== "Sun").slice(0, 3);
+  const days = offsets.map((k) => {
+    const d = new Date(now.getTime() + k * 86_400_000);
+    const wd = d.toLocaleDateString("el-GR", { weekday: "short", timeZone: "Europe/Athens" });
+    const dm = d.toLocaleDateString("el-GR", { day: "numeric", month: "numeric", timeZone: "Europe/Athens" });
+    return { k, label: k === 0 ? "Σήμερα" : k === 1 ? "Αύριο" : `${wd} ${dm}`, text: k === 0 ? "Σήμερα" : k === 1 ? `Αύριο ${wd} ${dm}` : `${wd} ${dm}` };
+  });
+  const hour = Number(now.toLocaleString("en-GB", { hour: "numeric", hour12: false, timeZone: "Europe/Athens" }));
+  const [day, setDay] = useState(hour >= 20 ? 1 : 0);
+  const [slot, setSlot] = useState(0);
+  const slots = PREFERRED_TIMES.map((p, i) => ({ p, i, gone: day === 0 && i > 0 && hour >= SLOT_END[i] }));
+  useEffect(() => {
+    const s = slots[slot]?.gone ? 0 : slot;
+    const v = `${days[day].text} · ${PREFERRED_TIMES[s]}`;
+    if (v !== value) onChange(v);
+  }, [day, slot]);
+  const chip = (on: boolean) => `rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${on ? "bg-cyan-400/15 text-cyan-100 ring-cyan-300/50" : "text-slate-300 ring-white/15 hover:ring-white/30"}`;
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1.5">
+        {days.map((d, i) => <button key={d.k} type="button" className={chip(day === i)} onClick={() => setDay(i)}>{d.label}</button>)}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {slots.filter((x) => !x.gone).map((x) => <button key={x.p} type="button" className={chip(slot === x.i || (!!slots[slot]?.gone && x.i === 0))} onClick={() => setSlot(x.i)}>{x.p}</button>)}
+      </div>
+    </div>
+  );
+}
 
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
@@ -1680,7 +1717,7 @@ function LeadModal({ target, result, telecomResult, category, billFile, onClose 
             <div className="text-3xl">✅</div>
             <div className="mt-2 font-semibold text-white">Ευχαριστούμε, {form.name.split(" ")[0]}!</div>
             {attachNote && <p className="mt-2 text-xs text-amber-200">{attachNote}</p>}
-            <p className="mt-1 text-sm text-slate-300">Θα σε καλέσουμε στο {form.phone} {form.preferred_time !== PREFERRED_TIMES[0] ? `(${form.preferred_time.toLowerCase()})` : "σύντομα"}.</p>
+            <p className="mt-1 text-sm text-slate-300">Θα σε καλέσουμε στο {form.phone} {form.preferred_time && form.preferred_time !== PREFERRED_TIMES[0] ? `(${form.preferred_time.toLowerCase()})` : "σύντομα"}.</p>
             <button type="button" className={`${btnSecondary} mt-4`} onClick={onClose}>Κλείσιμο</button>
           </div>
         ) : (
@@ -1729,12 +1766,7 @@ function LeadModal({ target, result, telecomResult, category, billFile, onClose 
               </span>
             </Field>
             <Field label="Πότε να σε καλέσουμε;">
-              <span className="relative block">
-                <select className={`${inputCls} appearance-none pr-9`} value={form.preferred_time} onChange={(e) => set("preferred_time", e.target.value)}>
-                  {PREFERRED_TIMES.map((p) => <option key={p}>{p}</option>)}
-                </select>
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">▾</span>
-              </span>
+              <CallbackPicker value={form.preferred_time} onChange={(v) => set("preferred_time", v)} />
             </Field>
             <Field label="Μήνυμα">
               <textarea rows={2} maxLength={1000} className={inputCls} value={form.message} onChange={(e) => set("message", e.target.value)} placeholder="προαιρετικό" />
