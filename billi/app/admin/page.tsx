@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Lead, LeadActivity, LeadStatus } from "@/lib/db";
 import { L, SqlStep, api, btn, btnGhost, card, eur, input, when } from "./ui";
 import { EnergyView } from "./energy";
+import { Customer360, Pipeline, Stalled, Temperature, TodayTasks, type CrmLead, type Task } from "./crm";
 import TIERS_SQL from "@/supabase/migrations/20261106_tariff_tiers.sql";
 
 const STATUS: Record<LeadStatus, { label: string; cls: string }> = {
@@ -133,7 +134,7 @@ function BillAttachment({ lead, onChanged }: { lead: Lead; onChanged: () => void
 
 /* ───────────── lead detail ───────────── */
 
-function LeadDetail({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: (l: Lead) => void }) {
+function LeadDetail({ id, onClose, onChanged, crm, onCrm }: { id: string; onClose: () => void; onChanged: (l: Lead) => void; crm?: CrmLead["crm"]; onCrm?: () => void }) {
   const [lead, setLead] = useState<Lead | null>(null);
   const [acts, setActs] = useState<LeadActivity[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -210,6 +211,8 @@ function LeadDetail({ id, onClose, onChanged }: { id: string; onClose: () => voi
               <BillAttachment lead={lead} onChanged={load} />
               <div className="text-xs text-slate-500">Συναίνεση επικοινωνίας ✓{lead.consent_marketing ? " · ενημερωτικά ✓" : ""}</div>
             </div>
+
+            <Customer360 lead={lead} crm={crm} onChanged={() => { load(); onCrm?.(); }} />
 
             <div className={`${card} grid grid-cols-2 gap-x-4 gap-y-1 text-sm`}>
               <span className="text-slate-500">Υπηρεσία</span><span className="text-white">{lead.requested_service ?? "—"}{lead.user_id ? <span className="ml-2 text-[11px] text-cyan-300">👤 έχει λογαριασμό</span> : null}</span>
@@ -1241,7 +1244,10 @@ function toCsv(leads: Lead[]) {
 
 export default function Admin() {
   const [authed, setAuthed] = useState<boolean | null>(null);
-  const [leads, setLeads] = useState<Lead[]>([]);
+  const [leads, setLeads] = useState<CrmLead[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [view, setView] = useState<"list" | "pipeline">("list");
+  const [sortBy, setSortBy] = useState<"score" | "date">("score");
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"leads" | "stats" | "tariffs" | "energy">("leads");
   const [status, setStatus] = useState<"all" | "open" | LeadStatus>("open");
@@ -1251,8 +1257,9 @@ export default function Admin() {
 
   const load = useCallback(async () => {
     try {
-      const d = await api<{ leads: Lead[] }>("/api/admin/leads");
+      const d = await api<{ leads: CrmLead[]; tasks?: Task[] }>("/api/admin/leads");
       setLeads(d.leads);
+      setTasks(d.tasks ?? []);
       setAuthed(true);
     } catch (e: any) {
       if (e.status === 401) setAuthed(false);
@@ -1273,8 +1280,17 @@ export default function Admin() {
     return leads
       .filter((l) => status === "all" || (status === "open" ? !["active", "lost"].includes(l.status) : l.status === status))
       .filter((l) => service === "all" || (l.requested_service ?? "—") === service)
-      .filter((l) => !needle || [l.name, l.phone, l.email, l.tariff_label, l.current_provider, l.current_program, l.requested_service].some((v) => v?.toLowerCase().includes(needle)));
-  }, [leads, status, q, service]);
+      .filter((l) => !needle || [l.name, l.phone, l.email, l.tariff_label, l.current_provider, l.current_program, l.requested_service].some((v) => v?.toLowerCase().includes(needle)))
+      .sort((a, b) => (sortBy === "score" ? (b.crm?.score ?? 0) - (a.crm?.score ?? 0) : 0) || b.created_at.localeCompare(a.created_at));
+  }, [leads, status, q, service, sortBy]);
+  const moveLead = async (id: string, to: LeadStatus) => {
+    try {
+      await api(`/api/admin/leads/${id}`, { method: "PATCH", body: JSON.stringify({ status: to }) });
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
   const services = useMemo(() => [...new Set(leads.map((l) => l.requested_service ?? "—"))].sort(), [leads]);
 
   const kpi = useMemo(() => {
@@ -1348,6 +1364,13 @@ export default function Admin() {
               {services.map((x) => <option key={x} value={x}>{x === "—" ? "Χωρίς υπηρεσία" : x}</option>)}
             </select>
             <input className={`${input} min-w-0 flex-1`} placeholder="Αναζήτηση: όνομα, τηλέφωνο, πάροχος, υπηρεσία…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <select className={`${input} w-40`} value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} aria-label="Ταξινόμηση">
+              <option value="score">🔥 Πρώτα οι ζεστοί</option><option value="date">🕐 Πιο πρόσφατα</option>
+            </select>
+            <div className="grid grid-cols-2 gap-1 rounded-xl bg-white/5 p-1 ring-1 ring-white/10">
+              <button className={`rounded-lg px-3 py-1 text-xs font-semibold ${view === "list" ? "bg-white/15 text-white" : "text-slate-400"}`} onClick={() => setView("list")}>☰ Λίστα</button>
+              <button className={`rounded-lg px-3 py-1 text-xs font-semibold ${view === "pipeline" ? "bg-white/15 text-white" : "text-slate-400"}`} onClick={() => setView("pipeline")}>▦ Pipeline</button>
+            </div>
             <button className={btnGhost} onClick={load}>↻</button>
             <button
               className={btnGhost}
@@ -1362,6 +1385,10 @@ export default function Admin() {
             </button>
           </div>
 
+          <TodayTasks tasks={tasks} leads={leads} onOpen={setOpenId} onDone={load} />
+          {view === "pipeline" ? (
+            <Pipeline leads={shown.filter((l) => l.status !== "lost" || status === "all" || status === "lost")} stages={STATUS_ORDER} labels={STATUS} onOpen={setOpenId} onMove={moveLead} />
+          ) : (
           <ul className="mt-4 space-y-2">
             {shown.length === 0 && <li className="rounded-xl bg-white/5 p-4 text-sm text-slate-400">Κανένας πελάτης εδώ.</li>}
             {shown.map((l) => (
@@ -1379,6 +1406,8 @@ export default function Admin() {
                       {l.next_follow_up && l.next_follow_up <= today && !["active", "lost"].includes(l.status) && (
                         <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-xs font-semibold text-amber-200">📅 κλήση</span>
                       )}
+                      <Stalled crm={l.crm} />
+                      <Temperature crm={l.crm} />
                       <Badge status={l.status} />
                     </div>
                   </div>
@@ -1389,14 +1418,17 @@ export default function Admin() {
               </li>
             ))}
           </ul>
+          )}
         </>
       )}
 
       {openId && (
         <LeadDetail
           id={openId}
+          crm={leads.find((l) => l.id === openId)?.crm}
+          onCrm={load}
           onClose={() => setOpenId(null)}
-          onChanged={(u) => setLeads((ls) => ls.map((l) => (l.id === u.id ? u : l)))}
+          onChanged={(u) => setLeads((ls) => ls.map((l) => (l.id === u.id ? { ...u, crm: l.crm } : l)))}
         />
       )}
     </main>
