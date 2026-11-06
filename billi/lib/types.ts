@@ -115,7 +115,15 @@ export interface Tariff {
   last_verified_at?: string;
   /** "verified": approved from its source; anything else is indicative */
   data_status?: "verified" | "unverified";
+  /** consumption tiers by monthly kWh (last `upto` is null); price_per_kwh_eur is then the first tier */
+  price_tiers?: PriceTier[];
+  fee_tiers?: FeeTier[];
+  /** from_first: the whole month is billed at the tier its consumption reaches; excess: each tier for its own kWh */
+  tier_mode?: "from_first" | "excess";
 }
+
+export interface PriceTier { upto: number | null; price: number }
+export interface FeeTier { upto: number | null; fee: number }
 
 export interface TariffFile {
   updated_at: string | null;

@@ -67,12 +67,41 @@ function supplyCost(kwh: number, fixedMonthly: number, pricePerKwh: number) {
   return (fixedMonthly * 12 + kwh * pricePerKwh) * (1 + VAT);
 }
 
-/** Yearly supply cost with the night share billed at the night price on day/night programmes. */
-function tariffCost(kwh: number, nightShare: number, t: Tariff, price: number) {
-  if (t.day_night && t.price_per_kwh_night_eur !== undefined && nightShare > 0) {
-    return (t.fixed_monthly_eur * 12 + kwh * (1 - nightShare) * price + kwh * nightShare * t.price_per_kwh_night_eur) * (1 + VAT);
+/** Monthly energy charge for `kwh` under a tier table (see Tariff.tier_mode). */
+export function tieredEnergy(kwh: number, tiers: { upto: number | null; price: number }[], mode: "from_first" | "excess" = "from_first") {
+  const sorted = [...tiers].sort((a, b) => (a.upto ?? Infinity) - (b.upto ?? Infinity));
+  if (mode === "from_first") {
+    const tier = sorted.find((t) => t.upto === null || kwh <= t.upto) ?? sorted[sorted.length - 1];
+    return kwh * tier.price;
   }
-  return supplyCost(kwh, t.fixed_monthly_eur, price);
+  let left = kwh;
+  let prev = 0;
+  let cost = 0;
+  for (const t of sorted) {
+    const span = t.upto === null ? left : Math.max(0, Math.min(left, t.upto - prev));
+    cost += span * t.price;
+    left -= span;
+    prev = t.upto ?? prev;
+    if (left <= 0) break;
+  }
+  return cost;
+}
+
+/** Fixed fee for a month of `kwh` (tiered fees: e.g. 7.95 € up to 150 kWh, 15.90 € above). */
+export const monthlyFee = (t: Tariff, kwh: number) =>
+  t.fee_tiers?.length ? ([...t.fee_tiers].sort((a, b) => (a.upto ?? Infinity) - (b.upto ?? Infinity)).find((f) => f.upto === null || kwh <= f.upto) ?? t.fee_tiers[t.fee_tiers.length - 1]).fee : t.fixed_monthly_eur;
+
+/** Yearly supply cost: tiers worked out on the average month, the night share at the night price. */
+function tariffCost(kwh: number, nightShare: number, t: Tariff, price: number) {
+  const month = kwh / 12;
+  const night = t.day_night && t.price_per_kwh_night_eur !== undefined && nightShare > 0 ? month * nightShare : 0;
+  const day = month - night;
+  // The tier is set by the whole month's consumption (day + night); its price applies to the day kWh.
+  const tiered = t.price_tiers?.length && price === t.price_per_kwh_eur;
+  const energy = !tiered ? day * price
+    : t.tier_mode === "excess" ? tieredEnergy(month, t.price_tiers!, "excess") * (month ? day / month : 0)
+    : day * (tieredEnergy(month, t.price_tiers!, "from_first") / (month || 1));
+  return (monthlyFee(t, month) + energy + night * (t.price_per_kwh_night_eur ?? 0)) * 12 * (1 + VAT);
 }
 
 export function nightShareOf(bill: Bill): number | null {
@@ -136,7 +165,7 @@ export function compare(bill: Bill, tariffs: Tariff[], category: EnergyCategory 
 
   return {
     annualKwh: kwh, currentAnnual, offers, byColor,
-    recommendation: recommend(offers.filter((o) => !o.expired), currentAnnual, kwh),
+    recommendation: recommend(offers.filter((o) => !o.expired && !restricted(o.tariff)), currentAnnual, kwh),
     assumptions: assumptions(bill, kwh, currentAnnual, offers, category, nightShare, tariffs.length - usable.length),
     picks: picks(offers, currentAnnual),
     excluded: tariffs.length - usable.length,
@@ -187,8 +216,12 @@ function risksOf(t: Tariff): string[] {
   return r;
 }
 
+/** Programmes only some households can take (students, photovoltaic owners): listed, never recommended to everyone. */
+export const restricted = (t: Tariff) => /φοιτητ|student|φωτοβολτα|net.?metering/i.test(`${t.name} ${t.conditions ?? ""} ${t.discount_condition ?? ""}`);
+
 function picks(offers: Offer[], currentAnnual: number | null): Pick[] {
-  const pool = offers.filter((o) => !o.expired && o.tariff.color !== "orange"); // orange needs a smart meter
+  // Orange needs a smart meter; student / PV programmes have eligibility rules.
+  const pool = offers.filter((o) => !o.expired && o.tariff.color !== "orange" && !restricted(o.tariff));
   if (pool.length === 0) return [];
   const cheapestCost = costOf(pool[0]);
   const save = (o: Offer) => (currentAnnual !== null ? currentAnnual - costOf(o) : null);
@@ -235,6 +268,8 @@ function assumptions(bill: Bill, kwh: number, currentAnnual: number | null, offe
   else out.push(`Ετήσια κατανάλωση ~${kwh.toLocaleString("el-GR")} kWh: ${bill.kwh_total ?? "—"} kWh σε ${days ?? 30} ημέρες, αναγωγή σε 365 ημέρες.`);
   out.push("Υπολογίζονται μόνο οι χρεώσεις προμήθειας (πάγιο + ενέργεια) με ΦΠΑ 6%. Οι ρυθμιζόμενες χρεώσεις, οι φόροι και το ΕΡΤ είναι ίδια σε όλους τους παρόχους και δεν αλλάζουν τη σύγκριση.");
   out.push("Μηνιαίο κόστος = ετήσιο / 12. Στην πράξη ο λογαριασμός αλλάζει με την εποχή.");
+  if (offers.some((o) => o.tariff.price_tiers?.length)) out.push("Στα προγράμματα με κλιμάκια, το κλιμάκιο ορίζεται από τη μέση μηνιαία κατανάλωσή σου.");
+  if (offers.some((o) => restricted(o.tariff))) out.push("Φοιτητικά προγράμματα και προγράμματα για φωτοβολταϊκά εμφανίζονται στη λίστα αλλά δεν προτείνονται, γιατί έχουν ειδικές προϋποθέσεις.");
   if (offers.some((o) => o.annualWithDiscount !== null)) out.push("Όπου υπάρχει έκπτωση υπό όρους (π.χ. έγκαιρη πληρωμή), η κατάταξη θεωρεί ότι την παίρνεις.");
   if (currentAnnual !== null) out.push(bill.supplier_total ? "Το σημερινό κόστος βγαίνει από το «σύνολο προμήθειας» του λογαριασμού σου, αναγωγή σε έτος." : "Το σημερινό κόστος βγαίνει από το πάγιο και την τιμή kWh του λογαριασμού σου.");
   out.push("Οι κυμαινόμενες τιμές (πράσινα, κίτρινα) αλλάζουν κάθε μήνα· η σύγκριση χρησιμοποιεί την τελευταία δημοσιευμένη τιμή.");

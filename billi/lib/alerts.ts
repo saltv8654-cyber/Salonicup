@@ -1,6 +1,7 @@
 import { analyseProfile, normaliseProfile, type EnergyProfile, type UserSettings } from "./account";
 import { db } from "./db";
 import { normKey } from "./energy/model";
+import { restricted } from "./compare";
 import { escapeHtml, mailConfigured, sendMail, siteUrl } from "./mailer";
 import { loadTariffs } from "./tariffs";
 
@@ -34,7 +35,7 @@ async function draftsFor(p: EnergyProfile, s: UserSettings, tariffs: Awaited<Ret
   const a = await analyseProfile(p, tariffs);
   const c = a.comparison;
   if (!c || c.currentAnnual === null) return out;
-  const pool = c.offers.filter((o) => !o.expired && o.tariff.color !== "orange");
+  const pool = c.offers.filter((o) => !o.expired && o.tariff.color !== "orange" && !restricted(o.tariff));
   const cost = (o: (typeof pool)[number]) => o.annualWithDiscount ?? o.annual;
   const current = a.currentTariff;
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Lead, LeadActivity, LeadStatus } from "@/lib/db";
 import { L, SqlStep, api, btn, btnGhost, card, eur, input, when } from "./ui";
 import { EnergyView } from "./energy";
+import TIERS_SQL from "@/supabase/migrations/20261106_tariff_tiers.sql";
 
 const STATUS: Record<LeadStatus, { label: string; cls: string }> = {
   new: { label: "Νέο αίτημα", cls: "bg-cyan-400/15 text-cyan-200 ring-cyan-300/40" },
@@ -829,6 +830,21 @@ function TariffsView({ category }: { category: EnergyCat }) {
   const [q, setQ] = useState("");
   const [month, setMonth] = useState(thisMonth());
   const [msg, setMsg] = useState<string | null>(null);
+  const [needTiers, setNeedTiers] = useState(false);
+
+  const replaceWithRaaey = async () => {
+    if (!confirm("Να διαγραφούν ΟΛΑ τα οικιακά προγράμματα ρεύματος και να μπουν τα 47 προγράμματα με τιμή από τη λίστα της ΡΑΑΕΥ (Νοέμβριος 2026);\n\nΤα παλιά μένουν στο ιστορικό τιμών.")) return;
+    setMsg(null);
+    setError(null);
+    try {
+      const r = await api<{ removed: number; added: number }>("/api/admin/tariffs/replace", { method: "POST", body: "{}" });
+      setMsg(`Διαγράφηκαν ${r.removed} και μπήκαν ${r.added} προγράμματα της ΡΑΑΕΥ. Εμφανίζονται ήδη στο site.`);
+      await load();
+    } catch (e: any) {
+      if (e.message === "missing_tiers") setNeedTiers(true);
+      else setError(e.message);
+    }
+  };
 
   const load = useCallback(async () => {
     setError(null);
@@ -881,8 +897,14 @@ function TariffsView({ category }: { category: EnergyCat }) {
           <h2 className="text-lg font-semibold text-white">{category === "gas" ? "🔥 Τιμές αερίου" : "⚡ Τιμές ρεύματος"}</h2>
           <p className="text-xs text-slate-400">Ό,τι αλλάζεις εδώ εμφανίζεται αμέσως στο site. Τιμές χωρίς ΦΠΑ, μόνο προμήθεια.</p>
         </div>
-        <button className={btn} onClick={() => setEditing("new")}>＋ Νέο πρόγραμμα</button>
+        <div className="flex flex-wrap gap-2">
+          {category === "electricity" && <button className={btnGhost} onClick={replaceWithRaaey}>🏛 Τιμές ΡΑΑΕΥ (Νοέμβριος)</button>}
+          <button className={btn} onClick={() => setEditing("new")}>＋ Νέο πρόγραμμα</button>
+        </div>
       </div>
+      {needTiers && (
+        <SqlStep title="Μικρή αναβάθμιση για κλιμακωτές τιμές" text="Πολλά προγράμματα έχουν τιμή ανά κλιμάκιο κατανάλωσης. Τρέξε μία φορά αυτό το SQL (και το SQL της Διαχείρισης ενέργειας, αν δεν το έχεις τρέξει) και ξαναπάτα «Τιμές ΡΑΑΕΥ»." sql={TIERS_SQL} onRetry={() => { setNeedTiers(false); replaceWithRaaey(); }} />
+      )}
 
       {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">⚠️ {error}</p>}
       {msg && <p className="rounded-xl bg-emerald-400/10 p-3 text-sm text-emerald-200">✓ {msg}</p>}

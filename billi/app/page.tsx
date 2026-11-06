@@ -1367,7 +1367,10 @@ const shortDay = (d: string) => new Date(d.length === 10 ? `${d}T12:00:00` : d).
 
 /** Night price, promotions and contract terms, when the provider publishes them. */
 function TariffDetails({ t }: { t: Tariff }) {
+  const kwhRange = (list: { upto: number | null }[], i: number) => (list[i].upto === null ? `πάνω από ${list[i - 1]?.upto ?? 0}` : `έως ${list[i].upto}`);
   const bits = [
+    t.price_tiers?.length ? `📶 ${t.price_tiers.map((x, i, a) => `${kwhRange(a, i)} kWh/μήνα: ${x.price.toFixed(3)} €`).join(" · ")}${t.tier_mode === "excess" ? " (κλιμακωτά)" : " (για όλη την κατανάλωση)"}` : null,
+    t.fee_tiers?.length ? `💳 πάγιο ${t.fee_tiers.map((x, i, a) => `${kwhRange(a, i)} kWh: ${x.fee.toFixed(2)} €`).join(" · ")}` : null,
     t.day_night && t.price_per_kwh_night_eur !== undefined ? `🌙 νύχτα ${t.price_per_kwh_night_eur.toFixed(3)} €/kWh` : null,
     t.promo_discount ? `🎁 ${t.promo_discount}` : null,
     t.min_duration_months ? `📄 διάρκεια ${t.min_duration_months} μήνες` : null,

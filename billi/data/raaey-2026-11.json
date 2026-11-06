@@ -1,0 +1,768 @@
+{
+ "updated_at": "2026-11-06T10:00:00Z",
+ "source": "ΡΑΑΕΥ · energycost.gr (Νοέμβριος 2026)",
+ "note": "Τιμές προμήθειας χωρίς ΦΠΑ, με την έκπτωση υπό προϋπόθεση όπου αναφέρεται, όπως δημοσιεύονται στο εργαλείο σύγκρισης της ΡΑΑΕΥ. Προγράμματα με «η τιμή δεν είναι ακόμα γνωστή» δεν περιλαμβάνονται.",
+ "tariffs": [
+  {
+   "id": "volton-volton-blue-student-2026-11",
+   "category": "electricity",
+   "provider": "Volton",
+   "name": "Volton Blue Student",
+   "color": "blue",
+   "fixed_monthly_eur": 5.0,
+   "price_per_kwh_eur": 0.129,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με έκπτωση συνέπειας 50,38%",
+   "min_duration_months": 18,
+   "conditions": "Φοιτητικό πρόγραμμα"
+  },
+  {
+   "id": "δεη-myhome-plan-06-26-2026-11",
+   "category": "electricity",
+   "provider": "ΔΕΗ",
+   "name": "myHome Plan 06.26",
+   "color": "blue",
+   "fixed_monthly_eur": 7.35,
+   "price_per_kwh_eur": 0.1421,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με πάγια εντολή (πάγιο και τιμή)",
+   "min_duration_months": 12
+  },
+  {
+   "id": "δεη-myhome-enter-07-26-2026-11",
+   "category": "electricity",
+   "provider": "ΔΕΗ",
+   "name": "myHome Enter 07.26",
+   "color": "blue",
+   "fixed_monthly_eur": 7.35,
+   "price_per_kwh_eur": 0.1421,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με πάγια εντολή (πάγιο και τιμή)",
+   "min_duration_months": 12
+  },
+  {
+   "id": "volton-volton-blue-flat-18m-v2-2026-11",
+   "category": "electricity",
+   "provider": "Volton",
+   "name": "Volton Blue Flat 18M v2",
+   "color": "blue",
+   "fixed_monthly_eur": 9.9,
+   "price_per_kwh_eur": 0.13902,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με έκπτωση συνέπειας (45% στο πάγιο, 46,53% στην τιμή)",
+   "min_duration_months": 18
+  },
+  {
+   "id": "volton-volton-yellow-protect-oct-26-2026-11",
+   "category": "electricity",
+   "provider": "Volton",
+   "name": "Volton Yellow Protect Oct'26",
+   "color": "yellow",
+   "fixed_monthly_eur": 10.9,
+   "price_per_kwh_eur": 0.14,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "min_duration_months": 12
+  },
+  {
+   "id": "volton-volton-blue-flat-v3-2026-11",
+   "category": "electricity",
+   "provider": "Volton",
+   "name": "Volton Blue Flat v3",
+   "color": "blue",
+   "fixed_monthly_eur": 9.9,
+   "price_per_kwh_eur": 0.15202,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με έκπτωση συνέπειας (45% στο πάγιο, 41,53% στην τιμή)",
+   "min_duration_months": 12,
+   "conditions": "Για νέους πελάτες"
+  },
+  {
+   "id": "nrg-nrg-fixed-on-time-24m-2026-11",
+   "category": "electricity",
+   "provider": "nrg",
+   "name": "nrg fixed on time 24M",
+   "color": "blue",
+   "fixed_monthly_eur": 12.9,
+   "price_per_kwh_eur": 0.145,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με εμπρόθεσμη πληρωμή",
+   "min_duration_months": 24
+  },
+  {
+   "id": "ηρων-blue-more-home-2026-11",
+   "category": "electricity",
+   "provider": "ΗΡΩΝ",
+   "name": "Blue More HOME",
+   "color": "blue",
+   "fixed_monthly_eur": 12.9,
+   "price_per_kwh_eur": 0.145,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με συνέπεια",
+   "min_duration_months": 24
+  },
+  {
+   "id": "ελιν-power-on-blue-home-12m-2026-11",
+   "category": "electricity",
+   "provider": "ΕΛΙΝ",
+   "name": "Power On! Blue Home 12M",
+   "color": "blue",
+   "fixed_monthly_eur": 8.9,
+   "price_per_kwh_eur": 0.1599,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "min_duration_months": 12
+  },
+  {
+   "id": "nrg-nrg-adjust-24m-2026-11",
+   "category": "electricity",
+   "provider": "nrg",
+   "name": "nrg adjust 24M",
+   "color": "blue",
+   "fixed_monthly_eur": 7.95,
+   "price_per_kwh_eur": 0.139,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με εμπρόθεσμη πληρωμή",
+   "min_duration_months": 24,
+   "fee_tiers": [
+    {
+     "upto": 150,
+     "fee": 7.95
+    },
+    {
+     "upto": null,
+     "fee": 15.9
+    }
+   ]
+  },
+  {
+   "id": "zeniθ-power-home-prime-2y-2026-11",
+   "category": "electricity",
+   "provider": "ZeniΘ",
+   "name": "Power Home Prime 2Y",
+   "color": "blue",
+   "fixed_monthly_eur": 15.9,
+   "price_per_kwh_eur": 0.139,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με έκπτωση συνέπειας",
+   "min_duration_months": 24
+  },
+  {
+   "id": "ηρων-blue-smart-more-home-2026-11",
+   "category": "electricity",
+   "provider": "ΗΡΩΝ",
+   "name": "Blue Smart More HOME",
+   "color": "blue",
+   "fixed_monthly_eur": 7.95,
+   "price_per_kwh_eur": 0.139,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με συνέπεια",
+   "min_duration_months": 24,
+   "fee_tiers": [
+    {
+     "upto": 150,
+     "fee": 7.95
+    },
+    {
+     "upto": null,
+     "fee": 15.9
+    }
+   ]
+  },
+  {
+   "id": "φυσικο-αεριο-ελληνικη-εταιρεια-ενεργειας-maxi-home-safe-2026-11",
+   "category": "electricity",
+   "provider": "Φυσικό Αέριο Ελληνική Εταιρεία Ενέργειας",
+   "name": "MAXI Home Safe",
+   "color": "blue",
+   "fixed_monthly_eur": 13.9,
+   "price_per_kwh_eur": 0.149,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με συνέπεια",
+   "min_duration_months": 12,
+   "price_tiers": [
+    {
+     "upto": 700,
+     "price": 0.149
+    },
+    {
+     "upto": null,
+     "price": 0.189
+    }
+   ],
+   "tier_mode": "from_first"
+  },
+  {
+   "id": "φυσικο-αεριο-ελληνικη-εταιρεια-ενεργειας-maxi-home-energy-reward-2026-11",
+   "category": "electricity",
+   "provider": "Φυσικό Αέριο Ελληνική Εταιρεία Ενέργειας",
+   "name": "MAXI Home Energy Reward",
+   "color": "blue",
+   "fixed_monthly_eur": 10.9,
+   "price_per_kwh_eur": 0.099,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με έκπτωση συνέπειας και έκπτωση ενεργειακής εξοικονόμησης",
+   "min_duration_months": 12,
+   "price_tiers": [
+    {
+     "upto": 100,
+     "price": 0.099
+    },
+    {
+     "upto": 200,
+     "price": 0.119
+    },
+    {
+     "upto": 300,
+     "price": 0.139
+    },
+    {
+     "upto": 400,
+     "price": 0.159
+    },
+    {
+     "upto": 500,
+     "price": 0.179
+    },
+    {
+     "upto": null,
+     "price": 0.189
+    }
+   ],
+   "tier_mode": "from_first"
+  },
+  {
+   "id": "ηρων-blue-simple-more-home-2026-11",
+   "category": "electricity",
+   "provider": "ΗΡΩΝ",
+   "name": "Blue Simple More HOME",
+   "color": "blue",
+   "fixed_monthly_eur": 0.0,
+   "price_per_kwh_eur": 0.199,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "min_duration_months": 24
+  },
+  {
+   "id": "ηρων-blue-generous-max-home-5-2026-11",
+   "category": "electricity",
+   "provider": "ΗΡΩΝ",
+   "name": "Blue Generous Max HOME 5",
+   "color": "blue",
+   "fixed_monthly_eur": 11.9,
+   "price_per_kwh_eur": 0.168,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με συνέπεια",
+   "min_duration_months": 18
+  },
+  {
+   "id": "nrg-nrg-adjust-3-0-2026-11",
+   "category": "electricity",
+   "provider": "nrg",
+   "name": "nrg adjust 3.0",
+   "color": "blue",
+   "fixed_monthly_eur": 7.95,
+   "price_per_kwh_eur": 0.158,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με εμπρόθεσμη πληρωμή",
+   "min_duration_months": 12,
+   "fee_tiers": [
+    {
+     "upto": 150,
+     "fee": 7.95
+    },
+    {
+     "upto": null,
+     "fee": 15.9
+    }
+   ]
+  },
+  {
+   "id": "ηρων-blue-smart-home-3-2026-11",
+   "category": "electricity",
+   "provider": "ΗΡΩΝ",
+   "name": "Blue Smart HOME 3",
+   "color": "blue",
+   "fixed_monthly_eur": 7.95,
+   "price_per_kwh_eur": 0.158,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με συνέπεια",
+   "min_duration_months": 12,
+   "fee_tiers": [
+    {
+     "upto": 150,
+     "fee": 7.95
+    },
+    {
+     "upto": null,
+     "fee": 15.9
+    }
+   ]
+  },
+  {
+   "id": "eunice-home-secure-start-2026-11",
+   "category": "electricity",
+   "provider": "EUNICE",
+   "name": "Home Secure Start",
+   "color": "blue",
+   "fixed_monthly_eur": 8.0,
+   "price_per_kwh_eur": 0.15,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "price_tiers": [
+    {
+     "upto": 150,
+     "price": 0.15
+    },
+    {
+     "upto": null,
+     "price": 0.21
+    }
+   ],
+   "tier_mode": "from_first"
+  },
+  {
+   "id": "zeniθ-power-home-fixed-safe-12m-2026-11",
+   "category": "electricity",
+   "provider": "ZeniΘ",
+   "name": "Power Home Fixed Safe 12M",
+   "color": "blue",
+   "fixed_monthly_eur": 15.9,
+   "price_per_kwh_eur": 0.159,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με έκπτωση συνέπειας",
+   "min_duration_months": 12,
+   "conditions": "Χωρίς τέλος πρόωρης αποχώρησης"
+  },
+  {
+   "id": "eunice-home-secure-2-0-2026-11",
+   "category": "electricity",
+   "provider": "EUNICE",
+   "name": "Home Secure 2.0",
+   "color": "blue",
+   "fixed_monthly_eur": 6.0,
+   "price_per_kwh_eur": 0.19,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/"
+  },
+  {
+   "id": "protergia-value-balance-12m-2026-11",
+   "category": "electricity",
+   "provider": "Protergia",
+   "name": "Value Balance 12M",
+   "color": "blue",
+   "fixed_monthly_eur": 10.9,
+   "price_per_kwh_eur": 0.139,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "min_duration_months": 12,
+   "price_tiers": [
+    {
+     "upto": 150,
+     "price": 0.139
+    },
+    {
+     "upto": null,
+     "price": 0.219
+    }
+   ],
+   "tier_mode": "from_first"
+  },
+  {
+   "id": "zeniθ-power-home-fixed-protect-2-0-2026-11",
+   "category": "electricity",
+   "provider": "ZeniΘ",
+   "name": "Power Home Fixed Protect 2.0",
+   "color": "blue",
+   "fixed_monthly_eur": 12.9,
+   "price_per_kwh_eur": 0.177,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με έκπτωση συνέπειας",
+   "min_duration_months": 12
+  },
+  {
+   "id": "zeniθ-power-home-fixed-scale-2026-11",
+   "category": "electricity",
+   "provider": "ZeniΘ",
+   "name": "Power Home Fixed Scale",
+   "color": "blue",
+   "fixed_monthly_eur": 14.9,
+   "price_per_kwh_eur": 0.119,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με έκπτωση συνέπειας",
+   "min_duration_months": 12,
+   "price_tiers": [
+    {
+     "upto": 100,
+     "price": 0.119
+    },
+    {
+     "upto": null,
+     "price": 0.199
+    }
+   ],
+   "tier_mode": "from_first"
+  },
+  {
+   "id": "protergia-helios-value-2026-11",
+   "category": "electricity",
+   "provider": "Protergia",
+   "name": "Helios Value",
+   "color": "yellow",
+   "fixed_monthly_eur": 0.0,
+   "price_per_kwh_eur": 0.24476,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "min_duration_months": 12,
+   "conditions": "Αφορά πελάτες με φωτοβολταϊκό"
+  },
+  {
+   "id": "protergia-student-plan-2026-11",
+   "category": "electricity",
+   "provider": "Protergia",
+   "name": "Student Plan",
+   "color": "yellow",
+   "fixed_monthly_eur": 19.9,
+   "price_per_kwh_eur": 0.001,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "min_duration_months": 12,
+   "conditions": "Φοιτητικό πρόγραμμα",
+   "price_tiers": [
+    {
+     "upto": 115,
+     "price": 0.001
+    },
+    {
+     "upto": null,
+     "price": 0.28839
+    }
+   ],
+   "tier_mode": "from_first"
+  },
+  {
+   "id": "ηρων-basic-home-2026-11",
+   "category": "electricity",
+   "provider": "ΗΡΩΝ",
+   "name": "BASIC HOME",
+   "color": "yellow",
+   "fixed_monthly_eur": 5.0,
+   "price_per_kwh_eur": 0.25954,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με συνέπεια"
+  },
+  {
+   "id": "protergia-value-special-2026-11",
+   "category": "electricity",
+   "provider": "Protergia",
+   "name": "Value Special",
+   "color": "yellow",
+   "fixed_monthly_eur": 5.0,
+   "price_per_kwh_eur": 0.264,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με συνέπεια"
+  },
+  {
+   "id": "protergia-value-standard-2-0-2026-11",
+   "category": "electricity",
+   "provider": "Protergia",
+   "name": "Value Standard 2.0",
+   "color": "yellow",
+   "fixed_monthly_eur": 5.0,
+   "price_per_kwh_eur": 0.2675,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με συνέπεια",
+   "min_duration_months": 12
+  },
+  {
+   "id": "protergia-value-bright-2-0-2026-11",
+   "category": "electricity",
+   "provider": "Protergia",
+   "name": "Value Bright 2.0",
+   "color": "yellow",
+   "fixed_monthly_eur": 5.0,
+   "price_per_kwh_eur": 0.26839,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με συνέπεια",
+   "min_duration_months": 12
+  },
+  {
+   "id": "protergia-value-lite-2-0-2026-11",
+   "category": "electricity",
+   "provider": "Protergia",
+   "name": "Value Lite 2.0",
+   "color": "yellow",
+   "fixed_monthly_eur": 0.0,
+   "price_per_kwh_eur": 0.29339,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "min_duration_months": 12
+  },
+  {
+   "id": "δεη-ειδικο-τιμολογιο-γ1-2026-11",
+   "category": "electricity",
+   "provider": "ΔΕΗ",
+   "name": "Ειδικό Τιμολόγιο (Γ1)",
+   "color": "green",
+   "fixed_monthly_eur": 5.0,
+   "price_per_kwh_eur": 0.16901,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με εμπρόθεσμη εξόφληση & myΔΕΗ",
+   "price_tiers": [
+    {
+     "upto": 200,
+     "price": 0.16901
+    },
+    {
+     "upto": null,
+     "price": 0.28444
+    }
+   ],
+   "tier_mode": "from_first",
+   "day_night": true,
+   "price_per_kwh_night_eur": 0.16713
+  },
+  {
+   "id": "enerwave-reward-saver-2026-11",
+   "category": "electricity",
+   "provider": "Enerwave",
+   "name": "Reward Saver",
+   "color": "yellow",
+   "fixed_monthly_eur": 7.9,
+   "price_per_kwh_eur": 0.285,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με έκπτωση συνέπειας 0,070 €/kWh",
+   "min_duration_months": 12
+  },
+  {
+   "id": "δεη-myhome-4all-2026-11",
+   "category": "electricity",
+   "provider": "ΔΕΗ",
+   "name": "MyHome 4All",
+   "color": "yellow",
+   "fixed_monthly_eur": 4.9,
+   "price_per_kwh_eur": 0.31029,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με πάγια εντολή",
+   "min_duration_months": 12,
+   "price_tiers": [
+    {
+     "upto": 500,
+     "price": 0.31029
+    },
+    {
+     "upto": null,
+     "price": 0.36517
+    }
+   ],
+   "tier_mode": "from_first",
+   "day_night": true,
+   "price_per_kwh_night_eur": 0.28481
+  },
+  {
+   "id": "solar-energy-ειδικο-τιμολογιο-2026-11",
+   "category": "electricity",
+   "provider": "Solar Energy",
+   "name": "Ειδικό Τιμολόγιο",
+   "color": "green",
+   "fixed_monthly_eur": 5.0,
+   "price_per_kwh_eur": 0.31381,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με έκπτωση συνέπειας 30%"
+  },
+  {
+   "id": "ηρων-yellow-one-home-2-2026-11",
+   "category": "electricity",
+   "provider": "ΗΡΩΝ",
+   "name": "Yellow One Home 2",
+   "color": "yellow",
+   "fixed_monthly_eur": 5.0,
+   "price_per_kwh_eur": 0.31754,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "min_duration_months": 12
+  },
+  {
+   "id": "οτε-estate-ειδικο-τιμολογιο-2026-11",
+   "category": "electricity",
+   "provider": "ΟΤΕ Estate",
+   "name": "Ειδικό Τιμολόγιο",
+   "color": "green",
+   "fixed_monthly_eur": 5.0,
+   "price_per_kwh_eur": 0.32135,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "min_duration_months": 12
+  },
+  {
+   "id": "ελιν-ειδικο-τιμολογιο-2026-11",
+   "category": "electricity",
+   "provider": "ΕΛΙΝ",
+   "name": "Ειδικό Τιμολόγιο",
+   "color": "green",
+   "fixed_monthly_eur": 5.0,
+   "price_per_kwh_eur": 0.32403,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/"
+  },
+  {
+   "id": "enerwave-core-2026-11",
+   "category": "electricity",
+   "provider": "Enerwave",
+   "name": "Core",
+   "color": "yellow",
+   "fixed_monthly_eur": 7.9,
+   "price_per_kwh_eur": 0.319,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "min_duration_months": 12
+  },
+  {
+   "id": "eunice-ειδικο-τιμολογιο-2026-11",
+   "category": "electricity",
+   "provider": "EUNICE",
+   "name": "Ειδικό Τιμολόγιο",
+   "color": "green",
+   "fixed_monthly_eur": 5.0,
+   "price_per_kwh_eur": 0.32966,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "day_night": true,
+   "price_per_kwh_night_eur": 0.32966
+  },
+  {
+   "id": "nrg-ειδικο-τιμολογιο-2026-11",
+   "category": "electricity",
+   "provider": "nrg",
+   "name": "Ειδικό Τιμολόγιο",
+   "color": "green",
+   "fixed_monthly_eur": 5.0,
+   "price_per_kwh_eur": 0.334,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με συνέπεια",
+   "min_duration_months": 12
+  },
+  {
+   "id": "enerwave-reward-night-saver-2026-11",
+   "category": "electricity",
+   "provider": "Enerwave",
+   "name": "Reward Night Saver",
+   "color": "yellow",
+   "fixed_monthly_eur": 7.9,
+   "price_per_kwh_eur": 0.329,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με έκπτωση συνέπειας 0,070 €/kWh",
+   "min_duration_months": 12,
+   "day_night": true,
+   "price_per_kwh_night_eur": 0.149
+  },
+  {
+   "id": "enerwave-ειδικο-τιμολογιο-2026-11",
+   "category": "electricity",
+   "provider": "Enerwave",
+   "name": "Ειδικό Τιμολόγιο",
+   "color": "green",
+   "fixed_monthly_eur": 5.0,
+   "price_per_kwh_eur": 0.229,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "price_tiers": [
+    {
+     "upto": 100,
+     "price": 0.229
+    },
+    {
+     "upto": null,
+     "price": 0.399
+    }
+   ],
+   "tier_mode": "from_first"
+  },
+  {
+   "id": "nrg-nrg-simple-3-0-2026-11",
+   "category": "electricity",
+   "provider": "nrg",
+   "name": "nrg simple 3.0",
+   "color": "yellow",
+   "fixed_monthly_eur": 5.0,
+   "price_per_kwh_eur": 0.36098,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/"
+  },
+  {
+   "id": "zeniθ-ειδικο-τιμολογιο-power-home-start-2026-11",
+   "category": "electricity",
+   "provider": "ZeniΘ",
+   "name": "Ειδικό Τιμολόγιο (Power Home Start)",
+   "color": "green",
+   "fixed_monthly_eur": 5.0,
+   "price_per_kwh_eur": 0.275,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με συνέπεια",
+   "price_tiers": [
+    {
+     "upto": 100,
+     "price": 0.275
+    },
+    {
+     "upto": null,
+     "price": 0.399
+    }
+   ],
+   "tier_mode": "from_first"
+  },
+  {
+   "id": "volton-ειδικο-τιμολογιο-2026-11",
+   "category": "electricity",
+   "provider": "Volton",
+   "name": "Ειδικό Τιμολόγιο",
+   "color": "green",
+   "fixed_monthly_eur": 4.9,
+   "price_per_kwh_eur": 0.36226,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "conditions": "Δώρο 50€ για νέες αιτήσεις"
+  },
+  {
+   "id": "φυσικο-αεριο-ελληνικη-εταιρεια-ενεργειας-ειδικο-τιμολογιο-2026-11",
+   "category": "electricity",
+   "provider": "Φυσικό Αέριο Ελληνική Εταιρεία Ενέργειας",
+   "name": "Ειδικό Τιμολόγιο",
+   "color": "green",
+   "fixed_monthly_eur": 5.0,
+   "price_per_kwh_eur": 0.37,
+   "valid_month": "2026-11",
+   "url": "https://energycost.gr/",
+   "discount_condition": "με συνέπεια"
+  }
+ ]
+}
