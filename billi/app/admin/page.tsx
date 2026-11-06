@@ -835,12 +835,13 @@ function TariffsView({ category }: { category: EnergyCat }) {
 
   const [segment, setSegment] = useState<"residential" | "business">("residential");
   const replaceWithRaaey = async () => {
-    const what = segment === "business" ? "επαγγελματικά" : "οικιακά";
-    if (!confirm(`Να διαγραφούν ΟΛΑ τα ${what} προγράμματα ρεύματος και να μπουν τα ${what} προγράμματα με τιμή από τη λίστα της ΡΑΑΕΥ (Νοέμβριος 2026);\n\nΤα παλιά μένουν στο ιστορικό τιμών.`)) return;
+    const what = category === "gas" ? "οικιακά προγράμματα αερίου" : segment === "business" ? "επαγγελματικά προγράμματα ρεύματος" : "οικιακά προγράμματα ρεύματος";
+    if (!confirm(`Να διαγραφούν ΟΛΑ τα ${what} και να μπουν όσα έχουν τιμή στη λίστα της ΡΑΑΕΥ (Νοέμβριος 2026);\n\nΤα παλιά μένουν στο ιστορικό τιμών.`)) return;
     setMsg(null);
     setError(null);
     try {
-      const r = await api<{ removed: number; added: number }>(`/api/admin/tariffs/replace?segment=${segment}`, { method: "POST", body: "{}" });
+      const qs = category === "gas" ? "category=gas" : `segment=${segment}`;
+      const r = await api<{ removed: number; added: number }>(`/api/admin/tariffs/replace?${qs}`, { method: "POST", body: "{}" });
       setMsg(`Διαγράφηκαν ${r.removed} και μπήκαν ${r.added} προγράμματα της ΡΑΑΕΥ. Εμφανίζονται ήδη στο site.`);
       await load();
     } catch (e: any) {
@@ -901,7 +902,7 @@ function TariffsView({ category }: { category: EnergyCat }) {
           <p className="text-xs text-slate-400">Ό,τι αλλάζεις εδώ εμφανίζεται αμέσως στο site. Τιμές χωρίς ΦΠΑ, μόνο προμήθεια.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {category === "electricity" && <button className={btnGhost} onClick={replaceWithRaaey}>🏛 Τιμές ΡΑΑΕΥ {segment === "business" ? "επαγγελματικά" : "οικιακά"} (Νοέμβριος)</button>}
+          <button className={btnGhost} onClick={replaceWithRaaey}>🏛 Τιμές ΡΑΑΕΥ {category === "gas" ? "αερίου" : segment === "business" ? "επαγγελματικά" : "οικιακά"} (Νοέμβριος)</button>
           <button className={btn} onClick={() => setEditing("new")}>＋ Νέο πρόγραμμα</button>
         </div>
       </div>
