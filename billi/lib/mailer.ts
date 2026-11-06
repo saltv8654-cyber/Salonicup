@@ -24,13 +24,13 @@ export async function sendMail(to: string, subject: string, text: string, html?:
 const secret = () => `${process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""}:billi-mail-v1`;
 
 /** Signed, expiring token for e-mail links (verify address, reset password). */
-export function signToken(purpose: "verify" | "reset", userId: string, hours: number): string {
+export function signToken(purpose: "verify" | "reset" | "unsub", userId: string, hours: number): string {
   const exp = Math.floor(Date.now() / 1000) + hours * 3600;
   const body = `${purpose}.${userId}.${exp}`;
   return `${Buffer.from(body).toString("base64url")}.${createHmac("sha256", secret()).update(body).digest("base64url")}`;
 }
 
-export function readToken(purpose: "verify" | "reset", token: string): string | null {
+export function readToken(purpose: "verify" | "reset" | "unsub", token: string): string | null {
   const [b, sig] = token.split(".");
   if (!b || !sig) return null;
   const body = Buffer.from(b, "base64url").toString("utf8");

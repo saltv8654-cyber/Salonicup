@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { isAdmin } from "@/lib/admin-auth";
+import { adminName, isAdmin } from "@/lib/admin-auth";
+import { recordConsent } from "@/lib/marketing";
 import { db, dbConfigured, LEAD_STATUSES } from "@/lib/db";
 import { billFileOf, removeBill } from "@/lib/bill-files";
 
@@ -16,6 +17,7 @@ const Patch = z.object({
   signed_provider: z.string().trim().max(100).nullable().optional(),
   expected_commission: z.number().finite().nonnegative().nullable().optional(),
   next_follow_up: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  consent_marketing: z.boolean().optional(),
 });
 
 /** Lead with its full contact history. */
@@ -46,6 +48,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     .select()
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (parsed.data.consent_marketing !== undefined) {
+    // Only on the customer's request (e.g. by phone): recorded with who changed it.
+    await recordConsent({ lead_id: params.id, purpose: "marketing", granted: parsed.data.consent_marketing, source: "admin", actor: adminName(req) });
+    await db().from("lead_activities").insert({ lead_id: params.id, type: "system", body: parsed.data.consent_marketing ? "✅ Συγκατάθεση για προσφορές (κατόπιν αιτήματος του πελάτη)" : "🚫 Ανάκληση συγκατάθεσης για προσφορές" });
+  }
 
   // Once the deal is done or lost the bill isn't needed any more: delete it (data minimisation).
   const file = billFileOf(before.data.bill);

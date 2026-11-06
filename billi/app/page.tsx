@@ -1749,7 +1749,7 @@ function LeadModal({ target, result, telecomResult, category, billFile, onClose 
             </label>
             <label className="flex items-start gap-2.5 text-sm text-slate-400">
               <input type="checkbox" checked={form.consent_marketing} onChange={(e) => set("consent_marketing", e.target.checked)} className="mt-0.5 h-4 w-4 accent-cyan-400" />
-              <span>Θέλω να με ενημερώνετε όταν βγαίνουν φθηνότερα προγράμματα.</span>
+              <span>Θέλω να λαμβάνω εξατομικευμένες προσφορές (email, Viber ή WhatsApp) όταν βγαίνουν φθηνότερα προγράμματα για την κατανάλωσή μου. Μπορώ να διαγραφώ οποτεδήποτε.</span>
             </label>
             {billFile && (
               <label className="flex items-start gap-2.5 rounded-xl bg-white/[0.03] p-3 text-sm text-slate-300 ring-1 ring-white/10">

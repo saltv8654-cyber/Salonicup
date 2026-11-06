@@ -152,7 +152,11 @@ interface Crm360 {
   visits: { days: number; last: string | null; analyses: number; viewed: string[] };
   offer: { tariff: { provider: string; name: string; color: string; price_per_kwh_eur: number; fixed_monthly_eur: number }; annual: number; monthly: number; savings: number | null; why: string } | null;
   messages: { text: string; viber: string; whatsapp: string; email: string | null };
+  consents: { id: number; created_at: string; purpose: string; granted: boolean; source: string; text_version: string | null; actor: string | null }[] | null;
+  campaigns: { status: string; sent_at: string | null; campaigns: { name: string; channel: string } | null }[];
 }
+
+const SOURCE: Record<string, string> = { lead_form: "φόρμα του site", unsubscribe_link: "σύνδεσμος διαγραφής", admin: "από το CRM", account: "λογαριασμός" };
 
 export function Customer360({ lead, crm, onChanged }: { lead: Lead; crm?: CrmInfo; onChanged: () => void }) {
   const [d, setD] = useState<Crm360 | null>(null);
@@ -232,6 +236,26 @@ export function Customer360({ lead, crm, onChanged }: { lead: Lead; crm?: CrmInf
                 </div>
               </>
             )}
+          </div>
+
+          <div className={`${card} space-y-2`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">🔐 Συγκαταθέσεις</div>
+              <button className={btnGhost + " !px-3 !py-1 text-[11px]"} onClick={async () => {
+                const to = !lead.consent_marketing;
+                if (!confirm(to ? "Ο πελάτης ζήτησε να λαμβάνει προσφορές; Η αλλαγή καταγράφεται με το όνομά σου." : "Ανάκληση της συγκατάθεσης για προσφορές;")) return;
+                await api(`/api/admin/leads/${lead.id}`, { method: "PATCH", body: JSON.stringify({ consent_marketing: to }) });
+                onChanged();
+                load();
+              }}>{lead.consent_marketing ? "Ανάκληση προσφορών" : "Ενεργοποίηση προσφορών"}</button>
+            </div>
+            <div className="text-sm text-slate-200">Επικοινωνία ✓ · Προσφορές {lead.consent_marketing ? "✓" : "✕"}</div>
+            {d.consents && d.consents.length > 0 && (
+              <ul className="space-y-0.5 text-[11px] text-slate-500">
+                {d.consents.map((c) => <li key={c.id}>{when(c.created_at)} · {c.purpose === "marketing" ? "Προσφορές" : "Επικοινωνία"} {c.granted ? "✓" : "✕"} · {SOURCE[c.source] ?? c.source}{c.actor ? ` (${c.actor})` : ""}{c.text_version ? ` · κείμενο ${c.text_version}` : ""}</li>)}
+              </ul>
+            )}
+            {d.campaigns.length > 0 && <div className="text-[11px] text-slate-500">Καμπάνιες: {d.campaigns.map((c) => `${c.campaigns?.name ?? "—"} (${c.status === "sent" ? "στάλθηκε" : c.status})`).join(" · ")}</div>}
           </div>
 
           <div className={`${card} grid grid-cols-2 gap-x-4 gap-y-1 text-sm`}>

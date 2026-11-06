@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db, dbConfigured, REQUESTED_SERVICES, type Lead } from "@/lib/db";
 import { currentUser } from "@/lib/user-auth";
+import { recordConsent } from "@/lib/marketing";
 import { notifyNewLead } from "@/lib/notify";
 import { attachToken } from "@/lib/bill-files";
 
@@ -99,6 +100,9 @@ export async function POST(req: NextRequest) {
   }
 
   await db().from("lead_activities").insert({ lead_id: data.id, type: "system", body: "Νέο αίτημα από τη φόρμα του site" });
+  // Proof of consent: what was agreed, when and with which wording.
+  await recordConsent({ lead_id: data.id, user_id: who?.user.id ?? null, purpose: "contact", granted: true, source: "lead_form" });
+  await recordConsent({ lead_id: data.id, user_id: who?.user.id ?? null, purpose: "marketing", granted: !!d.consent_marketing, source: "lead_form" });
   await notifyNewLead(data as Lead);
   // The token lets this browser attach the bill file it analysed (only if the visitor ticked the box).
   return NextResponse.json({ ok: true, id: data.id, attach_token: attachToken(data.id) }, { status: 201 });
