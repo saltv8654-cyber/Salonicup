@@ -652,7 +652,7 @@ interface TariffRow {
   valid_month: string; url: string | null; active: boolean; category?: "electricity" | "gas";
   day_night?: boolean; price_per_kwh_night_eur?: number | string | null; promo_discount?: string | null; early_termination_fee?: string | null;
   conditions?: string | null; valid_from?: string | null; valid_until?: string | null; last_verified_at?: string | null;
-  data_status?: "verified" | "unverified"; updated_by?: string | null;
+  data_status?: "verified" | "unverified"; updated_by?: string | null; segment?: "residential" | "business";
 }
 type EnergyCat = "electricity" | "gas";
 const rowCat = (r: TariffRow): EnergyCat => r.category ?? "electricity";
@@ -725,7 +725,7 @@ const toForm = (t?: TariffRow, category?: EnergyCat): TariffForm => ({
 const dec = (v: string) => (v.trim() === "" ? null : Number(v.replace(",", ".")));
 
 
-function TariffEditor({ initial, providers, onClose, onSaved, category }: { initial?: TariffRow; providers: string[]; onClose: () => void; onSaved: () => void; category: EnergyCat }) {
+function TariffEditor({ initial, providers, onClose, onSaved, category, segment = "residential" }: { initial?: TariffRow; providers: string[]; onClose: () => void; onSaved: () => void; category: EnergyCat; segment?: "residential" | "business" }) {
   const [f, setF] = useState<TariffForm>(toForm(initial));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -742,6 +742,7 @@ function TariffEditor({ initial, providers, onClose, onSaved, category }: { init
       discount_condition: f.discount_condition || null,
       min_duration_months: f.min_duration_months ? Math.round(Number(f.min_duration_months)) : null,
       valid_month: f.valid_month, url: f.url, active: f.active, category,
+      ...(category === "electricity" ? { segment: initial?.segment ?? segment } : {}),
       day_night: f.day_night, price_per_kwh_night_eur: f.day_night ? dec(f.price_per_kwh_night_eur) : null,
       promo_discount: f.promo_discount || null, early_termination_fee: f.early_termination_fee || null, conditions: f.conditions || null,
       valid_from: f.valid_from || null, valid_until: f.valid_until || null,
@@ -832,12 +833,14 @@ function TariffsView({ category }: { category: EnergyCat }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [needTiers, setNeedTiers] = useState(false);
 
+  const [segment, setSegment] = useState<"residential" | "business">("residential");
   const replaceWithRaaey = async () => {
-    if (!confirm("Να διαγραφούν ΟΛΑ τα οικιακά προγράμματα ρεύματος και να μπουν τα 47 προγράμματα με τιμή από τη λίστα της ΡΑΑΕΥ (Νοέμβριος 2026);\n\nΤα παλιά μένουν στο ιστορικό τιμών.")) return;
+    const what = segment === "business" ? "επαγγελματικά" : "οικιακά";
+    if (!confirm(`Να διαγραφούν ΟΛΑ τα ${what} προγράμματα ρεύματος και να μπουν τα ${what} προγράμματα με τιμή από τη λίστα της ΡΑΑΕΥ (Νοέμβριος 2026);\n\nΤα παλιά μένουν στο ιστορικό τιμών.`)) return;
     setMsg(null);
     setError(null);
     try {
-      const r = await api<{ removed: number; added: number }>("/api/admin/tariffs/replace", { method: "POST", body: "{}" });
+      const r = await api<{ removed: number; added: number }>(`/api/admin/tariffs/replace?segment=${segment}`, { method: "POST", body: "{}" });
       setMsg(`Διαγράφηκαν ${r.removed} και μπήκαν ${r.added} προγράμματα της ΡΑΑΕΥ. Εμφανίζονται ήδη στο site.`);
       await load();
     } catch (e: any) {
@@ -860,7 +863,7 @@ function TariffsView({ category }: { category: EnergyCat }) {
     }
   }, []);
   useEffect(() => { load(); }, [load]);
-  const rows = useMemo(() => (all ? all.filter((r) => rowCat(r) === category) : null), [all, category]);
+  const rows = useMemo(() => (all ? all.filter((r) => rowCat(r) === category && (category !== "electricity" || (r.segment ?? "residential") === segment)) : null), [all, category, segment]);
 
   const providers = useMemo(() => [...new Set((rows ?? []).map((r) => r.provider))].sort((a, b) => a.localeCompare(b, "el")), [rows]);
   const groups = useMemo(() => {
@@ -898,10 +901,17 @@ function TariffsView({ category }: { category: EnergyCat }) {
           <p className="text-xs text-slate-400">Ό,τι αλλάζεις εδώ εμφανίζεται αμέσως στο site. Τιμές χωρίς ΦΠΑ, μόνο προμήθεια.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {category === "electricity" && <button className={btnGhost} onClick={replaceWithRaaey}>🏛 Τιμές ΡΑΑΕΥ (Νοέμβριος)</button>}
+          {category === "electricity" && <button className={btnGhost} onClick={replaceWithRaaey}>🏛 Τιμές ΡΑΑΕΥ {segment === "business" ? "επαγγελματικά" : "οικιακά"} (Νοέμβριος)</button>}
           <button className={btn} onClick={() => setEditing("new")}>＋ Νέο πρόγραμμα</button>
         </div>
       </div>
+      {category === "electricity" && (
+        <div className="grid max-w-md grid-cols-2 gap-1 rounded-xl bg-white/5 p-1 ring-1 ring-white/10" role="tablist">
+          {([["residential", "🏠 Οικιακά"], ["business", "🏢 Επαγγελματικά"]] as const).map(([v, l]) => (
+            <button key={v} role="tab" aria-selected={segment === v} className={`rounded-lg py-2 text-sm font-semibold ${segment === v ? "bg-gradient-to-r from-blue-500 to-violet-500 text-white" : "text-slate-300"}`} onClick={() => setSegment(v)}>{l}</button>
+          ))}
+        </div>
+      )}
       {needTiers && (
         <SqlStep title="Μικρή αναβάθμιση για κλιμακωτές τιμές" text="Πολλά προγράμματα έχουν τιμή ανά κλιμάκιο κατανάλωσης. Τρέξε μία φορά αυτό το SQL (και το SQL της Διαχείρισης ενέργειας, αν δεν το έχεις τρέξει) και ξαναπάτα «Τιμές ΡΑΑΕΥ»." sql={TIERS_SQL} onRetry={() => { setNeedTiers(false); replaceWithRaaey(); }} />
       )}
@@ -996,6 +1006,7 @@ function TariffsView({ category }: { category: EnergyCat }) {
           initial={editing === "new" ? undefined : editing}
           providers={providers}
           category={category}
+          segment={segment}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); setMsg("Αποθηκεύτηκε"); load(); }}
         />

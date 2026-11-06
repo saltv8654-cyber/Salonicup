@@ -1,4 +1,5 @@
-import raaey from "@/data/raaey-2026-11.json";
+import raaeyHome from "@/data/raaey-2026-11.json";
+import raaeyBusiness from "@/data/raaey-business-2026-11.json";
 import { logActivity } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { adminRoute, json, must } from "@/lib/energy/http";
@@ -8,11 +9,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Replace every household electricity programme with the ΡΑΑΕΥ list (data/raaey-2026-11.json).
+ * Replace every household (?segment=residential, default) or business (?segment=business) electricity
+ * programme with the ΡΑΑΕΥ list (data/raaey-2026-11.json, data/raaey-business-2026-11.json).
  * The administrator triggers it, so this is their approval. Old rows are deleted; the database trigger
  * keeps each of them in the price history and the audit log records the swap.
  */
-export const POST = adminRoute(async (_req, admin) => {
+export const POST = adminRoute(async (req, admin) => {
+  const segment = req.nextUrl.searchParams.get("segment") === "business" ? "business" : "residential";
+  const raaey = segment === "business" ? raaeyBusiness : raaeyHome;
   // Needs the energy-data columns and the tier columns.
   const probe = await db().from("tariffs").select("price_tiers, updated_by, segment").limit(1);
   if (probe.error) return json({ error: /price_tiers|updated_by|segment|column/i.test(probe.error.message) ? "missing_tiers" : probe.error.message }, probe.error ? 409 : 500);
@@ -22,7 +26,7 @@ export const POST = adminRoute(async (_req, admin) => {
   const providerId = (name: string) =>
     providers.find((p) => normKey(p.name) === normKey(name) || p.aliases.some((a) => normKey(a) === normKey(name)))?.id ?? null;
 
-  const old = must(await db().from("tariffs").select("*").eq("category", "electricity").eq("segment", "residential")) as Record<string, unknown>[];
+  const old = must(await db().from("tariffs").select("*").eq("category", "electricity").eq("segment", segment)) as Record<string, unknown>[];
   const ids = old.map((r) => r.id as string);
   if (ids.length) {
     must(await db().from("tariffs").update({ updated_by: admin }).in("id", ids));
@@ -31,7 +35,7 @@ export const POST = adminRoute(async (_req, admin) => {
 
   const now = new Date().toISOString();
   const rows = raaey.tariffs.map((t) => ({
-    id: t.id, category: "electricity", segment: "residential", provider: t.provider, provider_id: providerId(t.provider),
+    id: t.id, category: "electricity", segment, provider: t.provider, provider_id: providerId(t.provider),
     name: t.name, color: t.color, fixed_monthly_eur: t.fixed_monthly_eur, price_per_kwh_eur: t.price_per_kwh_eur,
     price_per_kwh_with_discount_eur: null, discount_condition: (t as { discount_condition?: string }).discount_condition ?? null,
     min_duration_months: (t as { min_duration_months?: number }).min_duration_months ?? null,
@@ -48,7 +52,7 @@ export const POST = adminRoute(async (_req, admin) => {
 
   await logActivity({
     admin, action: "tariff_import", entity: "tariffs", before: { removed: ids }, after: { added: rows.map((r) => r.id) },
-    source_url: "https://energycost.gr/", note: `Αντικατάσταση οικιακών ρεύματος με τη λίστα ΡΑΑΕΥ (${raaey.source})`,
+    source_url: "https://energycost.gr/", note: `Αντικατάσταση ${segment === "business" ? "επαγγελματικών" : "οικιακών"} ρεύματος με τη λίστα ΡΑΑΕΥ (${raaey.source})`,
   });
   return json({ removed: ids.length, added: rows.length });
 });
