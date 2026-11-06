@@ -1445,7 +1445,7 @@ function ProviderCatalog({ offers, category }: { offers: Offer[] | null; categor
       title="Προγράμματα ανά εταιρεία"
       subtitle={segment === "business" ? "Επαγγελματικά τιμολόγια. Για σύγκριση με τον λογαριασμό της επιχείρησής σου, πάτα «Θέλω αυτό» και θα σε καλέσουμε." : offers ? "Με το ετήσιο κόστος για τη δική σου κατανάλωση" : "Ανέβασε λογαριασμό για να δεις και το ετήσιο κόστος για σένα"}
     >
-      {category === "electricity" && (
+      {(
         <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl bg-white/5 p-1 ring-1 ring-white/10" role="tablist" aria-label="Τύπος πελάτη">
           {([["residential", "🏠 Για το σπίτι"], ["business", "🏢 Για την επιχείρηση"]] as const).map(([v, l]) => (
             <button key={v} type="button" role="tab" aria-selected={segment === v} onClick={() => { setSegment(v); setColor("all"); }}

@@ -742,7 +742,7 @@ function TariffEditor({ initial, providers, onClose, onSaved, category, segment 
       discount_condition: f.discount_condition || null,
       min_duration_months: f.min_duration_months ? Math.round(Number(f.min_duration_months)) : null,
       valid_month: f.valid_month, url: f.url, active: f.active, category,
-      ...(category === "electricity" ? { segment: initial?.segment ?? segment } : {}),
+      segment: initial?.segment ?? segment,
       day_night: f.day_night, price_per_kwh_night_eur: f.day_night ? dec(f.price_per_kwh_night_eur) : null,
       promo_discount: f.promo_discount || null, early_termination_fee: f.early_termination_fee || null, conditions: f.conditions || null,
       valid_from: f.valid_from || null, valid_until: f.valid_until || null,
@@ -835,12 +835,12 @@ function TariffsView({ category }: { category: EnergyCat }) {
 
   const [segment, setSegment] = useState<"residential" | "business">("residential");
   const replaceWithRaaey = async () => {
-    const what = category === "gas" ? "οικιακά προγράμματα αερίου" : segment === "business" ? "επαγγελματικά προγράμματα ρεύματος" : "οικιακά προγράμματα ρεύματος";
+    const what = `${segment === "business" ? "επαγγελματικά" : "οικιακά"} προγράμματα ${category === "gas" ? "αερίου" : "ρεύματος"}`;
     if (!confirm(`Να διαγραφούν ΟΛΑ τα ${what} και να μπουν όσα έχουν τιμή στη λίστα της ΡΑΑΕΥ (Νοέμβριος 2026);\n\nΤα παλιά μένουν στο ιστορικό τιμών.`)) return;
     setMsg(null);
     setError(null);
     try {
-      const qs = category === "gas" ? "category=gas" : `segment=${segment}`;
+      const qs = `category=${category}&segment=${segment}`;
       const r = await api<{ removed: number; added: number }>(`/api/admin/tariffs/replace?${qs}`, { method: "POST", body: "{}" });
       setMsg(`Διαγράφηκαν ${r.removed} και μπήκαν ${r.added} προγράμματα της ΡΑΑΕΥ. Εμφανίζονται ήδη στο site.`);
       await load();
@@ -864,7 +864,7 @@ function TariffsView({ category }: { category: EnergyCat }) {
     }
   }, []);
   useEffect(() => { load(); }, [load]);
-  const rows = useMemo(() => (all ? all.filter((r) => rowCat(r) === category && (category !== "electricity" || (r.segment ?? "residential") === segment)) : null), [all, category, segment]);
+  const rows = useMemo(() => (all ? all.filter((r) => rowCat(r) === category && (r.segment ?? "residential") === segment) : null), [all, category, segment]);
 
   const providers = useMemo(() => [...new Set((rows ?? []).map((r) => r.provider))].sort((a, b) => a.localeCompare(b, "el")), [rows]);
   const groups = useMemo(() => {
@@ -902,11 +902,11 @@ function TariffsView({ category }: { category: EnergyCat }) {
           <p className="text-xs text-slate-400">Ό,τι αλλάζεις εδώ εμφανίζεται αμέσως στο site. Τιμές χωρίς ΦΠΑ, μόνο προμήθεια.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className={btnGhost} onClick={replaceWithRaaey}>🏛 Τιμές ΡΑΑΕΥ {category === "gas" ? "αερίου" : segment === "business" ? "επαγγελματικά" : "οικιακά"} (Νοέμβριος)</button>
+          <button className={btnGhost} onClick={replaceWithRaaey}>🏛 Τιμές ΡΑΑΕΥ {segment === "business" ? "επαγγελματικά" : "οικιακά"} (Νοέμβριος)</button>
           <button className={btn} onClick={() => setEditing("new")}>＋ Νέο πρόγραμμα</button>
         </div>
       </div>
-      {category === "electricity" && (
+      {(
         <div className="grid max-w-md grid-cols-2 gap-1 rounded-xl bg-white/5 p-1 ring-1 ring-white/10" role="tablist">
           {([["residential", "🏠 Οικιακά"], ["business", "🏢 Επαγγελματικά"]] as const).map(([v, l]) => (
             <button key={v} role="tab" aria-selected={segment === v} className={`rounded-lg py-2 text-sm font-semibold ${segment === v ? "bg-gradient-to-r from-blue-500 to-violet-500 text-white" : "text-slate-300"}`} onClick={() => setSegment(v)}>{l}</button>

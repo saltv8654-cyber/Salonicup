@@ -1,6 +1,7 @@
 import raaeyHome from "@/data/raaey-2026-11.json";
 import raaeyBusiness from "@/data/raaey-business-2026-11.json";
 import raaeyGas from "@/data/raaey-gas-2026-11.json";
+import raaeyGasBusiness from "@/data/raaey-gas-business-2026-11.json";
 import { logActivity } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { adminRoute, json, must } from "@/lib/energy/http";
@@ -18,8 +19,8 @@ export const dynamic = "force-dynamic";
 export const POST = adminRoute(async (req, admin) => {
   // ?category=gas: household gas; otherwise electricity, ?segment=business for business programmes.
   const category = req.nextUrl.searchParams.get("category") === "gas" ? "gas" : "electricity";
-  const segment = category === "electricity" && req.nextUrl.searchParams.get("segment") === "business" ? "business" : "residential";
-  const raaey = category === "gas" ? raaeyGas : segment === "business" ? raaeyBusiness : raaeyHome;
+  const segment = req.nextUrl.searchParams.get("segment") === "business" ? "business" : "residential";
+  const raaey = category === "gas" ? (segment === "business" ? raaeyGasBusiness : raaeyGas) : segment === "business" ? raaeyBusiness : raaeyHome;
   // Needs the energy-data columns and the tier columns.
   const probe = await db().from("tariffs").select("price_tiers, updated_by, segment").limit(1);
   if (probe.error) return json({ error: /price_tiers|updated_by|segment|column/i.test(probe.error.message) ? "missing_tiers" : probe.error.message }, probe.error ? 409 : 500);
@@ -55,7 +56,7 @@ export const POST = adminRoute(async (req, admin) => {
 
   await logActivity({
     admin, action: "tariff_import", entity: "tariffs", before: { removed: ids }, after: { added: rows.map((r) => r.id) },
-    source_url: "https://energycost.gr/", note: `Αντικατάσταση ${category === "gas" ? "οικιακών αερίου" : segment === "business" ? "επαγγελματικών ρεύματος" : "οικιακών ρεύματος"} με τη λίστα ΡΑΑΕΥ (${raaey.source})`,
+    source_url: "https://energycost.gr/", note: `Αντικατάσταση ${segment === "business" ? "επαγγελματικών" : "οικιακών"} ${category === "gas" ? "αερίου" : "ρεύματος"} με τη λίστα ΡΑΑΕΥ (${raaey.source})`,
   });
   return json({ removed: ids.length, added: rows.length });
 });
