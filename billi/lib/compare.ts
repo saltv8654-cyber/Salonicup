@@ -217,7 +217,7 @@ function risksOf(t: Tariff): string[] {
 }
 
 /** Programmes only some households can take (students, photovoltaic owners): listed, never recommended to everyone. */
-export const restricted = (t: Tariff) => /φοιτητ|student|φωτοβολτα|net.?metering/i.test(`${t.name} ${t.conditions ?? ""} ${t.discount_condition ?? ""}`);
+export const restricted = (t: Tariff) => /φοιτητ|student|φωτοβολτα|net.?metering|κεντρική θέρμανση/i.test(`${t.name} ${t.conditions ?? ""} ${t.discount_condition ?? ""}`);
 
 function picks(offers: Offer[], currentAnnual: number | null): Pick[] {
   // Orange needs a smart meter; student / PV programmes have eligibility rules.
@@ -269,7 +269,7 @@ function assumptions(bill: Bill, kwh: number, currentAnnual: number | null, offe
   out.push("Υπολογίζονται μόνο οι χρεώσεις προμήθειας (πάγιο + ενέργεια) με ΦΠΑ 6%. Οι ρυθμιζόμενες χρεώσεις, οι φόροι και το ΕΡΤ είναι ίδια σε όλους τους παρόχους και δεν αλλάζουν τη σύγκριση.");
   out.push("Μηνιαίο κόστος = ετήσιο / 12. Στην πράξη ο λογαριασμός αλλάζει με την εποχή.");
   if (offers.some((o) => o.tariff.price_tiers?.length)) out.push("Στα προγράμματα με κλιμάκια, το κλιμάκιο ορίζεται από τη μέση μηνιαία κατανάλωσή σου.");
-  if (offers.some((o) => restricted(o.tariff))) out.push("Φοιτητικά προγράμματα και προγράμματα για φωτοβολταϊκά εμφανίζονται στη λίστα αλλά δεν προτείνονται, γιατί έχουν ειδικές προϋποθέσεις.");
+  if (offers.some((o) => restricted(o.tariff))) out.push("Φοιτητικά προγράμματα, προγράμματα για φωτοβολταϊκά και για κεντρική θέρμανση εμφανίζονται στη λίστα αλλά δεν προτείνονται, γιατί έχουν ειδικές προϋποθέσεις.");
   if (offers.some((o) => o.annualWithDiscount !== null)) out.push("Όπου υπάρχει έκπτωση υπό όρους (π.χ. έγκαιρη πληρωμή), η κατάταξη θεωρεί ότι την παίρνεις.");
   if (currentAnnual !== null) out.push(bill.supplier_total ? "Το σημερινό κόστος βγαίνει από το «σύνολο προμήθειας» του λογαριασμού σου, αναγωγή σε έτος." : "Το σημερινό κόστος βγαίνει από το πάγιο και την τιμή kWh του λογαριασμού σου.");
   out.push("Οι κυμαινόμενες τιμές (πράσινα, κίτρινα) αλλάζουν κάθε μήνα· η σύγκριση χρησιμοποιεί την τελευταία δημοσιευμένη τιμή.");
