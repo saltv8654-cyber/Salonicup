@@ -159,14 +159,10 @@ export function EnergyView() {
       )}
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Kpi label="Πάροχοι" value={k.providers} hint={`${k.sources} ενεργές πηγές`} onClick={() => go("providers")} />
-        <Kpi label="Ενεργά προγράμματα" value={k.active_programs} hint={k.unverified_programs ? `${k.unverified_programs} χωρίς πρόσφατη επιβεβαίωση` : "όλα επιβεβαιωμένα"} tone={k.unverified_programs ? "warn" : "good"} onClick={() => go("history")} />
-        <Kpi label="Νέα προγράμματα" value={k.new_programs} tone={k.new_programs ? "good" : undefined} onClick={() => go("review", "pending")} />
-        <Kpi label="Αλλαγές τιμών" value={k.price_changes} tone={k.price_changes ? "warn" : undefined} onClick={() => go("review", "pending")} />
-        <Kpi label="Περιμένουν έγκριση" value={k.pending} hint={k.flagged ? `${k.flagged} θέλουν επαλήθευση` : undefined} tone={k.pending ? "warn" : undefined} onClick={() => go("review", "pending")} />
-        <Kpi label="Καταργήσεις" value={k.discontinued} tone={k.discontinued ? "bad" : undefined} onClick={() => go("review", "pending")} />
-        <Kpi label="Αποτυχίες συλλογής" value={k.failed_sources} hint={`${k.failed_runs_7d} τις τελευταίες 7 ημέρες`} tone={k.failed_sources ? "bad" : "good"} onClick={() => go("logs", "failed")} />
-        <Kpi label="Τελευταίος επιτυχής συγχρονισμός" value={<span className="text-base">{k.last_success_at ? ago(k.last_success_at) : "—"}</span>} hint={k.last_success_at ? when(k.last_success_at) : "δεν έχει γίνει ακόμα"} onClick={() => go("logs", "runs")} />
+        <Kpi label="Στο site" value={k.active_programs} hint={k.unverified_programs ? `${k.unverified_programs} χωρίς πρόσφατη επιβεβαίωση` : "όλα επιβεβαιωμένα"} tone={k.unverified_programs ? "warn" : "good"} onClick={() => go("history")} />
+        <Kpi label="Για έγκριση" value={k.pending} hint={k.pending ? `${k.new_programs} νέα · ${k.price_changes} αλλαγές · ${k.discontinued} καταργήσεις` : "τίποτα"} tone={k.pending ? "warn" : "good"} onClick={() => go("review", "pending")} />
+        <Kpi label="Πηγές με πρόβλημα" value={k.failed_sources} hint={`από ${k.sources} ενεργές`} tone={k.failed_sources ? "bad" : "good"} onClick={() => go("sources")} />
+        <Kpi label="Τελευταίος έλεγχος" value={<span className="text-base">{k.last_success_at ? ago(k.last_success_at) : "—"}</span>} hint={`${k.providers} πάροχοι`} onClick={() => go("logs", "runs")} />
       </div>
       {k.expired_programs > 0 && (
         <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-200 ring-1 ring-red-400/30">
@@ -193,6 +189,8 @@ function ReviewQueue({ filter, setFilter, onChanged }: { filter: string; setFilt
   const [items, setItems] = useState<QueueItem[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [type, setType] = useState<string>("all");
+  const [q, setQ] = useState("");
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -205,18 +203,32 @@ function ReviewQueue({ filter, setFilter, onChanged }: { filter: string; setFilt
       setItems([]);
     }
   }, [filter]);
-  useEffect(() => { setItems(null); load(); }, [load]);
+  useEffect(() => { setItems(null); setPicked(new Set()); load(); }, [load]);
 
-  const shown = useMemo(() => (items ?? []).filter((i) => type === "all" || (type === "flagged" ? i.flags.length > 0 : type === "price_change" ? i.change_type === "price_change" || i.change_type === "details_change" : i.change_type === type)), [items, type]);
-  const cleanCount = (items ?? []).filter((i) => i.status === "pending" && i.flags.length === 0 && i.change_type !== "discontinued").length;
+  const shown = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return (items ?? [])
+      .filter((i) => type === "all" || (type === "flagged" ? i.flags.length > 0 : type === "price_change" ? i.change_type === "price_change" || i.change_type === "details_change" : i.change_type === type))
+      .filter((i) => !needle || `${i.provider} ${i.program}`.toLowerCase().includes(needle))
+      .sort((a, b) => a.provider.localeCompare(b.provider, "el") || a.program.localeCompare(b.program, "el"));
+  }, [items, type, q]);
+  const pending = filter === "pending";
+  const allPicked = shown.length > 0 && shown.every((i) => picked.has(i.id));
+  const toggle = (id: string) => setPicked((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleAll = () => setPicked(allPicked ? new Set() : new Set(shown.map((i) => i.id)));
 
-  const bulk = async () => {
-    if (!confirm(`Έγκριση ${cleanCount} νέων/αλλαγμένων προγραμμάτων χωρίς καμία επισήμανση; Θα εμφανιστούν αμέσως στο site. (Οι καταργήσεις εγκρίνονται μία μία.)`)) return;
+  const bulk = async (action: "approve" | "reject") => {
+    const ids = [...picked].filter((id) => shown.some((i) => i.id === id));
+    if (!ids.length) return;
+    const verb = action === "approve" ? "Έγκριση" : "Απόρριψη";
+    if (!confirm(`${verb} ${ids.length} αλλαγών;${action === "approve" ? " Θα εμφανιστούν αμέσως στο site." : ""}`)) return;
     setBusy(true);
     setMsg(null);
+    setError(null);
     try {
-      const r = await api<{ approved: number; failed: { error: string }[] }>("/api/admin/energy/queue/bulk", { method: "POST", body: "{}" });
-      setMsg(`Εγκρίθηκαν ${r.approved}${r.failed.length ? ` · ${r.failed.length} απέτυχαν: ${r.failed[0].error}` : ""}`);
+      const r = await api<{ done: number; failed: { program: string; error: string }[] }>("/api/admin/energy/queue/bulk", { method: "POST", body: JSON.stringify({ action, ids }) });
+      setMsg(`${action === "approve" ? "Εγκρίθηκαν" : "Απορρίφθηκαν"} ${r.done}.${r.failed.length ? ` ${r.failed.length} δεν έγιναν (π.χ. ${r.failed[0].program}: ${r.failed[0].error})` : ""}`);
+      setPicked(new Set());
       await load();
       onChanged();
     } catch (e: any) {
@@ -228,73 +240,69 @@ function ReviewQueue({ filter, setFilter, onChanged }: { filter: string; setFilt
 
   return (
     <div className="space-y-3">
-      <div className={`${card} flex flex-wrap items-end gap-2`}>
-        <L t="Κατάσταση">
-          <select className={`${input} w-44`} value={filter} onChange={(e) => setFilter(e.target.value)}>
+      <div className={`${card} space-y-2`}>
+        <div className="grid grid-cols-2 gap-2">
+          <select className={input} value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Κατάσταση">
             <option value="pending">Εκκρεμούν</option><option value="approved">Εγκρίθηκαν</option><option value="rejected">Απορρίφθηκαν</option>
             <option value="superseded">Αντικαταστάθηκαν</option><option value="all">Όλες</option>
           </select>
-        </L>
-        <L t="Είδος">
-          <select className={`${input} w-48`} value={type} onChange={(e) => setType(e.target.value)}>
-            <option value="all">Όλα</option><option value="new">🟢 Νέα προγράμματα</option><option value="price_change">🟡 Αλλαγές τιμών/όρων</option>
+          <select className={input} value={type} onChange={(e) => setType(e.target.value)} aria-label="Είδος">
+            <option value="all">Όλα τα είδη</option><option value="new">🟢 Νέα</option><option value="price_change">🟡 Αλλαγές</option>
             <option value="discontinued">🔴 Καταργήσεις</option><option value="flagged">⚪ Θέλουν επαλήθευση</option>
           </select>
-        </L>
-        {filter === "pending" && cleanCount > 0 && (
-          <button className={btnGhost + small} disabled={busy} onClick={bulk}>✓ Έγκριση όσων δεν έχουν επισημάνσεις ({cleanCount})</button>
-        )}
+        </div>
+        <input className={input} placeholder="Αναζήτηση παρόχου ή προγράμματος…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
-      <div className="flex flex-wrap gap-3 text-[11px] text-slate-400">
-        <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-emerald-400" /> Νέο πρόγραμμα</span>
-        <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-amber-300" /> Αλλαγή τιμής</span>
-        <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-red-400" /> Καταργήθηκε</span>
-        <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-slate-400" /> Θέλει επαλήθευση</span>
-      </div>
+
       {msg && <p className="rounded-xl bg-emerald-400/10 p-3 text-sm text-emerald-200">✓ {msg}</p>}
       {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">⚠️ {error}</p>}
+
+      {pending && shown.length > 0 && (
+        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-xl bg-[#0a1028]/95 p-2.5 ring-1 ring-white/15 backdrop-blur">
+          <label className="flex items-center gap-2 px-1 text-sm text-slate-200">
+            <input type="checkbox" className="h-5 w-5 accent-cyan-400" checked={allPicked} onChange={toggleAll} />
+            Όλα ({shown.length})
+          </label>
+          <span className="text-xs text-slate-400">{picked.size ? `${picked.size} επιλεγμένα` : "διάλεξε για μαζική ενέργεια"}</span>
+          <div className="ml-auto flex gap-2">
+            <button className={btn + small} disabled={busy || !picked.size} onClick={() => bulk("approve")}>{busy ? "⏳" : `✓ Έγκριση${picked.size ? ` (${picked.size})` : ""}`}</button>
+            <button className={btnGhost + small + " !text-red-200"} disabled={busy || !picked.size} onClick={() => bulk("reject")}>✕ Απόρριψη</button>
+          </div>
+        </div>
+      )}
 
       {!items ? (
         <p className="text-sm text-slate-500">Φόρτωση…</p>
       ) : shown.length === 0 ? (
-        <p className={`${card} text-sm text-slate-400`}>{filter === "pending" ? "Καμία αλλαγή δεν περιμένει έγκριση. Πάτα «Έλεγχος τώρα» στις Πηγές για νέο έλεγχο." : "Καμία εγγραφή."}</p>
+        <p className={`${card} text-sm text-slate-400`}>{pending ? "Καμία αλλαγή δεν περιμένει έγκριση. 🎉" : "Καμία εγγραφή."}</p>
       ) : (
-        <div className="overflow-x-auto rounded-2xl ring-1 ring-white/10">
-          <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="bg-white/[0.04] text-[11px] uppercase tracking-wider text-slate-400">
-              <tr>
-                <th className="px-3 py-2">Πάροχος</th><th className="px-3 py-2">Πρόγραμμα</th>
-                <th className="px-3 py-2 text-right">Παλιά τιμή</th><th className="px-3 py-2 text-right">Νέα τιμή</th>
-                <th className="px-3 py-2">Αλλαγή</th><th className="px-3 py-2">Κατάσταση</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {shown.map((i) => {
-                const oldP = i.old_values?.price_per_kwh_eur;
-                const newP = i.new_values?.price_per_kwh_eur;
-                const d = pct(oldP, newP);
-                const flagged = i.status === "pending" && i.flags.length > 0;
-                return (
-                  <tr key={i.id} className="cursor-pointer bg-white/[0.01] hover:bg-white/[0.05]" onClick={() => setOpen(i.id)}>
-                    <td className="px-3 py-2.5">
-                      <span className="flex items-center gap-2">
-                        <i className={`h-2.5 w-2.5 shrink-0 rounded-full ${flagged ? "bg-slate-400" : CHANGE[i.change_type].dot}`} />
-                        <span className="text-slate-100">{i.provider}</span>
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-slate-200">{i.program}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-400">{p4(oldP)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-100">{i.change_type === "discontinued" ? "—" : p4(newP)}</td>
-                    <td className="px-3 py-2.5">
-                      <Chip cls={CHANGE[i.change_type].cls}>{CHANGE[i.change_type].label}{d !== null && d !== 0 ? ` ${d > 0 ? "+" : ""}${(d * 100).toFixed(1)}%` : ""}</Chip>
-                    </td>
-                    <td className="px-3 py-2.5"><StatusChip item={i} /></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <ul className="space-y-1.5">
+          {shown.map((i) => {
+            const oldP = i.old_values?.price_per_kwh_eur;
+            const newP = i.new_values?.price_per_kwh_eur;
+            const d = pct(oldP, newP);
+            const flagged = i.status === "pending" && i.flags.length > 0;
+            const errors = i.flags.filter((f) => f.level === "error").length;
+            return (
+              <li key={i.id} className={`flex items-center gap-3 rounded-xl p-2.5 ring-1 transition ${picked.has(i.id) ? "bg-cyan-400/[0.07] ring-cyan-300/40" : "bg-white/[0.02] ring-white/10"}`}>
+                {pending && <input type="checkbox" className="h-5 w-5 shrink-0 accent-cyan-400" checked={picked.has(i.id)} onChange={() => toggle(i.id)} aria-label={`Επιλογή ${i.program}`} />}
+                <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setOpen(i.id)}>
+                  <div className="flex items-center gap-2">
+                    <i className={`h-2.5 w-2.5 shrink-0 rounded-full ${CHANGE[i.change_type].dot}`} />
+                    <span className="truncate text-sm font-semibold text-slate-100">{i.provider} · {i.program}</span>
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-[18px] text-[11px] text-slate-400">
+                    <span>{CHANGE[i.change_type].label}</span>
+                    {i.change_type !== "discontinued" && <span className="tabular-nums">{oldP !== null && oldP !== undefined ? `${p4(oldP)} → ` : ""}<b className="text-slate-200">{p4(newP)}</b> €/kWh{d ? ` (${d > 0 ? "+" : ""}${(d * 100).toFixed(1)}%)` : ""}</span>}
+                    {errors > 0 ? <span className="text-red-300">⛔ θέλει διόρθωση</span> : flagged ? <span className="text-amber-200">⚠️ έλεγξε</span> : null}
+                    {!pending && <StatusChip item={i} />}
+                  </div>
+                </button>
+                <span className="shrink-0 text-slate-500">›</span>
+              </li>
+            );
+          })}
+        </ul>
       )}
 
       {open && <ReviewDrawer id={open} onClose={() => setOpen(null)} onDone={() => { setOpen(null); load(); onChanged(); }} />}
