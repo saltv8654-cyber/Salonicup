@@ -6,6 +6,7 @@ import { logActivity } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { adminRoute, json, must } from "@/lib/energy/http";
 import { normKey, type Provider } from "@/lib/energy/model";
+import { runAlerts } from "@/lib/alerts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,5 +59,7 @@ export const POST = adminRoute(async (req, admin) => {
     admin, action: "tariff_import", entity: "tariffs", before: { removed: ids }, after: { added: rows.map((r) => r.id) },
     source_url: "https://energycost.gr/", note: `Αντικατάσταση ${segment === "business" ? "επαγγελματικών" : "οικιακών"} ${category === "gas" ? "αερίου" : "ρεύματος"} με τη λίστα ΡΑΑΕΥ (${raaey.source})`,
   });
-  return json({ removed: ids.length, added: rows.length });
+  // New month's prices are in: users get their monthly summary and any price alerts now (electricity profiles).
+  const alerts = category === "electricity" && segment === "residential" ? await runAlerts().catch((e) => ({ error: String(e) })) : null;
+  return json({ removed: ids.length, added: rows.length, alerts });
 });
