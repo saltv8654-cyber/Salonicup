@@ -193,7 +193,7 @@ function Stat({ label, value, hint }: { label: string; value: React.ReactNode; h
   );
 }
 
-const ALERT_ICON: Record<string, string> = { cheaper_program: "💶", provider_increase: "📈", provider_better_offer: "🔁", contract_expiring: "⏰", overpaying: "⚠️" };
+const ALERT_ICON: Record<string, string> = { monthly_summary: "", cheaper_program: "💶", provider_increase: "📈", provider_better_offer: "🔁", contract_expiring: "⏰", overpaying: "⚠️" };
 
 type ProfileForm = Record<"provider" | "program_name" | "color" | "monthly_kwh" | "day_kwh" | "night_kwh" | "price_per_kwh" | "price_per_kwh_night" | "fixed_monthly_fee" | "contract_start" | "contract_end" | "early_termination_fee", string>;
 const toForm = (p: EnergyProfile | null): ProfileForm => {
@@ -351,10 +351,11 @@ function Dashboard({ o, reload, onLogout }: { o: Overview; reload: () => void; o
         </div>
         {o.alerts.length === 0 ? <p className="mt-2 text-sm text-slate-400">{t("noAlerts")}</p> : (
           <ul className="mt-3 space-y-2">
-            {o.alerts.slice(0, 8).map((a) => (
+            {o.alerts.slice(0, 12).map((a) => (
               <li key={a.id} className={`rounded-xl p-3 ring-1 ${a.read_at ? "bg-white/[0.02] ring-white/10" : "bg-cyan-400/[0.06] ring-cyan-300/30"}`}>
                 <div className="text-sm font-semibold text-white">{ALERT_ICON[a.kind] ?? "🔔"} {a.title}</div>
-                <div className="mt-0.5 text-xs text-slate-300">{a.body}</div>
+                <div className="mt-0.5 whitespace-pre-line text-xs leading-relaxed text-slate-300">{a.body}</div>
+                {a.kind === "monthly_summary" && <a href="/#upload" className="mt-1.5 inline-block text-xs font-semibold text-cyan-300 underline">Δες τι μπορείς να κάνεις →</a>}
                 <div className="mt-1 text-[11px] text-slate-500">{new Date(a.created_at).toLocaleString("el-GR", { timeZone: "Europe/Athens", dateStyle: "short", timeStyle: "short" })}</div>
               </li>
             ))}

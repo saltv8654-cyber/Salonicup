@@ -1,4 +1,5 @@
-import { analyseProfile, normaliseProfile, type EnergyProfile, type UserSettings } from "./account";
+import { analyseProfile, normaliseProfile, profileToBill, type EnergyProfile, type UserSettings } from "./account";
+import { billiScore } from "./score";
 import { db } from "./db";
 import { normKey } from "./energy/model";
 import { restricted } from "./compare";
@@ -9,7 +10,7 @@ import { loadTariffs } from "./tariffs";
  * Price alerts. They run on the comparison engine, which only uses verified, valid tariffs, so no alert
  * ever rests on unverified prices. One alert per event (dedupe_key); e-mail only to verified addresses.
  */
-type Kind = "cheaper_program" | "provider_increase" | "provider_better_offer" | "contract_expiring" | "overpaying";
+type Kind = "cheaper_program" | "provider_increase" | "provider_better_offer" | "contract_expiring" | "overpaying" | "monthly_summary";
 interface Draft { kind: Kind; title: string; body: string; data: Record<string, unknown>; dedupe_key: string }
 
 const eur = (x: number) => `${Math.round(x).toLocaleString("el-GR")} €`;
@@ -93,6 +94,43 @@ async function draftsFor(p: EnergyProfile, s: UserSettings, tariffs: Awaited<Ret
       });
     }
   }
+
+  // Monthly summary: once a month, after that month's prices are in (an approved programme for this month).
+  const month = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Athens" }).slice(0, 7);
+  if (pool.some((o) => o.tariff.valid_month === month)) {
+    const { data: prevRows } = await db().from("user_alerts").select("data, created_at")
+      .eq("user_id", p.user_id).eq("kind", "monthly_summary").order("created_at", { ascending: false }).limit(1);
+    const prev = (prevRows?.[0]?.data ?? null) as { score?: number; price?: number | null; annual?: number; month?: string } | null;
+    const score = billiScore(c, profileToBill(p)!, { contract_end: p.contract_end, early_termination_fee: p.early_termination_fee });
+    const best = pool.find((o) => o.tariff.id !== current?.id);
+    const myPrice = current ? current.price_per_kwh_with_discount_eur ?? current.price_per_kwh_eur : p.price_per_kwh;
+    const MONTHS = ["τον Ιανουάριο", "τον Φεβρουάριο", "τον Μάρτιο", "τον Απρίλιο", "τον Μάιο", "τον Ιούνιο", "τον Ιούλιο", "τον Αύγουστο", "τον Σεπτέμβριο", "τον Οκτώβριο", "τον Νοέμβριο", "τον Δεκέμβριο"];
+    const monthName = `${MONTHS[Number(month.slice(5, 7)) - 1]} ${month.slice(0, 4)}`;
+    const lines: string[] = [];
+    if (current && myPrice !== null) {
+      const was = prev?.price ?? null;
+      lines.push(`📌 ${current.provider} ${current.name}: ${price(myPrice)}${was && Math.abs(was - myPrice) > 1e-6 ? ` (${myPrice > was ? "▲ αυξήθηκε" : "▼ μειώθηκε"} από ${price(was)})` : was ? " (χωρίς αλλαγή)" : ""}.`);
+    } else if (p.provider) {
+      lines.push(`📌 Το πρόγραμμά σου (${p.provider}${p.program_name ? ` ${p.program_name}` : ""}) δεν βρέθηκε στον κατάλογο: ενημέρωσε το προφίλ σου για ακριβή σύγκριση.`);
+    }
+    lines.push(`💶 Εκτιμώμενο κόστος προμήθειας: ~${eur(c.currentAnnual / 12)}/μήνα (~${eur(c.currentAnnual)}/έτος)${prev?.annual ? `, πριν ~${eur(prev.annual / 12)}/μήνα` : ""}.`);
+    if (best && c.currentAnnual - cost(best) >= 1) {
+      lines.push(`🔎 Φθηνότερη επιλογή: ${best.tariff.provider} ${best.tariff.name}, ~${eur(c.currentAnnual - cost(best))}/έτος λιγότερα (εκτίμηση).`);
+    } else {
+      lines.push("✅ Είσαι ήδη στο φθηνότερο ή κοντά στο φθηνότερο πρόγραμμα για την κατανάλωσή σου.");
+    }
+    if (score) lines.push(`⭐ Billi Score: ${score.score}/100${prev?.score !== undefined && prev.score !== score.score ? ` (τον προηγούμενο μήνα ${prev.score})` : ""}.`);
+    if (p.contract_end) {
+      const days = Math.ceil((Date.parse(`${p.contract_end}T00:00:00Z`) - Date.now()) / 86_400_000);
+      lines.push(days >= 0 ? `📄 Η σύμβασή σου λήγει σε ${days} ημέρες.` : "📄 Η σύμβασή σου έχει λήξει: μπορείς να αλλάξεις χωρίς χρέωση.");
+    }
+    out.push({
+      kind: "monthly_summary", dedupe_key: `monthly:${month}`,
+      title: `📅 Η ενημέρωσή σου για ${monthName}`,
+      body: lines.join("\n"),
+      data: { month, score: score?.score ?? null, price: myPrice ?? null, annual: c.currentAnnual, best_tariff: best?.tariff.id ?? null, best_savings: best ? c.currentAnnual - cost(best) : null },
+    });
+  }
   return out;
 }
 
@@ -132,7 +170,7 @@ export async function runAlerts(onlyUser?: string): Promise<{ users: number; cre
           const to = await emailOf(p.user_id);
           const link = `${siteUrl()}/account`;
           if (to && (await sendMail(to, `Billi: ${d.title}`, `${d.body}\n\nΔες λεπτομέρειες: ${link}\n\nΑλλαγή ρυθμίσεων ειδοποιήσεων: ${link}#settings`,
-            `<p>${escapeHtml(d.body)}</p><p><a href="${link}">Δες λεπτομέρειες στο Billi</a></p><p style="color:#888;font-size:12px">Αλλαγή ρυθμίσεων ειδοποιήσεων: <a href="${link}#settings">${link}</a></p>`))) {
+            `<p>${escapeHtml(d.body).replace(/\n/g, "<br>")}</p><p><a href="${link}">Δες λεπτομέρειες στο Billi</a></p><p style="color:#888;font-size:12px">Αλλαγή ρυθμίσεων ειδοποιήσεων: <a href="${link}#settings">${link}</a></p>`))) {
             await db().from("user_alerts").update({ emailed_at: new Date().toISOString() }).eq("id", (row[0] as { id: string }).id);
             emailed++;
           }

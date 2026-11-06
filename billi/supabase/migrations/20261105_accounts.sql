@@ -126,3 +126,6 @@ alter table leads drop constraint if exists leads_status_check;
 alter table leads add constraint leads_status_check
   check (status in ('new', 'contacted', 'evaluation', 'offer', 'signed', 'active', 'lost'));
 create index if not exists leads_user_idx on leads (user_id);
+alter table user_alerts drop constraint if exists user_alerts_kind_check;
+alter table user_alerts add constraint user_alerts_kind_check check (kind in (
+  'cheaper_program', 'provider_increase', 'provider_better_offer', 'contract_expiring', 'overpaying', 'monthly_summary'));
