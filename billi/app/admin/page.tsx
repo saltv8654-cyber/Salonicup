@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Lead, LeadActivity, LeadStatus } from "@/lib/db";
 import { L, SqlStep, api, btn, btnGhost, card, eur, input, when } from "./ui";
 import { EnergyView } from "./energy";
+import { MarketingView } from "./marketing";
 import { Customer360, Pipeline, Stalled, Temperature, TodayTasks, type CrmLead, type Task } from "./crm";
 import TIERS_SQL from "@/supabase/migrations/20261106_tariff_tiers.sql";
 
@@ -1249,7 +1250,7 @@ export default function Admin() {
   const [view, setView] = useState<"list" | "pipeline">("list");
   const [sortBy, setSortBy] = useState<"score" | "date">("score");
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"leads" | "stats" | "tariffs" | "energy">("leads");
+  const [tab, setTab] = useState<"leads" | "stats" | "tariffs" | "energy" | "marketing">("leads");
   const [status, setStatus] = useState<"all" | "open" | LeadStatus>("open");
   const [q, setQ] = useState("");
   const [service, setService] = useState("all");
@@ -1315,6 +1316,7 @@ export default function Admin() {
           <button className={tab === "leads" ? btn : btnGhost} onClick={() => setTab("leads")}>Πελάτες</button>
           <button className={tab === "stats" ? btn : btnGhost} onClick={() => setTab("stats")}>Στατιστικά</button>
           <button className={tab === "tariffs" ? btn : btnGhost} onClick={() => setTab("tariffs")}>Τιμές</button>
+          <button className={tab === "marketing" ? btn : btnGhost} onClick={() => setTab("marketing")}>🎯 Προσφορές</button>
           <button className={tab === "energy" ? btn : btnGhost} onClick={() => setTab("energy")}>⚡ Ενέργεια</button>
           <button
             className={btnGhost}
@@ -1330,7 +1332,9 @@ export default function Admin() {
 
       {error && <p className="mt-4 rounded-xl bg-red-500/10 p-3 text-sm text-red-300 ring-1 ring-red-400/30">⚠️ {error}</p>}
 
-      {tab === "energy" ? (
+      {tab === "marketing" ? (
+        <div className="mt-6"><MarketingView /></div>
+      ) : tab === "energy" ? (
         <div className="mt-6"><EnergyView /></div>
       ) : tab === "tariffs" ? (
         <div className="mt-6"><PricesView /></div>
