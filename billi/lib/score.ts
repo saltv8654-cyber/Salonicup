@@ -1,4 +1,4 @@
-import type { Comparison } from "./compare";
+import { restricted, type Comparison } from "./compare";
 import type { Bill, TariffColor } from "./types";
 
 /**
@@ -50,7 +50,7 @@ export function currentEnergyPrice(bill: Bill): number | null {
 
 /** Null when there is not enough measured data: today's cost and at least one verified alternative. */
 export function billiScore(c: Comparison, bill: Bill, contract: ContractInfo = {}, today = new Date()): BilliScore | null {
-  const pool = c.offers.filter((o) => !o.expired && o.tariff.color !== "orange");
+  const pool = c.offers.filter((o) => !o.expired && o.tariff.color !== "orange" && !restricted(o.tariff));
   if (c.currentAnnual === null || c.currentAnnual <= 0 || pool.length === 0) return null;
   const cost = (o: (typeof pool)[number]) => o.annualWithDiscount ?? o.annual;
   const best = Math.min(...pool.map(cost));

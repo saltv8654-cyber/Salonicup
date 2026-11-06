@@ -32,6 +32,9 @@ export interface TariffRow {
   valid_until?: string | null;
   last_verified_at?: string | null;
   data_status?: "verified" | "unverified";
+  price_tiers?: { upto: number | null; price: number | string }[] | null;
+  fee_tiers?: { upto: number | null; fee: number | string }[] | null;
+  tier_mode?: "from_first" | "excess" | null;
 }
 
 /** Supabase numerics arrive as strings; nulls become absent fields like in the JSON file. */
@@ -59,6 +62,9 @@ export function rowToTariff(r: TariffRow): Tariff {
     valid_until: r.valid_until ?? undefined,
     last_verified_at: r.last_verified_at ?? undefined,
     data_status: r.data_status ?? "unverified",
+    price_tiers: r.price_tiers?.length ? r.price_tiers.map((t) => ({ upto: t.upto === null ? null : Number(t.upto), price: Number(t.price) })) : undefined,
+    fee_tiers: r.fee_tiers?.length ? r.fee_tiers.map((t) => ({ upto: t.upto === null ? null : Number(t.upto), fee: Number(t.fee) })) : undefined,
+    tier_mode: r.tier_mode ?? undefined,
   };
 }
 
