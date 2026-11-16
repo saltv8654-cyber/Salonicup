@@ -29,6 +29,7 @@ export default function StaffCard() {
   const [tab, setTab] = useState<'info' | 'schedule'>('info')
   const [name, setName] = useState('')
   const [email, setEmail] = useState<string | null>(null)
+  const [profRole, setProfRole] = useState<string | null>(null)   // για profiles: 'speaker' | 'admin'
   const [kind, setKind] = useState<Kind | null>(null)
   const [days, setDays] = useState<{ key: string; label: string; matches: any[] }[]>([])
   const [pay, setPay] = useState<Record<string, string>>({})   // day → amount
@@ -41,15 +42,15 @@ export default function StaffCard() {
 
   async function fetchAll() {
     // 1) το άτομο
-    let personName = '', personEmail: string | null = null, personKind: Kind | null = null
+    let personName = '', personEmail: string | null = null, personKind: Kind | null = null, personRole: string | null = null
     if (personType === 'speaker') {
-      const { data } = await supabase.from('profiles').select('full_name, email').eq('id', id).single()
-      personName = data?.full_name || data?.email || '—'; personEmail = data?.email ?? null
+      const { data } = await supabase.from('profiles').select('full_name, email, role').eq('id', id).single()
+      personName = data?.full_name || data?.email || '—'; personEmail = data?.email ?? null; personRole = data?.role ?? null
     } else {
       const { data } = await supabase.from('staff').select('name, kind').eq('id', id).single()
       personName = data?.name || '—'; personKind = (data?.kind as Kind) ?? null
     }
-    setName(personName); setEmail(personEmail); setKind(personKind)
+    setName(personName); setEmail(personEmail); setKind(personKind); setProfRole(personRole)
 
     // 2) οι αγώνες του
     const SELECT = `match_id, match_date, field, match_status,
@@ -154,9 +155,10 @@ export default function StaffCard() {
 
   if (load) return <Loading />
 
-  const accent = kind ? KIND_META[kind].accent : '#FF7A2F'
-  const roleLabel = personType === 'speaker' ? 'Speaker' : (kind ? KIND_META[kind].title : '—')
-  const roleIcon = personType === 'speaker' ? '🎙' : (kind ? KIND_META[kind].icon : '👤')
+  const isAdminProfile = personType === 'speaker' && profRole === 'admin'
+  const accent = kind ? KIND_META[kind].accent : (isAdminProfile ? '#E8B923' : '#FF7A2F')
+  const roleLabel = personType === 'speaker' ? (isAdminProfile ? 'Admin' : 'Speaker') : (kind ? KIND_META[kind].title : '—')
+  const roleIcon = personType === 'speaker' ? (isAdminProfile ? '🔑' : '🎙') : (kind ? KIND_META[kind].icon : '👤')
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
@@ -214,11 +216,13 @@ export default function StaffCard() {
                 </div>
               </div>
             )}
-            <button onClick={removePerson}
-              className="self-start px-3 py-2 rounded-lg bg-danger/15 border border-danger/30
-                text-danger text-[11.5px] font-bold">
-              {personType === 'speaker' ? 'Αφαίρεση από Speaker' : 'Διαγραφή'}
-            </button>
+            {!isAdminProfile && (
+              <button onClick={removePerson}
+                className="self-start px-3 py-2 rounded-lg bg-danger/15 border border-danger/30
+                  text-danger text-[11.5px] font-bold">
+                {personType === 'speaker' ? 'Αφαίρεση από Speaker' : 'Διαγραφή'}
+              </button>
+            )}
           </div>
 
           {/* Πληρωμές — σύνολο σε περίοδο */}

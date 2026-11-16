@@ -26,8 +26,9 @@ export default function AdminStaff() {
 
   async function fetchAll() {
     const [p, s] = await Promise.all([
+      // Speakers ΚΑΙ admins — ώστε να μπορείς να καταχωρείς πληρωμές/έξοδα και σε admin
       supabase.from('profiles').select('id, full_name, email, role, team_id')
-        .eq('role', 'speaker').order('full_name'),
+        .in('role', ['speaker', 'admin']).order('full_name'),
       supabase.from('staff').select('id, name, kind').order('name'),
     ])
     setSpeakers(p.data ?? [])
@@ -52,7 +53,7 @@ export default function AdminStaff() {
         <div>
           <div className="flex items-center gap-2 mb-2 px-0.5">
             <span className="text-base">🎙</span>
-            <span className="text-[13.5px] font-extrabold text-lit">Speaker</span>
+            <span className="text-[13.5px] font-extrabold text-lit">Speaker / Admin</span>
             <span className="text-[10px] text-dim font-bold tnum">{speakers.length}</span>
             <button onClick={() => setAddSpeaker(true)}
               className="ml-auto px-3 py-1.5 rounded-lg bg-chalk/[0.06] border border-chalk/[0.08]
@@ -67,11 +68,15 @@ export default function AdminStaff() {
                 <Link key={u.id} href={`/admin/staff/speaker/${u.id}`}
                   className="bg-turf rounded-xl px-3.5 py-3 flex items-center gap-3
                     border border-chalk/[0.05] active:bg-[#1C1C22]">
-                  <Avatar ch={(u.full_name || u.email || '?').charAt(0)} accent="#FF7A2F" />
+                  <Avatar ch={(u.full_name || u.email || '?').charAt(0)} accent={u.role === 'admin' ? '#E8B923' : '#FF7A2F'} />
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-bold text-chalk truncate">{u.full_name || u.email}</p>
                     <p className="text-[10.5px] text-dim truncate">{u.email}</p>
                   </div>
+                  {u.role === 'admin' && (
+                    <span className="shrink-0 px-2 py-0.5 rounded-full text-[9px] font-extrabold
+                      bg-[#E8B923]/15 text-[#E8B923] border border-[#E8B923]/30">ADMIN</span>
+                  )}
                   <span className="text-dim text-[13px] shrink-0">›</span>
                 </Link>
               ))}
