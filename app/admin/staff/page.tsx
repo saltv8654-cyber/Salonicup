@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Loading } from '@/app/ui'
-import { Modal, Field, SaveBtn } from '../ui'
+import { Modal, Field, SaveBtn, Select } from '../ui'
 import toast from 'react-hot-toast'
 import type { Profile } from '@/lib/types'
 
@@ -139,14 +139,48 @@ export default function AdminStaff() {
   )
 }
 
-/** Speaker → auth χρήστης (email + κωδικός). */
+/** Speaker → είτε επιλογή υπάρχοντα χρήστη (π.χ. admin) είτε νέος auth χρήστης. */
 function SpeakerForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const supabase = createClient()
+  const [mode, setMode]   = useState<'existing' | 'new'>('existing')
+  // Υπάρχων χρήστης
+  const [users, setUsers] = useState<Profile[]>([])
+  const [pick, setPick]   = useState('')
+  // Νέος λογαριασμός
   const [name, setName]   = useState('')
   const [email, setEmail] = useState('')
   const [pass, setPass]   = useState('')
   const [busy, setBusy]   = useState(false)
 
-  async function save() {
+  // Χρήστες που δεν είναι ήδη speakers (admins/captains/viewers) — για «τράβηγμα» ως σπίκερ
+  useEffect(() => {
+    supabase.from('profiles').select('id, full_name, email, role, team_id')
+      .in('role', ['admin', 'captain', 'viewer']).order('full_name')
+      .then(({ data }) => setUsers((data ?? []) as Profile[]))
+  }, [])
+
+  const roleTag = (r?: string | null) =>
+    r === 'admin' ? ' · ADMIN' : r === 'captain' ? ' · Αρχηγός' : ''
+  const userOpts = users.map(u => ({
+    value: u.id, label: `${u.full_name || u.email || '—'}${roleTag(u.role)}`,
+  }))
+
+  async function saveExisting() {
+    const u = users.find(x => x.id === pick)
+    if (!u) return toast.error('Διάλεξε χρήστη')
+    // Ο admin μένει admin — έχει ήδη πρόσβαση σπίκερ και εμφανίζεται στη λίστα.
+    if (u.role === 'admin') {
+      toast.success('Ο admin έχει ήδη πρόσβαση σπίκερ — εμφανίζεται στη λίστα')
+      onSaved(); return
+    }
+    setBusy(true)
+    const { error } = await supabase.from('profiles').update({ role: 'speaker' }).eq('id', u.id)
+    setBusy(false)
+    if (error) return toast.error(error.message)
+    toast.success('Έγινε σπίκερ'); onSaved()
+  }
+
+  async function saveNew() {
     if (!email.trim() || !pass.trim()) return toast.error('Λείπει email ή κωδικός')
     if (pass.length < 6) return toast.error('Κωδικός τουλάχιστον 6 χαρακτήρες')
     setBusy(true)
@@ -164,11 +198,32 @@ function SpeakerForm({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
   }
 
   return (
-    <Modal title="Νέος · Speaker" onClose={onClose}>
-      <Field label="ΟΝΟΜΑ" value={name} onChange={setName} placeholder="Γιώργος Παπαδόπουλος" />
-      <Field label="EMAIL" value={email} onChange={setEmail} placeholder="name@salonicup.gr" />
-      <Field label="ΚΩΔΙΚΟΣ" value={pass} onChange={setPass} placeholder="min. 6 χαρακτήρες" />
-      <SaveBtn busy={busy} onClick={save} label="Δημιουργία" />
+    <Modal title="Προσθήκη · Speaker" onClose={onClose}>
+      <div className="flex bg-turf rounded-xl p-[3px] mb-3 border border-chalk/[0.06]">
+        {([['existing', 'Υπάρχων χρήστης'], ['new', 'Νέος λογαριασμός']] as const).map(([v, l]) => (
+          <button key={v} onClick={() => setMode(v)}
+            className={`flex-1 py-2 rounded-lg text-[12px] font-bold transition-colors
+              ${mode === v ? 'bg-brand text-chalk' : 'text-dim'}`}>{l}</button>
+        ))}
+      </div>
+
+      {mode === 'existing' ? (
+        <>
+          <Select label="ΧΡΗΣΤΗΣ" value={pick} onChange={setPick} options={userOpts} />
+          <p className="text-[10.5px] text-dim mb-1 mt-1 leading-snug">
+            Διάλεξε κάποιον που υπάρχει ήδη (π.χ. admin) για να μπει ως σπίκερ. Οι admins
+            κρατούν τα δικαιώματά τους — απλώς θα μπορείς να τους αναθέτεις/πληρώνεις ως σπίκερ.
+          </p>
+          <SaveBtn busy={busy} onClick={saveExisting} label="Προσθήκη" />
+        </>
+      ) : (
+        <>
+          <Field label="ΟΝΟΜΑ" value={name} onChange={setName} placeholder="Γιώργος Παπαδόπουλος" />
+          <Field label="EMAIL" value={email} onChange={setEmail} placeholder="name@salonicup.gr" />
+          <Field label="ΚΩΔΙΚΟΣ" value={pass} onChange={setPass} placeholder="min. 6 χαρακτήρες" />
+          <SaveBtn busy={busy} onClick={saveNew} label="Δημιουργία" />
+        </>
+      )}
     </Modal>
   )
 }
