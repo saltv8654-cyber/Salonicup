@@ -1,18 +1,17 @@
-import { requireBusinessAccess } from "@/lib/access";
+import { getSettings } from "@/lib/settings";
 import { userClient } from "@/lib/supabase/server";
 import { PageHeader, Badge, StatusBadge, fmtDate } from "@/app/ui";
 
-export default async function Activity({ params }: { params: { businessId: string } }) {
-  const { business } = await requireBusinessAccess(params.businessId);
+export default async function Activity() {
+  const tz = (await getSettings())!.timezone;
   const db = userClient();
   const [{ data: events }, { data: runs }, { data: jobs }] = await Promise.all([
-    db.from("activity_log").select("*").eq("business_id", business.id).order("created_at", { ascending: false }).limit(100),
-    db.from("agent_runs").select("id,trigger,workflow,status,error,started_at,finished_at,cost_usd,input_tokens,output_tokens,web_searches")
-      .eq("business_id", business.id).order("started_at", { ascending: false }).limit(20),
-    db.from("jobs").select("id,type,status,attempts,max_attempts,last_error,run_at,updated_at").eq("business_id", business.id)
+    db.from("social_activity").select("*").order("created_at", { ascending: false }).limit(100),
+    db.from("social_runs").select("id,trigger,workflow,status,error,started_at,finished_at,cost_usd,input_tokens,output_tokens,web_searches")
+      .order("started_at", { ascending: false }).limit(20),
+    db.from("social_jobs").select("id,type,status,attempts,max_attempts,last_error,run_at,updated_at")
       .order("updated_at", { ascending: false }).limit(20),
   ]);
-  const tz = business.timezone;
   return (
     <>
       <PageHeader title="Activity log" subtitle="Append-only καταγραφή: δεν μπορεί να τροποποιηθεί ή να διαγραφεί." />

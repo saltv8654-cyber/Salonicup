@@ -1,6 +1,8 @@
-# Autonomous AI Social Media Manager — Αρχιτεκτονική & αξιολόγηση integrations
+# Salonicup Social Agent — Αρχιτεκτονική & αξιολόγηση integrations
 
-Κατάσταση: **Phase 1 υλοποιημένη** (Core Agent, Business Profiles, Database, Authentication). Ημερομηνία: Νοέμβριος 2026.
+Εσωτερικό εργαλείο: ένας AI agent που διαχειρίζεται **μόνο** τα social media του Salonicup. Δεν προορίζεται για πώληση σε τρίτους, γι' αυτό δεν έχει οργανισμούς, συνδρομές ή χρεώσεις.
+
+Κατάσταση: **Phase 1 υλοποιημένη**. Νοέμβριος 2026.
 
 > Κανόνας του έργου: καμία λειτουργία δεν εμφανίζεται ως ενεργή αν δεν υπάρχει πραγματικός κώδικας και ρυθμισμένα credentials.
 > Η κατάσταση κάθε integration υπολογίζεται από τον server (`lib/integrations.ts`) και φαίνεται στη σελίδα **Κατάσταση APIs**.
@@ -12,129 +14,134 @@
 | Επίπεδο | Ρόλος | Υλοποίηση |
 |---|---|---|
 | **Claude** = εγκέφαλος | Σκέψη, σχεδιασμός, αποφάσεις, γραφή, ανάλυση | Claude API (Messages API + tool use), `claude-opus-5-5`, adaptive thinking, server-side fallback σε άρνηση |
-| **MCP** = σύνδεση με εργαλεία | Τυποποιημένη σύνδεση εξωτερικών εργαλείων | (α) τα εσωτερικά εργαλεία του agent έχουν ήδη σχήμα συμβατό με MCP· (β) Phase 5: δικός μας MCP server ώστε Claude Code/Desktop να ελέγχουν το σύστημα· (γ) MCP connector του Claude API για τρίτα εργαλεία όπου υπάρχουν αξιόπιστα |
-| **Creative AI** = γραφικά/βίντεο | Παραγωγή εικόνων, templates, video | Phase 2: templates με `next/og` (ακρίβεια brand), AI εικόνες από εξωτερικό πάροχο, FFmpeg worker για video |
-| **APIs** = πραγματική πρόσβαση στα social | Δημοσίευση, insights, σχόλια | Phase 3–6: επίσημα APIs (Meta Graph, TikTok, YouTube Data/Analytics, LinkedIn) με OAuth |
-| **Backend** = μνήμη, αυτοματισμοί, 24/7 | Βάση, ουρά, scheduler, audit | Supabase Postgres (RLS), ουρά εργασιών στη βάση, worker endpoint, pg_cron |
-| **Dashboard** = έλεγχος | Chat, εγκρίσεις, calendar, ρυθμίσεις, kill switch | Next.js 14 (App Router), Tailwind, dark/light, mobile |
+| **MCP** = σύνδεση με εργαλεία | Τυποποιημένη σύνδεση εργαλείων | Τα εργαλεία του agent έχουν ήδη σχήμα συμβατό με MCP. Phase 5: δικός μας MCP server ώστε να τον ελέγχεις και από το Claude Code/Desktop |
+| **Creative AI** = γραφικά/βίντεο | Εικόνες, templates, video | Phase 2: templates από τα δεδομένα αγώνων (`next/og`), AI εικόνες από εξωτερικό πάροχο, FFmpeg worker για clips από τα livestreams |
+| **APIs** = πρόσβαση στα social | Δημοσίευση, insights, σχόλια | Phase 3–6: επίσημα APIs (Meta, TikTok, YouTube, LinkedIn) με OAuth |
+| **Backend** = μνήμη, αυτοματισμοί, 24/7 | Βάση, ουρά, scheduler, audit | Η **ίδια βάση Supabase με το Salonicup** (πίνακες `social_*`), ουρά εργασιών, worker, pg_cron |
+| **Dashboard** = έλεγχος | Chat, εγκρίσεις, calendar, ρυθμίσεις, emergency stop | Next.js 14, Tailwind, dark/light, mobile |
 
 ```
-             ┌──────────────────────── Dashboard (Next.js on Vercel) ────────────────────────┐
-  user ───▶  │  Chat · Calendar · Approvals · Settings · Activity · Status                  │
-             └───────┬──────────────────────────────┬─────────────────────────────┬─────────┘
-                     │ POST /api/agent/chat          │ approve / reject             │ RLS reads
-                     ▼                               ▼                              ▼
-             ┌──────────────── Core Agent (lib/agent/runner.ts) ─────────────┐   ┌───────────────┐
-             │ Orchestrator (Claude) ── tools ──▶ DB writes (scoped)         │◀─▶│ Supabase      │
-             │      │ delegate_to_specialist                                │   │ Postgres+RLS  │
-             │      ▼                                                       │   │ Auth, Storage │
-             │ Specialists: Creative · Content · Strategy · Analytics ·     │   └───────▲───────┘
-             │ Community · Competitor · Publishing                          │           │
-             │ Policy gate (autonomy mode, kill switch, roles)              │           │ claim_jobs()
-             └───────────────────────────────▲──────────────────────────────┘           │ SKIP LOCKED
-                                             │ runAgent(trigger=schedule)               │
-             pg_cron (κάθε 5′) / Vercel Cron ──▶ /api/worker/tick ── schedules → jobs ──┘
-                                             │
-                     Phase 2–6 ──▶ Creative workers · Platform APIs (OAuth tokens, AES-GCM)
+  admin ──▶ Dashboard (Next.js, ξεχωριστό Vercel project, root = social/)
+              │ chat / εγκρίσεις / ρυθμίσεις
+              ▼
+          Core Agent (lib/agent/runner.ts)
+            Orchestrator (Claude) ── εργαλεία ──▶ social_* πίνακες
+              │  get_league_data ──────────────▶ matches, teams, players, events, standings, player_stats (μόνο ανάγνωση)
+              │  delegate_to_specialist
+              ▼
+            Specialists: Creative · Content · Strategy · Analytics · Community · Competitor · Publishing
+            Policy gate: autonomy mode + emergency stop + όριο κόστους
+              ▲
+  pg_cron (κάθε 5′) ──▶ /api/worker/tick ──▶ schedules → social_jobs → runAgent(schedule)
+                                   ┌──────── Supabase του Salonicup ────────┐
+                                   │ Auth (ίδιοι admins) · Postgres · Storage │
+                                   └──────────────────────────────────────────┘
 ```
 
-### Γιατί Messages API με δικό μας loop και όχι Managed Agents
-Το Claude Managed Agents (Anthropic φιλοξενεί το loop και sandbox) είναι η προεπιλογή για agents, αλλά εδώ ο agent:
-- γράφει σε δική μας βάση με αυστηρή απομόνωση ανά επιχείρηση (το `business_id` δεν περνά ποτέ από το μοντέλο),
-- πρέπει να σταματά σε **εγκρίσεις** και **emergency stop** μεταξύ βημάτων,
-- τρέχει από τον δικό μας scheduler και καταγράφει κάθε βήμα/κόστος στη βάση.
+### Γιατί στην ίδια βάση με το Salonicup
+- **Ίδιοι λογαριασμοί**: μπαίνεις με τον admin λογαριασμό του `/admin`. Πρόσβαση έχουν μόνο όσοι έχουν `profiles.role = 'admin'`. Οι speakers, οι αρχηγοί και οι επισκέπτες δεν βλέπουν τίποτα.
+- **Πραγματικά δεδομένα**: ο agent διαβάζει απευθείας αγώνες, σκορ, σκόρερ, MVP, βαθμολογίες και τα κείμενα αγώνων. Τα posts για αγώνες βασίζονται σε γεγονότα και όχι σε ό,τι θα φανταζόταν το μοντέλο.
+- **Ασφάλεια για το υπάρχον app**: όλοι οι νέοι πίνακες έχουν πρόθεμα `social_`. Το migration δεν αλλάζει και δεν σβήνει τίποτα από το Salonicup, και ξανατρέχει με ασφάλεια.
 
-Όλα αυτά ζουν στο backend, όπως ζητά η αρχιτεκτονική. Το loop είναι ~150 γραμμές (`runner.ts`) και μπορεί να μεταφερθεί σε Managed Agents αργότερα αν χρειαστεί sandbox (π.χ. για video editing).
+### Γιατί Messages API με δικό μας loop
+Το Claude Managed Agents (η Anthropic φιλοξενεί το loop και ένα sandbox) θα μπορούσε να τρέξει τον agent. Εδώ όμως ο agent πρέπει:
+- να γράφει στη δική μας βάση,
+- να σταματά για εγκρίσεις και στο emergency stop ανάμεσα στα βήματα,
+- να καταγράφει κάθε βήμα και το κόστος του.
+
+Γι' αυτό το loop τρέχει στο backend (`runner.ts`, ~180 γραμμές).
 
 ---
 
 ## 2. Core Agent (Phase 1 — ενεργό)
 
-- **Orchestrator** (`ORCHESTRATOR_PROMPT`): ο «senior εργαζόμενος». Εκτελεί, δεν περιγράφει. Κανόνες ειλικρίνειας: δεν ισχυρίζεται ενέργειες χωρίς επιβεβαίωση από tool, δεν εφευρίσκει metrics.
-- **7 specialists** μέσω `delegate_to_specialist`: Creative, Content Creation, Marketing Strategy, Analytics, Community, Competitor Research, Publishing. Ο καθένας έχει δικό του ρόλο, το ίδιο business context, και web search όπου έχει νόημα. Ο orchestrator ελέγχει την έξοδό τους πριν τη χρησιμοποιήσει.
-- **Εργαλεία** (`lib/agent/tools.ts`): `save_memory`, `search_memory`, `update_brand_profile`, `create_campaign`, `create_content_drafts`, `list_content`, `update_content`, `schedule_content`, `get_recent_activity`, `delegate_to_specialist`, `web_search` (server tool).
-- **Μνήμη**: brand profile + `memories` (γεγονότα, προτιμήσεις, μαθήματα, στρατηγική) + ιστορικό συζητήσεων. Κάθε απόρριψη με αιτιολογία γίνεται αυτόματα μνήμη «προτίμηση» — έτσι μαθαίνει.
-- **Συζητήσεις**: αποθηκεύονται αυτούσια τα content blocks του API (append-only) και ξαναστέλνονται αμετάβλητα. Prompt caching στο σταθερό system prompt + business context.
-- **Όρια**: 20 βήματα / 240″ ανά εντολή, μηνιαίος προϋπολογισμός AI και εκτελέσεων ανά πλάνο, καταγραφή κόστους ανά κλήση (`ai_usage`).
+- **Orchestrator**: λειτουργεί σαν ο social media manager του πρωταθλήματος. Εκτελεί, δεν περιγράφει. Κανόνες:
+  - ποτέ δεν ισχυρίζεται μια ενέργεια χωρίς επιβεβαίωση από εργαλείο,
+  - ποτέ δεν εφευρίσκει metrics ή ποδοσφαιρικά γεγονότα,
+  - σέβεται τους παίκτες (ερασιτέχνες, πραγματικά πρόσωπα).
+- **7 specialists** μέσω `delegate_to_specialist`. Ο orchestrator ελέγχει την έξοδό τους πριν τη χρησιμοποιήσει.
+- **Εργαλεία**: `get_league_data`, `save_memory`, `search_memory`, `update_brand_profile`, `create_campaign`, `create_content_drafts` (με σύνδεση σε `match_id`), `list_content`, `update_content`, `schedule_content`, `get_recent_activity`, `delegate_to_specialist`, `web_search`.
+- **Μνήμη**: brand profile + `social_memories` + ιστορικό συζητήσεων. Κάθε απόρριψη με αιτιολογία γίνεται αυτόματα «προτίμηση» στη μνήμη.
+- **Όρια**: 20 βήματα / 240″ ανά εντολή και μηνιαίο όριο κόστους (προεπιλογή $50, αλλάζει στις Ρυθμίσεις). Κάθε κλήση στο Claude καταγράφεται με το κόστος της.
 
 ### Αυτονομία και εγκρίσεις (`lib/policy.ts`)
-| Ενέργεια | Manual | Semi | Full | Paused (scheduled) | Paused (chat) |
+| Ενέργεια | Manual | Semi | Full | Emergency stop (αυτόνομα) | Emergency stop (chat) |
 |---|---|---|---|---|---|
 | Drafts, μνήμη, καμπάνιες | ✅ | ✅ | ✅ | ⛔ | ✅ |
 | Προγραμματισμός | 🟡 έγκριση | ✅ | ✅ | ⛔ | 🟡 |
 | Δημοσίευση | 🟡 | 🟡 | ✅ | ⛔ | 🟡 |
 | Απάντηση σε σχόλιο | 🟡 | ✅ | ✅ | ⛔ | 🟡 |
 | Ευαίσθητη απάντηση / διαγραφή | 🟡 | 🟡 | 🟡 | ⛔ | 🟡 |
-| Αλλαγή brand | ✅ μόνο από chat | ✅ chat | ✅ chat · 🟡 αυτόνομα | 🟡 | ✅ |
+| Αλλαγή brand | ✅ από chat · 🟡 αυτόνομα | ίδιο | ίδιο | 🟡 | ✅ |
 
-Kill switches: `businesses.autonomy_paused` (ανά επιχείρηση· ακυρώνει και την ουρά· ελέγχεται μεταξύ των βημάτων ενός run) και `organizations.agent_enabled` (όλος ο tenant).
+### Αυτόματες εργασίες
+- **Καθημερινά**:
+  - Final Score drafts για όσους αγώνες έληξαν.
+  - Matchday drafts για τους επόμενους αγώνες.
+  - Έλεγχος του calendar για κενά.
+- **Εβδομαδιαία**: οι ιστορίες της αγωνιστικής (ντέρμπι, κορυφή, σερί, ορόσημα σκόρερ) και το πλάνο περιεχομένου της επόμενης εβδομάδας.
+- **Μηνιαία**: σύνοψη του πρωταθλήματος και των social, στρατηγική και καμπάνια για τον επόμενο μήνα.
 
 ---
 
-## 3. Βάση δεδομένων & multi-tenancy
+## 3. Βάση δεδομένων
 
-`supabase/migrations/0001_core.sql` — οργανισμός → επιχειρήσεις → όλα τα υπόλοιπα.
-
-- **Απομόνωση**: κάθε πίνακας έχει `business_id` και RLS. Viewers διαβάζουν, editors γράφουν, admins διαγράφουν/αλλάζουν αυτονομία.
-- Ο agent χρησιμοποιεί service role αλλά **κάθε query φιλτράρει με το `business_id` του run** — το μοντέλο δεν μπορεί να το αλλάξει (υπάρχει test γι' αυτό).
-- `social_tokens`: RLS χωρίς policies, AES-256-GCM στην εφαρμογή — τα tokens δεν φτάνουν ποτέ στον browser.
-- `activity_log`: append-only με trigger.
-- `jobs` + `claim_jobs()` (`FOR UPDATE SKIP LOCKED`), idempotency keys, exponential backoff, dead-letter, απελευθέρωση κολλημένων εργασιών μετά από 15′.
-- SaaS: `plans` (όρια επιχειρήσεων, λογαριασμών, προϋπολογισμού AI, εκτελέσεων), `ai_usage`, ρόλοι owner/admin/editor/viewer.
+`supabase/migrations/0001_social.sql`:
+- Ρυθμίσεις και brand σε μία γραμμή (`social_settings`).
+- Μνήμη, καμπάνιες, περιεχόμενο, assets, εγκρίσεις, συζητήσεις, εκτελέσεις και βήματα του agent, ουρά εργασιών, προγραμματισμένες εργασίες, audit, κόστος AI.
+- **RLS με `is_admin()`** του Salonicup. Οι εγκρίσεις, οι εκτελέσεις και το audit γράφονται μόνο από τον server.
+- `social_tokens`: RLS χωρίς policies, AES-256-GCM στην εφαρμογή. Τα tokens δεν φτάνουν ποτέ στον browser.
+- `social_activity`: δεν τροποποιείται και δεν διαγράφεται (trigger).
+- `social_claim_jobs()` (`FOR UPDATE SKIP LOCKED`): idempotency keys, exponential backoff, dead-letter, απελευθέρωση εργασιών που κόλλησαν πάνω από 15′.
 
 ---
 
 ## 4. Αξιολόγηση integrations
 
-> Τα όρια των πλατφορμών αλλάζουν συχνά. Οι τιμές παρακάτω είναι από την τεκμηρίωση που γνωρίζω και **πρέπει να επαληθευτούν στην αρχή της Phase 3** στα developer portals.
+> Τα όρια των πλατφορμών αλλάζουν συχνά. Οι τιμές παρακάτω προέρχονται από την τεκμηρίωση που γνωρίζω και **πρέπει να επαληθευτούν στην αρχή της Phase 3**.
 
-### 4.1 Κόστος και προϋποθέσεις
+### 4.1 Κόστος και προϋποθέσεις (εσωτερική χρήση)
 
-| Integration | Δωρεάν; | Τι χρειάζεται | Κύριος περιορισμός |
+| Integration | Κόστος | Τι χρειάζεται για ΔΙΚΟΥΣ σου λογαριασμούς | Κύριος περιορισμός |
 |---|---|---|---|
-| Claude API | Πληρωμή ανά χρήση | API key | Opus 5.5: $4/$20 ανά 1M tokens· web search $10/1.000 |
-| Supabase | Free tier / Pro $25 | Project | Το Free κάνει pause μετά από 7 ημέρες αδράνειας → **Pro για 24/7** |
-| Vercel | Hobby / Pro $20 ανά μέλος | Project | Hobby: όχι εμπορική χρήση, cron 1×/ημέρα → pg_cron για συχνότερο tick |
-| Meta (Instagram + Facebook) | Δωρεάν | Meta App, **App Review**, **Business Verification** | Μόνο Professional IG / Pages· ~100 API posts/24ω ανά IG λογαριασμό |
-| TikTok | Δωρεάν | App + **audit** για Direct Post | Χωρίς audit, τα posts είναι ιδιωτικά· όχι watch time/demographics |
-| YouTube Data + Analytics | Δωρεάν (quota) | Google Cloud project, OAuth consent verification, **audit** για δημόσια uploads | 10.000 units/ημέρα· τα uploads κοστίζουν πολλά units |
-| LinkedIn | Δωρεάν | Έγκριση **Community Management API** για Company Pages | Χωρίς έγκριση μόνο προσωπικό προφίλ |
-| AI εικόνες (OpenAI Images / Google Imagen–Gemini / FLUX) | Όχι | API key παρόχου | ~$0.02–0.20 ανά εικόνα |
-| Αφαίρεση φόντου / upscale | Όχι ή self-hosted | remove.bg ή open-source μοντέλο σε worker | — |
-| Video (FFmpeg) + υπότιτλοι | Self-hosted + transcription | Container ($5–20/μήνα) + speech-to-text (~$0.006/λεπτό) | Δεν τρέχει σε Vercel functions |
-| Stripe | Ανά συναλλαγή | Λογαριασμός | — |
+| Claude API | Ανά χρήση | Το `ANTHROPIC_API_KEY` που ήδη έχει το Salonicup | Opus 5.5: $4/$20 ανά 1M tokens· web search $10/1.000 |
+| Supabase | Κανένα επιπλέον | Το ίδιο project | — |
+| Vercel | Κανένα επιπλέον (νέο project στο ίδιο repo) | Root Directory `social` | Hobby cron 1×/ημέρα → χρησιμοποιούμε pg_cron |
+| Meta (Instagram + Facebook) | Δωρεάν | Meta App, εσύ ως admin της εφαρμογής και της Σελίδας· Instagram Professional συνδεδεμένο με τη Σελίδα | Για δικούς σου λογαριασμούς δεν χρειάζεται App Review· ~100 posts/24ω μέσω API |
+| TikTok | Δωρεάν | Developer app· **audit** για δημόσια posts | Χωρίς audit τα posts μένουν ιδιωτικά· όχι watch time/demographics |
+| YouTube (κανάλι SALTV) | Δωρεάν (quota) | Google Cloud project, OAuth | 10.000 units/ημέρα· χωρίς audit τα uploads είναι ιδιωτικά |
+| LinkedIn | Δωρεάν | Έγκριση Community Management API | Χαμηλή προτεραιότητα για ένα πρωτάθλημα |
+| AI εικόνες | ~$0.02–0.20 ανά εικόνα | API key παρόχου | Το κείμενο μέσα στην εικόνα δεν είναι αξιόπιστο → σκορ και ονόματα μπαίνουν από template |
+| Video + υπότιτλοι | Container $5–20/μήνα + ~$0.006/λεπτό | FFmpeg worker | Δεν τρέχει σε Vercel functions |
 
-### 4.2 Τι επιτρέπουν τα APIs (σύνοψη)
+### 4.2 Τι επιτρέπουν τα APIs
 
-| Δυνατότητα | Instagram | Facebook | TikTok | YouTube | LinkedIn Page |
+| Δυνατότητα | Instagram | Facebook | TikTok | YouTube | LinkedIn |
 |---|---|---|---|---|---|
 | Post εικόνας / carousel | ✅ | ✅ | ✅ photo | — | ✅ (με έγκριση) |
 | Reels / Shorts / video | ✅ | ✅ | ✅ | ✅ | ✅ (με έγκριση) |
-| Stories | ✅ Business | ✅ | — | — | — |
-| Προγραμματισμός | Δικός μας scheduler | Native + δικός μας | Δικός μας | Native (publishAt) | Δικός μας |
+| Stories | ✅ | ✅ | — | — | — |
 | Reach / views / engagement | ✅ | ✅ | Βασικά | ✅ | ✅ (με έγκριση) |
-| Watch time / retention | Μερικά για Reels | Μερικά | ❌ | ✅ | ❌ |
-| CTR thumbnail / impressions | — | — | — | ❌ (μόνο Studio) | — |
-| Demographics | ✅ (100+ followers) | ✅ | ❌ | ✅ | ✅ (με έγκριση) |
-| Σχόλια: ανάγνωση/απάντηση | ✅ | ✅ | Μόνο Business API | ✅ | ✅ (με έγκριση) |
+| Watch time / retention | Μερικά (Reels) | Μερικά | ❌ | ✅ | ❌ |
+| Impressions / CTR thumbnail | — | — | — | ❌ (μόνο Studio) | — |
+| Demographics | ✅ (100+ followers) | ✅ | ❌ | ✅ | ✅ |
+| Σχόλια: ανάγνωση/απάντηση | ✅ | ✅ | Μόνο Business API | ✅ | ✅ |
 | DMs | Περιορισμένα (24ω) | ✅ Messenger | ❌ | ❌ | ❌ |
-| Ανταγωνιστές (δημόσια) | ✅ Business Discovery | ❌ στην πράξη | ❌ | ✅ | ❌ |
+| Άλλες διοργανώσεις (δημόσια) | ✅ Business Discovery | ❌ στην πράξη | ❌ | ✅ | ❌ |
 
-**Δεν υποστηρίζεται και δεν θα γίνει**: scraping, πρόσβαση σε ιδιωτικά δεδομένα ανταγωνιστών, μη επίσημα APIs. Όπου το API δεν δίνει κάτι, ο agent το δηλώνει.
+**Δεν θα γίνει**: scraping, πρόσβαση σε ιδιωτικά δεδομένα, μη επίσημα APIs. Όπου ένα API δεν δίνει κάτι, ο agent το δηλώνει.
 
 ---
 
 ## 5. Roadmap
 
-| Phase | Περιεχόμενο | Κατάσταση | Tests |
-|---|---|---|---|
-| **1** | Core Agent + 7 specialists, μνήμη, business profiles, multi-tenant DB με RLS, auth, εγκρίσεις, kill switch, ουρά/scheduler, activity log, dashboard | ✅ Υλοποιημένο | 21 unit tests (policy, ουρά, χρόνος/DST, κρυπτογράφηση, εργαλεία agent) + 10 ομάδες DB tests σε PostgreSQL (απομόνωση, ρόλοι, append-only, ουρά) + build |
-| **2** | Creative Studio: brand templates (post/story/carousel/matchday/final score/thumbnail) με `next/og`, Asset Library (uploads, tags), AI εικόνες, αφαίρεση φόντου, resize, video worker (Reels/Shorts/TikTok, υπότιτλοι) | Επόμενο | Renders σε όλες τις διαστάσεις, έλεγχος brand χρωμάτων/fonts |
-| **3** | OAuth Meta/TikTok/YouTube/LinkedIn, token refresh, Publishing workers, retries, κατάσταση δημοσίευσης | — | Δημοσίευση σε test λογαριασμούς κάθε πλατφόρμας |
-| **4** | Συλλογή insights, Analytics, Reports (ημέρα/εβδομάδα/μήνας), AI Performance Analyst με τεκμηρίωση | — | Συμφωνία με τα native insights |
-| **5** | Optimization Agent: A/B tests, ιστορικό αλλαγών στρατηγικής και αξιολόγησή τους, MCP server | — | Πλήρης κύκλος hypothesis → αποτέλεσμα |
-| **6** | Community Manager (σχόλια/μηνύματα), Competitor Analysis (μόνο δημόσια δεδομένα) | — | |
-| **7** | Stripe συνδρομές, usage-based όρια, admin dashboard, προσκλήσεις μελών, backups/PITR | — | |
+| Phase | Περιεχόμενο | Κατάσταση |
+|---|---|---|
+| **1** | Core Agent + 7 specialists, δεδομένα πρωταθλήματος, μνήμη, brand, admin-only πρόσβαση, εγκρίσεις, emergency stop, ουρά/scheduler, activity log, όριο κόστους, dashboard | ✅ Υλοποιημένο. Tests: 20 unit + 9 ομάδες DB tests σε PostgreSQL + build |
+| **2** | Creative Studio: Matchday, Final Score, βαθμολογία, σκόρερ, MVP, ομάδα εβδομάδας από πραγματικά δεδομένα· stories, carousels, thumbnails· Asset Library (λογότυπα ομάδων/χορηγών υπάρχουν ήδη)· AI εικόνες· clips από τα livestreams με υπότιτλους | Επόμενο |
+| **3** | OAuth Instagram/Facebook/YouTube/TikTok, ανανέωση tokens, δημοσίευση, retries, κατάσταση δημοσίευσης | — |
+| **4** | Συλλογή insights, Analytics, αναφορές, AI Performance Analyst | — |
+| **5** | Optimization: A/B tests, ιστορικό αλλαγών στρατηγικής και αξιολόγησή τους, MCP server | — |
+| **6** | Community Manager (σχόλια, μηνύματα, αιτήματα ομάδων/χορηγών), ανάλυση άλλων διοργανώσεων | — |
 
-### Ειδικά για Salonicup (Phase 2)
-Το υπάρχον app έχει ήδη αγώνες, σκορ, σκόρερ και ρόστερ στο Supabase. Τα **Matchday** και **Final Score** γραφικά θα παράγονται από πραγματικά δεδομένα αγώνα (όχι από AI εικόνα), ώστε ονόματα, σκορ και λογότυπα να είναι πάντα σωστά — και ο agent θα μπορεί να τα δημιουργεί αυτόματα όταν ένας αγώνας γίνει `Played`.
+Η Phase 7 (SaaS, συνδρομές, πολλοί πελάτες) **αφαιρέθηκε**.

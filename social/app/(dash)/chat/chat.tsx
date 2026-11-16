@@ -6,23 +6,23 @@ import { useEffect, useRef, useState } from "react";
 export interface ChatMessage { role: "user" | "assistant"; text: string; tools: string[] }
 
 const EXAMPLES = [
-  "Δημιούργησε 5 Instagram posts για την επόμενη εβδομάδα",
-  "Φτιάξε content plan για τον επόμενο μήνα με καμπάνια",
-  "Κάνε έρευνα για τάσεις στον κλάδο μας και πρότεινε 10 ιδέες για Reels",
+  "Φτιάξε τα Final Score posts για τους αγώνες του Σαββατοκύριακου",
+  "Δημιούργησε τα Matchday posts της επόμενης αγωνιστικής",
+  "Φτιάξε carousel με τη βαθμολογία και τους πρώτους σκόρερ κάθε πρωταθλήματος",
+  "Πρότεινε 10 ιδέες για Reels από τα livestreams μας",
   "Ανάλαβε τη στρατηγική των social media για τον επόμενο μήνα",
-  "Προγραμμάτισε τις δημοσιεύσεις της επόμενης εβδομάδας",
 ];
 const TOOL_LABEL: Record<string, string> = {
   create_content_drafts: "Δημιουργία drafts", create_campaign: "Δημιουργία καμπάνιας", save_memory: "Αποθήκευση στη μνήμη",
   search_memory: "Αναζήτηση μνήμης", update_brand_profile: "Ενημέρωση brand", list_content: "Ανάγνωση calendar",
   update_content: "Επεξεργασία περιεχομένου", schedule_content: "Προγραμματισμός", get_recent_activity: "Ιστορικό",
-  delegate_to_specialist: "Ανάθεση σε specialist",
+  delegate_to_specialist: "Ανάθεση σε specialist", get_league_data: "Δεδομένα πρωταθλήματος",
 };
 
-export function Chat({ businessId, conversationId, initial, conversations, canWrite }: {
-  businessId: string; conversationId: string | null; initial: ChatMessage[];
-  conversations: { id: string; title: string }[]; canWrite: boolean;
+export function Chat({ conversationId, initial, conversations }: {
+  conversationId: string | null; initial: ChatMessage[]; conversations: { id: string; title: string }[];
 }) {
+  const canWrite = true;
   const router = useRouter();
   const [messages, setMessages] = useState(initial);
   const [input, setInput] = useState("");
@@ -39,13 +39,13 @@ export function Chat({ businessId, conversationId, initial, conversations, canWr
     try {
       const res = await fetch("/api/agent/chat", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ businessId, conversationId, message: text }),
+        body: JSON.stringify({ conversationId, message: text }),
       });
       const data = await res.json();
       if (!res.ok && !data.conversationId) throw new Error(data.error ?? `HTTP ${res.status}`);
       if (data.error) setError(data.error);
       // Reload from the database so the view shows exactly what was stored (tools included).
-      router.replace(`/b/${businessId}/chat?c=${data.conversationId}`);
+      router.replace(`/chat?c=${data.conversationId}`);
       router.refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -57,10 +57,10 @@ export function Chat({ businessId, conversationId, initial, conversations, canWr
   return (
     <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
       <aside className="hidden lg:block">
-        <Link href={`/b/${businessId}/chat`} className="btn-ghost mb-3 w-full">+ Νέα συζήτηση</Link>
+        <Link href="/chat" className="btn-ghost mb-3 w-full">+ Νέα συζήτηση</Link>
         <ul className="space-y-1 text-sm">
           {conversations.map((c) => (
-            <li key={c.id}><Link href={`/b/${businessId}/chat?c=${c.id}`}
+            <li key={c.id}><Link href={`/chat?c=${c.id}`}
               className={`block truncate rounded-lg px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 ${c.id === conversationId ? "bg-slate-100 font-medium dark:bg-slate-800" : ""}`}>{c.title}</Link></li>
           ))}
         </ul>

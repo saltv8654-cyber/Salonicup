@@ -1,4 +1,4 @@
-import { requireBusinessAccess } from "@/lib/access";
+import { getSettings } from "@/lib/settings";
 import { userClient } from "@/lib/supabase/server";
 import { INTEGRATIONS, integrationState, missingEnv } from "@/lib/integrations";
 import { PageHeader, Badge, StatusBadge, fmtDate } from "@/app/ui";
@@ -6,9 +6,9 @@ import { PageHeader, Badge, StatusBadge, fmtDate } from "@/app/ui";
 const API_TONE = { yes: "green", limited: "amber", no: "red" } as const;
 const API_LABEL = { yes: "Ναι", limited: "Περιορισμένα", no: "Όχι" } as const;
 
-export default async function Accounts({ params }: { params: { businessId: string } }) {
-  const { business } = await requireBusinessAccess(params.businessId);
-  const { data: accounts } = await userClient().from("social_accounts").select("*").eq("business_id", business.id);
+export default async function Accounts() {
+  const tz = (await getSettings())!.timezone;
+  const { data: accounts } = await userClient().from("social_accounts").select("*");
   const social = INTEGRATIONS.filter((i) => i.kind === "social");
   return (
     <>
@@ -26,7 +26,7 @@ export default async function Accounts({ params }: { params: { businessId: strin
               </div>
               {mine.length ? (
                 <ul className="mt-3 space-y-1 text-sm">{mine.map((a) => (
-                  <li key={a.id} className="flex items-center gap-2"><StatusBadge status={a.status === "connected" ? "active" : "failed"} />@{a.handle} <span className="muted text-xs">έλεγχος {fmtDate(a.last_checked_at, business.timezone)}</span></li>
+                  <li key={a.id} className="flex items-center gap-2"><StatusBadge status={a.status === "connected" ? "active" : "failed"} />@{a.handle} <span className="muted text-xs">έλεγχος {fmtDate(a.last_checked_at, tz)}</span></li>
                 ))}</ul>
               ) : (
                 <p className="muted mt-2">Κανένας λογαριασμός. {state === "planned"

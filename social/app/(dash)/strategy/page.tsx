@@ -1,22 +1,22 @@
 import Link from "next/link";
-import { requireBusinessAccess } from "@/lib/access";
+import { getSettings } from "@/lib/settings";
 import { userClient } from "@/lib/supabase/server";
 import { PageHeader, Badge, Empty, fmtDate } from "@/app/ui";
 
 const KIND_LABEL: Record<string, string> = { fact: "Γεγονός", preference: "Προτίμηση", learning: "Μάθημα", strategy: "Στρατηγική",
   campaign: "Καμπάνια", audience: "Κοινό", performance: "Απόδοση" };
 
-export default async function Strategy({ params }: { params: { businessId: string } }) {
-  const { business } = await requireBusinessAccess(params.businessId);
+export default async function Strategy() {
+  const tz = (await getSettings())!.timezone;
   const db = userClient();
   const [{ data: campaigns }, { data: memories }] = await Promise.all([
-    db.from("campaigns").select("*").eq("business_id", business.id).order("starts_on", { ascending: false }).limit(20),
-    db.from("memories").select("*").eq("business_id", business.id).eq("archived", false).order("importance", { ascending: false }).order("created_at", { ascending: false }).limit(100),
+    db.from("social_campaigns").select("*").order("starts_on", { ascending: false }).limit(20),
+    db.from("social_memories").select("*").eq("archived", false).order("importance", { ascending: false }).order("created_at", { ascending: false }).limit(100),
   ]);
   return (
     <>
-      <PageHeader title="Marketing Strategy" subtitle="Καμπάνιες και η μόνιμη μνήμη του agent για αυτή την επιχείρηση."
-        actions={<Link className="btn-primary" href={`/b/${business.id}/chat`}>Ζήτα νέα στρατηγική</Link>} />
+      <PageHeader title="Marketing Strategy" subtitle="Καμπάνιες και η μόνιμη μνήμη του agent."
+        actions={<Link className="btn-primary" href={"/chat"}>Ζήτα νέα στρατηγική</Link>} />
       <h2 className="mb-3 font-semibold">Καμπάνιες</h2>
       {campaigns?.length ? (
         <div className="mb-8 space-y-3">{campaigns.map((c) => (
@@ -37,7 +37,7 @@ export default async function Strategy({ params }: { params: { businessId: strin
           <li key={m.id} className="px-5 py-3 text-sm">
             <div className="mb-1 flex flex-wrap items-center gap-2"><Badge>{KIND_LABEL[m.kind] ?? m.kind}</Badge>
               <span className="text-xs text-amber-500">{"★".repeat(m.importance)}</span>
-              <span className="muted text-xs">{m.source} · {fmtDate(m.created_at, business.timezone)}</span></div>
+              <span className="muted text-xs">{m.source} · {fmtDate(m.created_at, tz)}</span></div>
             <p>{m.content}</p>
           </li>
         ))}</ul>

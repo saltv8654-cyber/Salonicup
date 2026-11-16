@@ -9,6 +9,7 @@ async function tick(req: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set" }, { status: 503 });
   const workerId = `vercel-${Math.random().toString(36).slice(2, 10)}`;
   const enqueued = await enqueueDueSchedules();
   const jobs = await processJobs(workerId, 230_000);

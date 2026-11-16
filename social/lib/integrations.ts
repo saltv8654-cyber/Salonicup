@@ -13,7 +13,7 @@ export interface Capability {
 export interface Integration {
   id: string;
   name: string;
-  kind: "core" | "ai" | "social" | "creative" | "infra" | "billing";
+  kind: "core" | "ai" | "social" | "creative" | "infra";
   phase: number;
   /** env vars that must be set for this integration to work */
   env: string[];
@@ -26,10 +26,10 @@ export interface Integration {
 
 export const INTEGRATIONS: Integration[] = [
   {
-    id: "supabase", name: "Supabase (Postgres, Auth, Storage)", kind: "core", phase: 1, implemented: true,
+    id: "supabase", name: "Supabase του Salonicup (βάση, admins, δεδομένα πρωταθλήματος)", kind: "core", phase: 1, implemented: true,
     env: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"],
-    cost: "Free: 500 MB DB, παύει μετά από 7 ημέρες αδράνειας. Pro $25/μήνα (απαιτείται για 24/7).",
-    limits: ["Το Free project κάνει pause — ακατάλληλο για αυτόνομη λειτουργία."],
+    cost: "Κανένα επιπλέον — το ίδιο project με το Salonicup app.",
+    limits: ["Πίνακες με πρόθεμα social_· οι υπάρχοντες πίνακες του Salonicup μόνο διαβάζονται."],
   },
   {
     id: "anthropic", name: "Claude API (εγκέφαλος)", kind: "ai", phase: 1, implemented: true,
@@ -40,8 +40,8 @@ export const INTEGRATIONS: Integration[] = [
   {
     id: "worker", name: "Background worker (cron + ουρά)", kind: "infra", phase: 1, implemented: true,
     env: ["CRON_SECRET"],
-    cost: "Vercel Hobby: cron 1×/ημέρα. Supabase pg_cron + pg_net: κάθε λεπτό, χωρίς επιπλέον κόστος.",
-    limits: ["Vercel Hobby απαγορεύει εμπορική χρήση — για πώληση χρειάζεται Vercel Pro ($20/μέλος/μήνα)."],
+    cost: "Χωρίς επιπλέον κόστος: Supabase pg_cron + pg_net καλούν τον worker κάθε 5 λεπτά.",
+    limits: ["Το Vercel Hobby cron τρέχει μόνο 1×/ημέρα — γι' αυτό χρησιμοποιείται το pg_cron."],
   },
   {
     id: "token_crypto", name: "Κρυπτογράφηση OAuth tokens", kind: "core", phase: 1, implemented: true,
@@ -51,7 +51,7 @@ export const INTEGRATIONS: Integration[] = [
   {
     id: "meta_instagram", name: "Instagram (Graph API)", kind: "social", phase: 3, implemented: false,
     env: ["META_APP_ID", "META_APP_SECRET"],
-    cost: "Δωρεάν. Απαιτεί Meta App Review + Business Verification για χρήση από τρίτες επιχειρήσεις.",
+    cost: "Δωρεάν. Για δική σου σελίδα/λογαριασμό αρκεί Meta App σε Development mode με εσένα ως admin — χωρίς App Review.",
     limits: [
       "Μόνο Professional λογαριασμοί (Business/Creator).",
       "Έως 100 δημοσιεύσεις μέσω API ανά 24ω ανά λογαριασμό.",
@@ -84,7 +84,7 @@ export const INTEGRATIONS: Integration[] = [
   {
     id: "tiktok", name: "TikTok (Content Posting + Display API)", kind: "social", phase: 3, implemented: false,
     env: ["TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET"],
-    cost: "Δωρεάν. Χρειάζεται audit της εφαρμογής από το TikTok.",
+    cost: "Δωρεάν. Για δημόσιες δημοσιεύσεις μέσω API χρειάζεται audit της εφαρμογής από το TikTok (ισχύει και για εσωτερική χρήση).",
     limits: [
       "Χωρίς audit, κάθε δημοσίευση μέσω API είναι ιδιωτική (SELF_ONLY).",
       "Ημερήσιο όριο δημοσιεύσεων ανά creator και όριο αιτημάτων ανά λεπτό.",
@@ -104,7 +104,7 @@ export const INTEGRATIONS: Integration[] = [
     cost: "Δωρεάν με quota 10.000 units/ημέρα ανά project (αύξηση μέσω audit).",
     limits: [
       "Ένα upload κοστίζει πολλά quota units — λίγα uploads/ημέρα με το default quota.",
-      "Projects χωρίς audit ανεβάζουν μόνο ιδιωτικά βίντεο.",
+      "Projects χωρίς audit ανεβάζουν μόνο ιδιωτικά βίντεο (αλλάζουν σε δημόσια χειροκίνητα ή μετά το audit).",
       "Τα Shorts ανεβαίνουν ως κανονικά κάθετα βίντεο (δεν υπάρχει ξεχωριστό endpoint).",
     ],
     capabilities: [
@@ -118,7 +118,7 @@ export const INTEGRATIONS: Integration[] = [
   {
     id: "linkedin", name: "LinkedIn (Community Management API)", kind: "social", phase: 3, implemented: false,
     env: ["LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET"],
-    cost: "Δωρεάν. Οι Company Pages απαιτούν έγκριση Community Management API.",
+    cost: "Δωρεάν. Οι Company Pages απαιτούν έγκριση Community Management API. Χαμηλή προτεραιότητα για ένα πρωτάθλημα.",
     limits: ["Προσωπικό προφίλ: μόνο δημοσίευση (w_member_social).", "Access token 60 ημερών."],
     capabilities: [
       { name: "Post σε Company Page (κείμενο, εικόνα, βίντεο, document/carousel)", api: "limited", note: "Μετά από έγκριση" },
@@ -142,11 +142,6 @@ export const INTEGRATIONS: Integration[] = [
     cost: "Container με FFmpeg ($5–20/μήνα) + transcription (~$0.006/λεπτό).",
     limits: ["Δεν τρέχει σε Vercel functions (όρια μεγέθους/χρόνου) — χρειάζεται ξεχωριστός worker."],
   },
-  {
-    id: "stripe", name: "Stripe (συνδρομές)", kind: "billing", phase: 7, implemented: false,
-    env: ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"], cost: "Χρέωση ανά συναλλαγή, χωρίς πάγιο.",
-    limits: [],
-  },
 ];
 
 export function integrationState(i: Integration, env: Record<string, string | undefined> = process.env): IntegrationState {
@@ -158,13 +153,3 @@ export function missingEnv(i: Integration, env: Record<string, string | undefine
   return i.env.filter((k) => !env[k]?.trim());
 }
 
-/** Plain-text summary given to the agent so its claims match reality. */
-export function capabilitySummary(connectedPlatforms: string[]): string {
-  const lines: string[] = [];
-  for (const i of INTEGRATIONS) {
-    const state = integrationState(i);
-    lines.push(`- ${i.name}: ${state}${i.kind === "social" ? ` (συνδεδεμένοι λογαριασμοί: ${
-      connectedPlatforms.filter((p) => i.id.includes(p)).length || 0})` : ""}`);
-  }
-  return lines.join("\n");
-}

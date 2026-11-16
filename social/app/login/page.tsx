@@ -9,25 +9,20 @@ export default function LoginPage() {
 
 function Login() {
   const router = useRouter();
-  const next = useSearchParams().get("next") ?? "/";
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const params = useSearchParams();
+  const next = params.get("next") ?? "/";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(params.get("denied") ? "Ο λογαριασμός δεν είναι admin του Salonicup." : null);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true); setMsg(null);
-    const sb = browserClient();
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
-    const { error, data } = mode === "signin"
-      ? await sb.auth.signInWithPassword({ email, password })
-      : await sb.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo } });
+    const { error } = await browserClient().auth.signInWithPassword({ email, password });
     setBusy(false);
     if (error) return setMsg(error.message);
-    if (mode === "signup" && !data.session) return setMsg("Στάλθηκε email επιβεβαίωσης. Άνοιξε τον σύνδεσμο για να συνεχίσεις.");
-    router.replace(next);
+    router.replace(next.startsWith("/") ? next : "/");
     router.refresh();
   }
 
@@ -35,19 +30,17 @@ function Login() {
     <main className="flex min-h-screen items-center justify-center p-4">
       <form onSubmit={submit} className="card w-full max-w-sm space-y-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-indigo-600">Social Agent</p>
-          <h1 className="mt-1 text-xl font-semibold">{mode === "signin" ? "Σύνδεση" : "Νέος λογαριασμός"}</h1>
+          <p className="text-xs font-semibold uppercase tracking-widest text-indigo-600">Salonicup · Social Agent</p>
+          <h1 className="mt-1 text-xl font-semibold">Σύνδεση admin</h1>
+          <p className="muted mt-1">Με τον ίδιο λογαριασμό που μπαίνεις στο /admin του Salonicup.</p>
         </div>
         <div><label className="label" htmlFor="email">Email</label>
           <input id="email" className="input" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
         <div><label className="label" htmlFor="pw">Κωδικός</label>
-          <input id="pw" className="input" type="password" minLength={8} required autoComplete={mode === "signin" ? "current-password" : "new-password"}
+          <input id="pw" className="input" type="password" required autoComplete="current-password"
             value={password} onChange={(e) => setPassword(e.target.value)} /></div>
         {msg && <p className="text-sm text-rose-600">{msg}</p>}
-        <button className="btn-primary w-full" disabled={busy}>{busy ? "…" : mode === "signin" ? "Σύνδεση" : "Δημιουργία"}</button>
-        <button type="button" className="muted w-full text-center underline" onClick={() => setMode(mode === "signin" ? "signup" : "signin")}>
-          {mode === "signin" ? "Δεν έχεις λογαριασμό; Εγγραφή" : "Έχεις ήδη λογαριασμό; Σύνδεση"}
-        </button>
+        <button className="btn-primary w-full" disabled={busy}>{busy ? "…" : "Σύνδεση"}</button>
       </form>
     </main>
   );

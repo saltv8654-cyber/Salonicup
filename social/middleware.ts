@@ -18,7 +18,8 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const guarded = path.startsWith("/b/") || path.startsWith("/onboarding");
+  // API routes check admin access themselves (and answer with JSON, not a redirect).
+  const guarded = !path.startsWith("/login") && !path.startsWith("/api/");
   if (guarded && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";

@@ -22,7 +22,7 @@ export function userClient(): SupabaseClient {
 let admin: SupabaseClient | null = null;
 /**
  * Service-role client: bypasses RLS. Server only (agent, worker, approvals).
- * Every query made with it MUST filter by a business_id that was authorized beforehand.
+ * Use only after checking the caller is an admin (or from the cron-authenticated worker).
  */
 export function serviceClient(): SupabaseClient {
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set");

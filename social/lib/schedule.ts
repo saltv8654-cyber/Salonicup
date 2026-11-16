@@ -1,4 +1,4 @@
-// Next run times for daily / weekly / monthly workflows in a business's own timezone (DST-safe).
+// Next run times for daily / weekly / monthly workflows in the configured timezone (DST-safe).
 
 export type Workflow = "daily_check" | "weekly_strategy" | "monthly_report";
 export interface ScheduleSpec {

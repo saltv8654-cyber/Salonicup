@@ -1,6 +1,5 @@
-import { requireBusinessAccess } from "@/lib/access";
+import { requireAdmin } from "@/lib/access";
 import { userClient } from "@/lib/supabase/server";
-import { hasRole } from "@/lib/policy";
 import { Chat, type ChatMessage } from "./chat";
 
 export const dynamic = "force-dynamic";
@@ -20,19 +19,18 @@ function toView(role: string, content: unknown): ChatMessage | null {
   return text || tools.length ? { role: "assistant", text, tools } : null;
 }
 
-export default async function ChatPage({ params, searchParams }: { params: { businessId: string }; searchParams: { c?: string } }) {
-  const { business, role } = await requireBusinessAccess(params.businessId);
+export default async function ChatPage({ searchParams }: { searchParams: { c?: string } }) {
+  await requireAdmin();
   const db = userClient();
-  const { data: conversations } = await db.from("conversations").select("id,title,created_at")
-    .eq("business_id", business.id).order("created_at", { ascending: false }).limit(30);
+  const { data: conversations } = await db.from("social_conversations").select("id,title,created_at")
+    .order("created_at", { ascending: false }).limit(30);
   const current = searchParams.c && conversations?.some((c) => c.id === searchParams.c) ? searchParams.c : null;
   let messages: ChatMessage[] = [];
   if (current) {
-    const { data } = await db.from("conversation_messages").select("role,content").eq("conversation_id", current).order("id");
+    const { data } = await db.from("social_messages").select("role,content").eq("conversation_id", current).order("id");
     messages = (data ?? []).map((m) => toView(m.role, m.content)).filter((m): m is ChatMessage => !!m);
   }
   return (
-    <Chat businessId={business.id} conversationId={current} initial={messages}
-      conversations={conversations ?? []} canWrite={hasRole(role, "editor")} />
+    <Chat conversationId={current} initial={messages} conversations={conversations ?? []} />
   );
 }

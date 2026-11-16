@@ -13,6 +13,6 @@ export PGOPTIONS="-c client_min_messages=warning"
 PSQL="psql -h $DIR -p 54329 -U postgres -d postgres -v ON_ERROR_STOP=1 -q"
 $PSQL -f test/setup_local.sql
 $PSQL -f test/grants_local.sql
-$PSQL -f migrations/0001_core.sql
-$PSQL -f migrations/0001_core.sql   # must be re-runnable
+$PSQL -f migrations/0001_social.sql
+$PSQL -f migrations/0001_social.sql   # must be re-runnable
 $PSQL -o /dev/null -f test/rls_test.sql

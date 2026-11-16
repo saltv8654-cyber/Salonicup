@@ -1,22 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
-import { decide, hasRole, usageBlockReason, type PolicyInput } from "../lib/policy.ts";
+import { decide, budgetBlockReason, type PolicyInput } from "../lib/policy.ts";
 import { retryDelayMs, isRetryable } from "../lib/backoff.ts";
 import { nextRun, zonedToUtc } from "../lib/schedule.ts";
 import { encryptSecret, decryptSecret } from "../lib/crypto.ts";
 import { INTEGRATIONS, integrationState, missingEnv } from "../lib/integrations.ts";
 
-const base: PolicyInput = {
-  action: "schedule_post", mode: "manual", paused: false, orgEnabled: true, trigger: "chat", userRole: "editor",
-};
-
-test("roles are ordered", () => {
-  assert.ok(hasRole("owner", "admin"));
-  assert.ok(hasRole("editor", "editor"));
-  assert.ok(!hasRole("viewer", "editor"));
-  assert.ok(!hasRole(null, "viewer"));
-});
+const base: PolicyInput = { action: "schedule_post", mode: "manual", paused: false, trigger: "chat" };
+const alone = { trigger: "schedule" as const };
 
 test("manual mode: every external action waits for approval", () => {
   for (const action of ["schedule_post", "publish_post", "reply_comment"] as const)
@@ -25,37 +17,33 @@ test("manual mode: every external action waits for approval", () => {
 });
 
 test("semi mode: schedules and replies run, publishing waits", () => {
-  const semi = { ...base, mode: "semi" as const, trigger: "schedule" as const, userRole: null };
+  const semi = { ...base, ...alone, mode: "semi" as const };
   assert.equal(decide({ ...semi, action: "schedule_post" }), "allow");
   assert.equal(decide({ ...semi, action: "reply_comment" }), "allow");
   assert.equal(decide({ ...semi, action: "publish_post" }), "needs_approval");
 });
 
 test("full mode still asks for sensitive actions", () => {
-  const full = { ...base, mode: "full" as const, trigger: "schedule" as const, userRole: null };
+  const full = { ...base, ...alone, mode: "full" as const };
   assert.equal(decide({ ...full, action: "publish_post" }), "allow");
   assert.equal(decide({ ...full, action: "reply_sensitive" }), "needs_approval");
   assert.equal(decide({ ...full, action: "delete_content" }), "needs_approval");
   assert.equal(decide({ ...full, action: "update_brand" }), "needs_approval");
+  assert.equal(decide({ ...base, mode: "full", action: "update_brand" }), "allow"); // asked in chat
 });
 
-test("kill switches", () => {
-  assert.equal(decide({ ...base, orgEnabled: false, action: "create_draft" }), "blocked");
-  const pausedSchedule = { ...base, mode: "full" as const, paused: true, trigger: "schedule" as const, userRole: null };
-  assert.equal(decide({ ...pausedSchedule, action: "publish_post" }), "blocked");
-  assert.equal(decide({ ...pausedSchedule, action: "create_draft" }), "blocked");
-  // A person in chat while paused can still get things queued for approval
+test("emergency stop", () => {
+  const stopped = { ...base, ...alone, mode: "full" as const, paused: true };
+  assert.equal(decide({ ...stopped, action: "publish_post" }), "blocked");
+  assert.equal(decide({ ...stopped, action: "create_draft" }), "blocked");
+  // An admin in chat can still work; anything external waits for approval.
+  assert.equal(decide({ ...base, mode: "full", paused: true, action: "create_draft" }), "allow");
   assert.equal(decide({ ...base, mode: "full", paused: true, action: "publish_post" }), "needs_approval");
 });
 
-test("viewers cannot drive the agent", () => {
-  assert.equal(decide({ ...base, userRole: "viewer", action: "create_draft" }), "blocked");
-});
-
-test("usage limits", () => {
-  assert.equal(usageBlockReason({ costUsd: 1, runs: 1, budgetUsd: 10, maxRuns: 100 }), null);
-  assert.match(usageBlockReason({ costUsd: 10, runs: 1, budgetUsd: 10, maxRuns: 100 })!, /προϋπολογισμός/);
-  assert.match(usageBlockReason({ costUsd: 0, runs: 100, budgetUsd: 10, maxRuns: 100 })!, /εκτελέσεις/);
+test("monthly cost cap", () => {
+  assert.equal(budgetBlockReason(10, 50), null);
+  assert.match(budgetBlockReason(50, 50)!, /όριο/);
 });
 
 test("backoff grows and caps", () => {

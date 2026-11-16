@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireBusinessAccess } from "@/lib/access";
+import { getSettings } from "@/lib/settings";
 import { userClient } from "@/lib/supabase/server";
 import { PageHeader, StatusBadge, Badge, fmtDate } from "@/app/ui";
 
@@ -37,23 +37,22 @@ function ItemCard({ c, tz }: { c: Item; tz: string }) {
   );
 }
 
-export default async function Calendar({ params, searchParams }: { params: { businessId: string }; searchParams: { w?: string } }) {
-  const { business } = await requireBusinessAccess(params.businessId);
-  const tz = business.timezone;
+export default async function Calendar({ searchParams }: { searchParams: { w?: string } }) {
+  const tz = (await getSettings())!.timezone;
   const week = Number(searchParams.w ?? 0) || 0;
   const start = new Date(); start.setUTCHours(0, 0, 0, 0); start.setUTCDate(start.getUTCDate() + week * 7 - ((start.getUTCDay() + 6) % 7));
   const end = new Date(start.getTime() + 7 * 86_400_000);
   const db = userClient();
   const fields = "id,kind,title,brief,caption,hashtags,cta,platforms,variants,status,planned_for,scheduled_for,created_by";
   const [{ data: planned }, { data: unplanned }] = await Promise.all([
-    db.from("content_items").select(fields).eq("business_id", business.id)
+    db.from("social_content").select(fields)
       .gte("planned_for", start.toISOString()).lt("planned_for", end.toISOString()).neq("status", "archived").order("planned_for"),
-    db.from("content_items").select(fields).eq("business_id", business.id).is("planned_for", null)
+    db.from("social_content").select(fields).is("planned_for", null)
       .in("status", ["idea", "draft"]).order("created_at", { ascending: false }).limit(30),
   ]);
   const days = Array.from({ length: 7 }, (_, i) => new Date(start.getTime() + i * 86_400_000));
   const dayKey = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(d);
-  const base = `/b/${business.id}/calendar`;
+  const base = "/calendar";
 
   return (
     <>

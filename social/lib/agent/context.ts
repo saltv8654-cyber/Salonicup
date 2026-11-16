@@ -1,62 +1,63 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { INTEGRATIONS, integrationState } from "../integrations";
+import { snapshot } from "../salonicup";
 
-/**
- * Everything the agent needs to know about ONE business. Every query is filtered by businessId;
- * nothing from another tenant can end up in the prompt.
- */
-export async function loadBusinessContext(db: SupabaseClient, businessId: string) {
-  const [business, brand, memories, accounts, campaigns, upcoming, pendingApprovals] = await Promise.all([
-    db.from("businesses").select("id,org_id,name,industry,description,website,language,timezone,autonomy_mode,autonomy_paused")
-      .eq("id", businessId).single(),
-    db.from("brand_profiles").select("*").eq("business_id", businessId).maybeSingle(),
-    db.from("memories").select("id,kind,content,importance,created_at").eq("business_id", businessId).eq("archived", false)
+export async function loadSettings(db: SupabaseClient) {
+  const { data, error } = await db.from("social_settings").select("*").single();
+  if (error || !data) throw new Error(`social_settings: ${error?.message ?? "missing — run the migration"}`);
+  return data;
+}
+
+/** Everything the agent should know at the start of a run. */
+export async function loadContext(db: SupabaseClient) {
+  const [settings, memories, accounts, campaigns, upcoming, pending, league] = await Promise.all([
+    loadSettings(db),
+    db.from("social_memories").select("kind,content,importance").eq("archived", false)
       .order("importance", { ascending: false }).order("created_at", { ascending: false }).limit(40),
-    db.from("social_accounts").select("platform,handle,status,scopes").eq("business_id", businessId),
-    db.from("campaigns").select("id,name,objective,starts_on,ends_on,status").eq("business_id", businessId)
-      .in("status", ["planned", "active"]).order("starts_on").limit(10),
-    db.from("content_items").select("id,title,kind,platforms,status,planned_for,scheduled_for").eq("business_id", businessId)
+    db.from("social_accounts").select("platform,handle,status"),
+    db.from("social_campaigns").select("id,name,starts_on,ends_on,status").in("status", ["planned", "active"]).order("starts_on").limit(10),
+    db.from("social_content").select("id,title,kind,platforms,status,planned_for")
       .gte("planned_for", new Date(Date.now() - 86_400_000).toISOString()).order("planned_for").limit(30),
-    db.from("approvals").select("id", { count: "exact", head: true }).eq("business_id", businessId).eq("status", "pending"),
+    db.from("social_approvals").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    snapshot(db),
   ]);
-  if (business.error || !business.data) throw new Error(`business ${businessId} not found`);
   return {
-    business: business.data,
-    brand: brand.data,
+    settings,
     memories: memories.data ?? [],
     accounts: accounts.data ?? [],
     campaigns: campaigns.data ?? [],
     upcoming: upcoming.data ?? [],
-    pendingApprovals: pendingApprovals.count ?? 0,
+    pendingApprovals: pending.count ?? 0,
+    league,
   };
 }
-export type BusinessContext = Awaited<ReturnType<typeof loadBusinessContext>>;
+export type AgentContext = Awaited<ReturnType<typeof loadContext>>;
 
 const list = (xs: unknown[] | null | undefined) => (xs && xs.length ? xs.join(", ") : "—");
 
 /** Rendered once per run and placed in the (cached) system prompt. No timestamps here. */
-export function renderContext(c: BusinessContext): string {
-  const b = c.business;
-  const brand = c.brand ?? {};
+export function renderContext(c: AgentContext): string {
+  const s = c.settings;
   const connected = c.accounts.filter((a) => a.status === "connected");
-  const capability = INTEGRATIONS.map((i) => `- ${i.name}: ${integrationState(i)}`).join("\n");
-
-  return `# BUSINESS: ${b.name}
-Κλάδος: ${b.industry ?? "—"} | Website: ${b.website ?? "—"} | Γλώσσα περιεχομένου: ${b.language} | Ζώνη ώρας: ${b.timezone}
-Περιγραφή: ${b.description ?? "— (δεν έχει συμπληρωθεί)"}
-Autonomy mode: ${b.autonomy_mode}${b.autonomy_paused ? " — ΣΕ ΠΑΥΣΗ (emergency stop)" : ""}
+  return `# ${s.brand_name}
+${s.description ?? ""}
+Website: ${s.website ?? "—"} | Γλώσσα περιεχομένου: ${s.language} | Ζώνη ώρας: ${s.timezone}
+Autonomy mode: ${s.autonomy_mode}${s.paused ? " — ΣΕ ΠΑΥΣΗ (emergency stop)" : ""}
 
 ## Brand identity
-Φωνή: ${brand.voice ?? "—"}
-Τόνος: ${brand.tone ?? "—"}
-Κοινό: ${brand.target_audience ?? "—"}
-Στόχοι marketing: ${brand.objectives ?? "—"}
-Χρώματα: ${JSON.stringify(brand.colors ?? [])}
-Fonts: ${JSON.stringify(brand.fonts ?? [])}
-Κάνε: ${list(brand.do_list)}
-Μην κάνεις: ${list(brand.dont_list)}
-Brand hashtags: ${list(brand.hashtags)}
-Οδηγίες: ${brand.guidelines ?? "—"}
+Φωνή: ${s.voice ?? "—"}
+Τόνος: ${s.tone ?? "—"}
+Κοινό: ${s.target_audience ?? "—"}
+Στόχοι: ${s.objectives ?? "—"}
+Χρώματα: ${JSON.stringify(s.colors ?? [])}
+Fonts: ${JSON.stringify(s.fonts ?? [])}
+Κάνε: ${list(s.do_list)}
+Μην κάνεις: ${list(s.dont_list)}
+Hashtags: ${list(s.hashtags)}
+Οδηγίες: ${s.guidelines ?? "—"}
+
+## Πρωτάθλημα (ζωντανά δεδομένα — λεπτομέρειες με get_league_data)
+${c.league}
 
 ## Μνήμη (σημαντικότερα πρώτα)
 ${c.memories.length ? c.memories.map((m) => `- [${m.kind}, ${m.importance}/5] ${m.content}`).join("\n") : "— (κενή)"}
@@ -73,5 +74,5 @@ ${c.upcoming.length ? c.upcoming.map((x) => `- ${x.planned_for?.slice(0, 16) ?? 
 Εκκρεμείς εγκρίσεις: ${c.pendingApprovals}
 
 ## Κατάσταση συστήματος (τι λειτουργεί πραγματικά)
-${capability}`;
+${INTEGRATIONS.map((i) => `- ${i.name}: ${integrationState(i)}`).join("\n")}`;
 }

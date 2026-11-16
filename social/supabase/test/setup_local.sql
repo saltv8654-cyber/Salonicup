@@ -12,3 +12,10 @@ do $$ begin
 end $$;
 grant usage on schema auth to authenticated, anon, service_role;
 grant execute on function auth.uid() to authenticated, anon, service_role;
+
+-- The parts of the Salonicup schema this migration depends on.
+create table if not exists public.profiles (id uuid primary key references auth.users on delete cascade, email text, role text not null default 'viewer');
+create or replace function public.is_admin() returns boolean
+language sql security definer stable set search_path = public as $$
+  select exists (select 1 from profiles where id = auth.uid() and role = 'admin');
+$$;

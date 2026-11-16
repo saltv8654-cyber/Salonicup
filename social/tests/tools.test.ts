@@ -1,10 +1,10 @@
-// Agent tool layer: schema generation, input validation, autonomy gating and tenant scoping.
-// The database is a small in-memory stand-in that records every filter, so we can assert that
-// each query is scoped to the run's business. (Real RLS is covered by supabase/test/run.sh.)
+// Agent tool layer: schema generation, input validation, autonomy gating, league data.
+// The database is a small in-memory stand-in. (Real RLS is covered by supabase/test/run.sh.)
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { executeTool, toolDefinitions, TOOLS, type ToolCtx } from "../lib/agent/tools.ts";
+import { recentResults } from "../lib/salonicup.ts";
 
 type Rec = Record<string, any>;
 function fakeDb(seed: Record<string, Rec[]>) {
@@ -42,22 +42,16 @@ function fakeDb(seed: Record<string, Rec[]>) {
   return { db: db as unknown as SupabaseClient, tables, log };
 }
 
-const BIZ = "biz-1";
 const C1 = "3f1c6a52-8e0b-4d7a-9a51-0c6a1e2b7d10";
-const C_OTHER = "7b2e9f04-1c3d-4e5f-8a6b-9c0d1e2f3a4b";
 const future = new Date(Date.now() + 3 * 86_400_000).toISOString();
 function ctx(over: Partial<ToolCtx>, db: SupabaseClient): ToolCtx {
   return {
-    db, businessId: BIZ, orgId: "org-1", runId: "run-1", trigger: "chat", userId: "u1", userRole: "editor",
-    mode: "manual", paused: false, orgEnabled: true, timezone: "Europe/Athens",
+    db, runId: "run-1", trigger: "chat", userId: "u1", mode: "manual", paused: false, timezone: "Europe/Athens",
     callSpecialist: async (agent, task) => `${agent}:${task.length}`, ...over,
   };
 }
 const seed = () => ({
-  content_items: [
-    { id: C1, business_id: BIZ, title: "Matchday", platforms: ["instagram"], status: "draft" },
-    { id: C_OTHER, business_id: "biz-2", title: "Not yours", platforms: ["instagram"], status: "draft" },
-  ],
+  social_content: [{ id: C1, title: "Matchday", platforms: ["instagram"], status: "draft" }],
   social_accounts: [],
 });
 
@@ -72,7 +66,8 @@ test("tool definitions are valid for the Messages API", () => {
     }
   }
   assert.ok(defs.some((d) => d.type === "web_search_20260209"));
-  assert.equal(new Set(defs.map((d) => d.name)).size, defs.length, "unique tool names");
+  assert.ok(defs.some((d) => "name" in d && d.name === "get_league_data"));
+  assert.equal(new Set(defs.map((d) => ("name" in d ? d.name : d.type))).size, defs.length, "unique tool names");
 });
 
 test("invalid and unknown tool input is rejected, not executed", async () => {
@@ -90,58 +85,85 @@ test("manual mode: scheduling creates an approval instead of scheduling", async 
   assert.equal(r.ok, true, JSON.stringify(r.output));
   assert.equal(r.output.status, "needs_approval");
   assert.match(String(r.output.warning), /No connected account for: instagram/);
-  assert.equal(tables.content_items[0].status, "pending_approval");
-  assert.equal(tables.approvals.length, 1);
-  assert.equal(tables.approvals[0].business_id, BIZ);
+  assert.equal(tables.social_content[0].status, "pending_approval");
+  assert.equal(tables.social_approvals.length, 1);
 });
 
 test("semi mode: scheduling runs directly and is audited", async () => {
   const { db, tables } = fakeDb(seed());
-  const r = await executeTool(ctx({ mode: "semi", trigger: "schedule", userRole: null }, db), "schedule_content", { id: C1, scheduled_for: future });
+  const r = await executeTool(ctx({ mode: "semi", trigger: "schedule", userId: null }, db), "schedule_content", { id: C1, scheduled_for: future });
   assert.equal(r.output.status, "scheduled");
-  assert.equal(tables.content_items[0].status, "scheduled");
-  assert.ok(tables.activity_log.some((e) => e.action === "content.scheduled" && e.actor_type === "agent"));
+  assert.equal(tables.social_content[0].status, "scheduled");
+  assert.ok(tables.social_activity.some((e) => e.action === "content.scheduled" && e.actor_type === "agent"));
 });
 
-test("emergency stop blocks autonomous scheduling", async () => {
+test("scheduling in the past is refused", async () => {
   const { db, tables } = fakeDb(seed());
-  const r = await executeTool(ctx({ mode: "full", paused: true, trigger: "schedule", userRole: null }, db), "schedule_content", { id: C1, scheduled_for: future });
-  assert.equal(r.output.status, "blocked");
-  assert.equal(tables.content_items[0].status, "draft");
+  const r = await executeTool(ctx({ mode: "full" }, db), "schedule_content", { id: C1, scheduled_for: "2020-01-01T10:00:00+02:00" });
+  assert.equal(r.output.status, "invalid");
+  assert.equal(tables.social_content[0].status, "draft");
 });
 
-test("a content id from another business is never touched", async () => {
-  const { db, tables, log } = fakeDb(seed());
-  const r = await executeTool(ctx({ mode: "full" }, db), "schedule_content", { id: C_OTHER, scheduled_for: future });
-  assert.equal(r.ok, false);
-  assert.equal(tables.content_items[1].status, "draft");
-  for (const q of log.filter((x) => x.table === "content_items"))
-    assert.ok(q.filters.some(([k, v]) => k === "business_id" && v === BIZ), "every content query is scoped to the business");
+test("emergency stop blocks autonomous work", async () => {
+  const { db, tables } = fakeDb(seed());
+  const stopped = ctx({ mode: "full", paused: true, trigger: "schedule", userId: null }, db);
+  assert.equal((await executeTool(stopped, "schedule_content", { id: C1, scheduled_for: future })).output.status, "blocked");
+  assert.equal((await executeTool(stopped, "save_memory", { kind: "fact", content: "abc", importance: 2 })).output.status, "blocked");
+  assert.equal(tables.social_content[0].status, "draft");
+  assert.equal(tables.social_memories?.length ?? 0, 0);
 });
 
-test("drafts are written with the run's business id, whatever the model sends", async () => {
+test("drafts are created as drafts, linked to the run and the match", async () => {
   const { db, tables } = fakeDb(seed());
   const r = await executeTool(ctx({}, db), "create_content_drafts", {
-    items: [{ kind: "post", title: "Τελικό σκορ", brief: "b", caption: "c", hashtags: ["#salonicup"], platforms: ["instagram", "facebook"], business_id: "biz-2" }],
+    items: [{ kind: "post", title: "Τελικό σκορ", brief: "b", caption: "c", hashtags: ["#salonicup"], platforms: ["instagram", "facebook"],
+      match_id: C1, status: "published" }],
   });
   assert.equal(r.output.status, "created");
-  const created = tables.content_items.at(-1)!;
-  assert.equal(created.business_id, BIZ);
-  assert.equal(created.status, "draft");
+  const created = tables.social_content.at(-1)!;
+  assert.equal(created.status, "draft", "the model cannot set a status");
   assert.equal(created.run_id, "run-1");
+  assert.equal(created.match_id, C1);
 });
 
-test("viewers cannot make the agent write", async () => {
-  const { db, tables } = fakeDb(seed());
-  const r = await executeTool(ctx({ userRole: "viewer" }, db), "create_campaign", {
-    name: "Χειμώνας", objective: "y", starts_on: "2026-12-01", ends_on: "2026-12-31", strategy: "z",
-  });
-  assert.equal(r.output.status, "blocked");
-  assert.equal(tables.campaigns?.length ?? 0, 0);
+test("brand changes from an autonomous run need approval", async () => {
+  const { db, tables } = fakeDb({ ...seed(), social_settings: [{ id: true, tone: "old" }] });
+  const r = await executeTool(ctx({ trigger: "schedule", mode: "full", userId: null }, db), "update_brand_profile", { tone: "new" });
+  assert.equal(r.output.status, "needs_approval");
+  assert.equal(tables.social_settings[0].tone, "old");
+  const r2 = await executeTool(ctx({}, db), "update_brand_profile", { tone: "new" });
+  assert.equal(r2.output.status, "updated");
+  assert.equal(tables.social_settings[0].tone, "new");
 });
 
 test("delegation reaches the specialist", async () => {
   const { db } = fakeDb(seed());
   const r = await executeTool(ctx({}, db), "delegate_to_specialist", { agent: "strategy", task: "Plan December for the league" });
   assert.equal(r.output.output, "strategy:28");
+});
+
+test("league results: scores, scorers, own goals credited to the other team, MVP", async () => {
+  const A = "team-a", B = "team-b";
+  const { db } = fakeDb({
+    matches: [{ match_id: "m1", league_id: "l1", round: 5, stage: null, match_date: "2026-11-15T18:00:00Z", venue_id: "v1",
+      team_a: A, team_b: B, goals_team_a: 2, goals_team_b: 1, pens_team_a: 0, pens_team_b: 0, match_status: "Played",
+      mvp_player_id: "p1", report: "Ένα ματς με ένταση.", stream_url: "https://youtu.be/x" }],
+    teams: [{ team_id: A, name: "Spartans" }, { team_id: B, name: "ES Pylaia" }],
+    leagues: [{ league_id: "l1", name: "Master League" }],
+    venues: [{ venue_id: "v1", name: "Νικοκούδη" }],
+    events: [
+      { match_id: "m1", team_id: A, player_id: "p1", event_type: "GOAL", period: "H1", minute: 12 },
+      { match_id: "m1", team_id: B, player_id: "p2", event_type: "GOAL", period: "H2", minute: 5 },
+      { match_id: "m1", team_id: B, player_id: "p3", event_type: "OWN", period: "H2", minute: 20 },
+    ],
+    players: [{ player_id: "p1", full_name: "Γιάννης" }, { player_id: "p2", full_name: "Νίκος" }, { player_id: "p3", full_name: "Κώστας" }],
+  });
+  const [r] = await recentResults(db, 7);
+  assert.equal(r.home, "Spartans");
+  assert.equal(r.away, "ES Pylaia");
+  assert.equal(r.score, "2-1");
+  assert.deepEqual(r.home_scorers, ["Γιάννης 12'", "Κώστας 20' (αυτογκόλ)"]);
+  assert.deepEqual(r.away_scorers, ["Νίκος 5'"]);
+  assert.equal(r.mvp, "Γιάννης");
+  assert.equal(r.league, "Master League");
 });

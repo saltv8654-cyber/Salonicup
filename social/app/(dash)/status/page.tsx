@@ -1,11 +1,9 @@
-import { requireBusinessAccess } from "@/lib/access";
 import { INTEGRATIONS, integrationState, missingEnv } from "@/lib/integrations";
 import { PageHeader, StatusBadge, Badge } from "@/app/ui";
 
 export const dynamic = "force-dynamic";
 
-export default async function Status({ params }: { params: { businessId: string } }) {
-  await requireBusinessAccess(params.businessId);
+export default function Status() {
   return (
     <>
       <PageHeader title="Κατάσταση APIs & integrations"
