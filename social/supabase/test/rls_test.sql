@@ -15,7 +15,8 @@ grant select on profiles to authenticated;
 -- 1. Seed rows exist
 do $$ begin
   if (select count(*) from social_settings) <> 1 then raise exception 'FAIL 1: settings row'; end if;
-  if (select count(*) from social_schedules) <> 3 then raise exception 'FAIL 1: schedules'; end if;
+  if (select count(*) from social_schedules) <> 4 then raise exception 'FAIL 1: schedules'; end if;
+  if (select weekday from social_schedules where workflow = 'weekly_program') <> 4 then raise exception 'FAIL 1: Thursday'; end if;
   if (select brand_name from social_settings) <> 'Salonicup' then raise exception 'FAIL 1: brand'; end if;
 end $$;
 insert into social_memories (kind, content) values ('fact', 'Αγώνες κάθε Σαββατοκύριακο');
@@ -101,6 +102,16 @@ do $$ declare n int; begin
   if n <> 1 then raise exception 'FAIL 8: stuck job not released'; end if;
 end $$;
 
+-- 9b. One weekly programme post per league and week
+insert into social_content (kind, title, source_key) values ('post', 'a', 'weekly_program:x:2026-11-23');
+do $$ begin
+  begin
+    insert into social_content (kind, title, source_key) values ('post', 'b', 'weekly_program:x:2026-11-23');
+    raise exception 'FAIL 9b: duplicate weekly post';
+  exception when unique_violation then null;
+  end;
+end $$;
+
 -- 9. Monthly cost
 insert into social_ai_usage (model, cost_usd) values ('m', 1.25), ('m', 0.75);
 insert into social_ai_usage (model, cost_usd, created_at) values ('m', 99, now() - interval '40 days');
@@ -108,5 +119,5 @@ do $$ begin
   if social_month_cost() <> 2 then raise exception 'FAIL 9: month cost %', social_month_cost(); end if;
 end $$;
 
-\echo 'ALL DB TESTS PASSED (9 groups)'
+\echo 'ALL DB TESTS PASSED (10 groups)'
 rollback;

@@ -284,6 +284,11 @@ export function buildFinal(m: any, events: MatchEvent[], playerName: (id: string
   }
 }
 
+/** Υπότιτλος για posts ενός αγώνα (Τελικό, MVP): «Αγωνιστική 9 · 2025-26» ή μόνο η σεζόν στα playoff. */
+export function matchSub(m: any, season: string) {
+  return [m.stage ? null : `Αγωνιστική ${m.round}`, season].filter(Boolean).join(' · ')
+}
+
 /** MVP αγώνα με τα γκολ/ασίστ του σε αυτόν τον αγώνα. */
 export function buildMvp(m: any, player: { player_id: string; full_name: string; photo_url: string | null; team_id: string }, events: MatchEvent[]): Mvp {
   const mine = events.filter(e => e.player_id === player.player_id && e.period !== 'PEN')

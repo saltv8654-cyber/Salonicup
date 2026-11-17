@@ -14,11 +14,12 @@
 | Asset Library με uploads έως 200 MB | | |
 | Μόνιμη μνήμη, μάθηση από απορρίψεις | | A/B tests, MCP server (Phase 5) |
 | Εγκρίσεις, 3 επίπεδα αυτονομίας, emergency stop, όριο κόστους | | Σχόλια, άλλες διοργανώσεις (Phase 6) |
+| **Κάθε Πέμπτη: πρόγραμμα εβδομάδας ανά πρωτάθλημα** (τετράγωνο + story + λεζάντα), χωρίς AI | Ενεργοποίηση στις Ρυθμίσεις | Αυτόματη δημοσίευση (Phase 3) |
 | Αυτόματες εργασίες (ημέρα/εβδομάδα/μήνα) με ουρά και retries | | |
 
 ## Εγκατάσταση
 
-1. **Supabase του Salonicup** → SQL Editor → τρέξε με τη σειρά τα `supabase/migrations/0001_social.sql` και `0002_creative.sql`. Φτιάχνουν μόνο πίνακες `social_*` και το ιδιωτικό bucket `social-assets`· δεν πειράζουν τίποτα υπάρχον και ξανατρέχουν με ασφάλεια.
+1. **Supabase του Salonicup** → SQL Editor → τρέξε με τη σειρά τα `supabase/migrations/0001_social.sql`, `0002_creative.sql` και `0003_weekly_program.sql`. Φτιάχνουν μόνο πίνακες `social_*` και το ιδιωτικό bucket `social-assets`· δεν πειράζουν τίποτα υπάρχον και ξανατρέχουν με ασφάλεια.
 2. **Vercel** → New Project από το ίδιο repo, με **Root Directory = `social`**.
 3. **Environment Variables**:
    - Ίδια με του Salonicup: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`.

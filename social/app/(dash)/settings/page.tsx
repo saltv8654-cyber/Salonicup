@@ -2,8 +2,10 @@ import { userClient } from "@/lib/supabase/server";
 import { getSettings } from "@/lib/settings";
 import { PageHeader, Badge, fmtDate } from "@/app/ui";
 import { saveBrand, setAutonomy, setPaused, setSchedule } from "./actions";
+import { RunNow } from "./run-now";
 
 const WF = {
+  weekly_program: { label: "Πρόγραμμα εβδομάδας (Πέμπτη)", about: "Ένα post ανά πρωτάθλημα με το σχέδιο «Εβδομάδα» της καρτέλας Posts (τετράγωνο + story) και λεζάντα με όλους τους αγώνες. Χωρίς AI, χωρίς κόστος. Πρωταθλήματα χωρίς αγώνες παραλείπονται." },
   daily_check: { label: "Καθημερινός έλεγχος", about: "Νέα αποτελέσματα → Final Score drafts, επόμενοι αγώνες → Matchday drafts, κενά στο calendar, εκκρεμότητες." },
   weekly_strategy: { label: "Εβδομαδιαία στρατηγική", about: "Ανασκόπηση, ιστορίες της αγωνιστικής (ντέρμπι, σερί, σκόρερ), content plan επόμενης εβδομάδας." },
   monthly_report: { label: "Μηνιαία αναφορά", about: "Σύνοψη μήνα (πρωτάθλημα + social), στρατηγική και καμπάνια επόμενου μήνα." },
@@ -12,7 +14,9 @@ const DAYS = ["Κυριακή", "Δευτέρα", "Τρίτη", "Τετάρτη"
 
 export default async function SettingsPage() {
   const s = (await getSettings())!;
-  const { data: schedules } = await userClient().from("social_schedules").select("*").order("workflow");
+  const { data: rows } = await userClient().from("social_schedules").select("*").order("workflow");
+  // The Thursday programme first: it is the main job.
+  const schedules = [...(rows ?? [])].sort((a, b) => (a.workflow === "weekly_program" ? -1 : b.workflow === "weekly_program" ? 1 : 0));
   const field = (name: string, label: string, value: string | null | undefined, rows = 2, hint?: string) => (
     <div><label className="label" htmlFor={name}>{label}</label>
       <textarea id={name} name={name} rows={rows} className="input" defaultValue={value ?? ""} />
@@ -59,7 +63,8 @@ export default async function SettingsPage() {
         <h2 className="mb-1 font-semibold">Αυτόματες εργασίες</h2>
         <p className="muted mb-3">Εκτελούνται από τον background worker ακόμη κι όταν δεν είσαι συνδεδεμένος (ώρα: {s.timezone}).</p>
         <div className="space-y-3">
-          {(schedules ?? []).map((w) => (
+          {schedules.map((w) => (
+            <div key={w.workflow} className="space-y-2">
             <form key={w.workflow} action={setSchedule} className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
               <input type="hidden" name="workflow" value={w.workflow} />
               <div className="min-w-[200px] flex-1">
@@ -67,12 +72,25 @@ export default async function SettingsPage() {
                 <p className="muted text-xs">{WF[w.workflow as keyof typeof WF].about}</p>
                 {w.enabled && <p className="muted text-xs">Επόμενη: {fmtDate(w.next_run_at, s.timezone)}</p>}
               </div>
-              {w.workflow === "weekly_strategy" && <select name="weekday" defaultValue={w.weekday ?? 1} className="input w-auto">{DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}</select>}
+              {w.workflow === "weekly_program" && (
+                <>
+                  <select name="week" defaultValue={w.options?.week ?? "next"} className="input w-auto">
+                    <option value="next">Εβδομάδα που ξεκινά την επόμενη Δευτέρα</option>
+                    <option value="current">Τρέχουσα εβδομάδα</option>
+                  </select>
+                  {["instagram", "facebook"].map((p) => (
+                    <label key={p} className="flex items-center gap-1 text-sm"><input type="checkbox" name={`p_${p}`} defaultChecked={(w.options?.platforms ?? ["instagram", "facebook"]).includes(p)} /> {p}</label>
+                  ))}
+                </>
+              )}
+              {(w.workflow === "weekly_strategy" || w.workflow === "weekly_program") && <select name="weekday" defaultValue={w.weekday ?? 1} className="input w-auto">{DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}</select>}
               {w.workflow === "monthly_report" && <input name="monthday" type="number" min={1} max={28} defaultValue={w.monthday ?? 1} className="input w-20" />}
               <select name="hour" defaultValue={w.hour_local} className="input w-auto">{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>)}</select>
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="enabled" defaultChecked={w.enabled} /> Ενεργό</label>
               <button className="btn-ghost">Αποθήκευση</button>
             </form>
+            {w.workflow === "weekly_program" && <RunNow />}
+            </div>
           ))}
         </div>
       </section>

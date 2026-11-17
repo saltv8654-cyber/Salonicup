@@ -1,6 +1,6 @@
 // Next run times for daily / weekly / monthly workflows in the configured timezone (DST-safe).
 
-export type Workflow = "daily_check" | "weekly_strategy" | "monthly_report";
+export type Workflow = "daily_check" | "weekly_strategy" | "monthly_report" | "weekly_program";
 export interface ScheduleSpec {
   workflow: Workflow;
   hour_local: number;
@@ -37,7 +37,7 @@ export function nextRun(spec: ScheduleSpec, tz: string, after: Date): Date {
   for (let offset = 0; offset < 400; offset++) {
     const day = new Date(Date.UTC(now.y, now.m - 1, now.d + offset));
     const y = day.getUTCFullYear(), m = day.getUTCMonth() + 1, d = day.getUTCDate();
-    if (spec.workflow === "weekly_strategy" && day.getUTCDay() !== (spec.weekday ?? 1)) continue;
+    if ((spec.workflow === "weekly_strategy" || spec.workflow === "weekly_program") && day.getUTCDay() !== (spec.weekday ?? 1)) continue;
     if (spec.workflow === "monthly_report" && d !== (spec.monthday ?? 1)) continue;
     const at = zonedToUtc(y, m, d, spec.hour_local, tz);
     if (at.getTime() > after.getTime()) return at;

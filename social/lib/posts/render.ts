@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { drawPost, type PostData } from "./canvas";
 import {
   athensDateKey, buildFinal, buildMvp, buildOddsGroups, buildRoundGroups, buildVersus, buildWeekGroups,
-  fmtDay, roundSub, themeForLeague, type MatchEvent,
+  fmtDay, matchSub, roundSub, themeForLeague, type MatchEvent,
 } from "./build";
 
 import { POST_FORMATS, POST_TYPES, type PostFormat, type PostType } from "./meta";
@@ -34,7 +34,7 @@ export interface PostSpec {
 /** The data does not support this post (e.g. Final Score for a match that has not been played). */
 export class PostError extends Error {}
 
-export interface RenderedPost { png: Buffer; width: number; height: number; title: string; match_id: string | null; format: PostFormat }
+export interface RenderedPost { png: Buffer; width: number; height: number; title: string; match_id: string | null; format: PostFormat; post: PostData }
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -152,7 +152,7 @@ export async function renderPost(db: SupabaseClient, spec: PostSpec, fetcher: ty
       const players = ids.length ? check<Row[]>(await db.from("players").select("player_id,full_name,photo_url,team_id").in("player_id", ids)) : [];
       const pm = new Map(players.map((p) => [p.player_id, p]));
       const mvp = m.mvp_player_id ? pm.get(m.mvp_player_id) : null;
-      const sub = [m.stage ? null : `Αγωνιστική ${m.round}`, league.season].filter(Boolean).join(" · ");
+      const sub = matchSub(m, league.season ?? "");
       if (spec.type === "mvp") {
         if (!mvp) throw new PostError("Δεν έχει οριστεί MVP για αυτόν τον αγώνα");
         data = { ...base, type: "mvp", sub, typeLabel: "MVP", mvp: buildMvp(m, mvp as never, events) };
@@ -216,5 +216,5 @@ export async function renderPost(db: SupabaseClient, spec: PostSpec, fetcher: ty
   const canvas = createCanvas(size.w, size.h);
   // Same call as the Posts tab: the square layouts get no explicit size.
   await drawPost(canvas, data, SQUARE_ONLY.includes(spec.type) ? undefined : { w: size.w, h: size.h }, { loadImage: imageLoader(fetcher), emoji: false });
-  return { png: canvas.toBuffer("image/png"), width: canvas.width, height: canvas.height, title, match_id: matchId, format };
+  return { png: canvas.toBuffer("image/png"), width: canvas.width, height: canvas.height, title, match_id: matchId, format, post: data };
 }

@@ -62,19 +62,32 @@ export async function setPaused(paused: boolean, form?: FormData) {
 export async function setSchedule(form: FormData) {
   const a = await requireAdmin();
   const workflow = String(form.get("workflow")) as ScheduleSpec["workflow"];
-  if (!["daily_check", "weekly_strategy", "monthly_report"].includes(workflow)) throw new Error("invalid workflow");
+  if (!["daily_check", "weekly_strategy", "monthly_report", "weekly_program"].includes(workflow)) throw new Error("invalid workflow");
   const enabled = form.get("enabled") === "on";
   const spec: ScheduleSpec = {
     workflow, hour_local: Math.min(23, Math.max(0, Number(form.get("hour") ?? 8))),
-    weekday: workflow === "weekly_strategy" ? Number(form.get("weekday") ?? 1) : null,
+    weekday: workflow === "weekly_strategy" || workflow === "weekly_program" ? Number(form.get("weekday") ?? (workflow === "weekly_program" ? 4 : 1)) : null,
     monthday: workflow === "monthly_report" ? Math.min(28, Math.max(1, Number(form.get("monthday") ?? 1))) : null,
   };
   const tz = (await getSettings())?.timezone ?? "Europe/Athens";
+  const options = workflow === "weekly_program"
+    ? { week: form.get("week") === "current" ? "current" : "next", platforms: ["instagram", "facebook"].filter((p) => form.get(`p_${p}`) === "on") }
+    : undefined;
   const { error } = await userClient().from("social_schedules").update({
-    enabled, hour_local: spec.hour_local, weekday: spec.weekday, monthday: spec.monthday,
+    enabled, hour_local: spec.hour_local, weekday: spec.weekday, monthday: spec.monthday, ...(options ? { options } : {}),
     next_run_at: enabled ? nextRun(spec, tz, new Date()).toISOString() : null,
   }).eq("workflow", workflow);
   if (error) throw new Error(error.message);
   await logActivity({ actorType: "user", actorId: a.userId, action: "schedule.updated", details: { workflow, enabled } });
   revalidatePath("/settings");
+}
+
+/** Creates this week's programme posts right now (same as the Thursday run). */
+export async function runWeeklyProgramNow() {
+  const a = await requireAdmin();
+  const { data: sched } = await userClient().from("social_schedules").select("options").eq("workflow", "weekly_program").maybeSingle();
+  const { runWeeklyProgram } = await import("@/lib/jobs/weekly-program");
+  const r = await runWeeklyProgram(serviceClient(), { trigger: "chat", userId: a.userId, options: sched?.options ?? {} });
+  revalidatePath("/", "layout");
+  return r;
 }
