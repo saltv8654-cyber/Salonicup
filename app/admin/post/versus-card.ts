@@ -1,4 +1,5 @@
 import { drawPost, type PostData, type ThemeId } from './canvas'
+import { buildVersus } from './build'
 
 /** Φορτώνει το Oswald (ίδιο με το admin/post) ώστε το κείμενο να βγει σωστά. */
 async function ensureOswald() {
@@ -51,38 +52,8 @@ export async function saveImageBlob(blob: Blob, filename: string): Promise<'shar
   return 'downloaded'
 }
 
-/** Θέμα ανά πρωτάθλημα (χρώματα PL-style). */
-export function themeForLeague(name: string | undefined): ThemeId {
-  const u = (name || '').toUpperCase()
-  if (u.includes('SUMMER')) return 'miami'
-  if (u.includes('LIGA')) return 'liga'
-  if (u.includes('MASTER')) return 'master'
-  if (u.includes('TROPHY') || u.includes('SKG')) return 'trophy'
-  if (u.includes('FANTASY')) return 'fantasy'
-  if (u.includes('LEGEND')) return 'legends'
-  return 'liga'
-}
-
-/** Αριθμός σκέλους (1/2) ενός playoff αγώνα, με βάση όλα τα ματς του πρωταθλήματος. */
-export function legOfMatch(m: any, allMatches: any[]): number | undefined {
-  if (!m.stage || m.stage === 'Final') return undefined
-  const legs = allMatches
-    .filter(x => x.stage === m.stage &&
-      ((x.team_a === m.team_a && x.team_b === m.team_b) ||
-       (x.team_a === m.team_b && x.team_b === m.team_a)))
-    .sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
-  const idx = legs.findIndex(x => x.match_id === m.match_id)
-  return idx >= 0 ? idx + 1 : 1
-}
-
-/** Ετικέτα φάσης/σκέλους για playoff (π.χ. "QUARTER-FINAL · 1ST LEG"), αλλιώς null. */
-export function versusStageLabel(stage: string | null | undefined, leg?: number): string | null {
-  const names: Record<string, string> = { QF: 'QUARTER-FINAL', SF: 'SEMI-FINAL', Final: 'FINAL' }
-  const n = stage ? names[stage] : null
-  if (!n) return null
-  if (stage === 'Final') return n
-  return `${n} · ${leg === 2 ? '2ND LEG' : '1ST LEG'}`
-}
+// Καθαρές συναρτήσεις: ζουν στο build.ts (κοινό με τον Social Agent).
+export { themeForLeague, legOfMatch, versusStageLabel } from './build'
 
 export interface VersusCardOpts {
   match: any
@@ -101,22 +72,6 @@ export async function buildVersusCard(opts: VersusCardOpts): Promise<Blob | null
   const { match: m, allMatches = [], standings = [], sponsors = [],
     theme = 'liga', leagueName = '', leagueLogo = null, season = '' } = opts
 
-  const dt = m.match_date ? new Date(m.match_date) : null
-  const formOf = (teamId: string): ('W' | 'D' | 'L')[] =>
-    allMatches
-      .filter(x => ['Played', 'Forfeit'].includes(x.match_status) &&
-        (x.team_a === teamId || x.team_b === teamId))
-      .sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
-      .slice(-5)
-      .map(x => {
-        const us = x.team_a === teamId
-        const gf = us ? x.goals_team_a : x.goals_team_b
-        const ga = us ? x.goals_team_b : x.goals_team_a
-        return gf > ga ? 'W' : gf < ga ? 'L' : 'D'
-      })
-  const st = (teamId: string) => standings.find((s: any) => s.team_id === teamId)
-  const sa = st(m.team_a), sb = st(m.team_b)
-
   const data: PostData = {
     type: 'versus',
     leagueName,
@@ -126,14 +81,9 @@ export async function buildVersusCard(opts: VersusCardOpts): Promise<Blob | null
     groups: [],
     standings: [],
     versus: {
-      homeName: m.team_a_data?.name ?? '—', homeLogo: m.team_a_data?.logo_url ?? null,
-      awayName: m.team_b_data?.name ?? '—', awayLogo: m.team_b_data?.logo_url ?? null,
-      day: dt ? dt.toLocaleDateString('el-GR', { weekday: 'long', day: 'numeric', month: 'numeric' }) : '',
-      time: dt ? dt.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
-      field: m.field ?? '',
-      homePos: sa?.position, homePts: sa?.points, homeForm: formOf(m.team_a),
-      awayPos: sb?.position, awayPts: sb?.points, awayForm: formOf(m.team_b),
-      tag: versusStageLabel(m.stage, legOfMatch(m, allMatches)) ?? undefined,
+      ...buildVersus(m, allMatches, standings),
+      // Η κάρτα YouTube κρατά τη δική της μορφή ημέρας (όπως πριν).
+      day: m.match_date ? new Date(m.match_date).toLocaleDateString('el-GR', { weekday: 'long', day: 'numeric', month: 'numeric', timeZone: 'Europe/Athens' }) : '',
     },
     sponsors,
     theme,
