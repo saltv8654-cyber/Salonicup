@@ -127,10 +127,10 @@ export const INTEGRATIONS: Integration[] = [
     ],
   },
   {
-    id: "graphics", name: "Γραφικά από templates (next/og)", kind: "creative", phase: 2, implemented: true,
-    env: [], cost: "Δωρεάν, τρέχει στον server.",
-    limits: ["Final Score, Matchday, MVP, πρόγραμμα, αποτελέσματα, βαθμολογία, σκόρερ σε 4 διαστάσεις.",
-      "Λογότυπα/φωτογραφίες σε WebP δεν διαβάζονται από τον renderer — εμφανίζονται αρχικά."],
+    id: "graphics", name: "Γραφικά: τα σχέδια της καρτέλας Posts (server)", kind: "creative", phase: 2, implemented: true,
+    env: [], cost: "Δωρεάν, τρέχει στον server (@napi-rs/canvas).",
+    limits: ["Ίδιος κώδικας σχεδίασης με την καρτέλα Posts — ό,τι αλλάζει εκεί, το παίρνει και ο agent (npm run sync:posts).",
+      "Στον server δεν μπαίνει το emoji 📍 στο γήπεδο της Αναμέτρησης (δεν υπάρχει γραμματοσειρά emoji)."],
   },
   {
     id: "image_ai", name: "AI εικόνες (π.χ. OpenAI Images, Google Imagen/Gemini, FLUX)", kind: "creative", phase: 2, implemented: false,

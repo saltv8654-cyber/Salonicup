@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdmin } from "@/lib/access";
 import { serviceClient, supabaseConfigured } from "@/lib/supabase/server";
-import { renderGraphic, GraphicError } from "@/lib/graphics/render";
-import { saveGraphic } from "@/lib/graphics/store";
-import { Spec } from "@/lib/graphics/spec";
+import { renderPost, PostError } from "@/lib/posts/render";
+import { savePost } from "@/lib/posts/store";
+import { Spec } from "@/lib/posts/spec";
 import { logActivity } from "@/lib/activity";
 
 export const runtime = "nodejs";
@@ -22,15 +22,13 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Μη έγκυρο αίτημα" }, { status: 400 });
   const { content_id, ...spec } = parsed.data;
   const db = serviceClient();
-  const { data: settings } = await db.from("social_settings").select("brand_name,colors,website,hashtags,timezone").single();
-  if (!settings) return NextResponse.json({ error: "Λείπει το migration" }, { status: 503 });
   try {
-    const r = await renderGraphic(db, spec, settings);
-    const saved = await saveGraphic(db, r, spec, content_id);
+    const r = await renderPost(db, spec);
+    const saved = await savePost(db, r, spec, content_id);
     await logActivity({ actorType: "user", actorId: admin.userId, action: "graphic.created", targetType: "asset", targetId: saved.asset_id, details: { ...spec, content_id } });
     return NextResponse.json({ ok: true, asset_id: saved.asset_id, title: r.title });
   } catch (e) {
-    if (e instanceof GraphicError) return NextResponse.json({ error: e.message }, { status: 422 });
+    if (e instanceof PostError) return NextResponse.json({ error: e.message }, { status: 422 });
     console.error("graphic save failed", e);
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }

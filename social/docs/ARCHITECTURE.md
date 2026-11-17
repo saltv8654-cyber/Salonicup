@@ -15,7 +15,7 @@
 |---|---|---|
 | **Claude** = εγκέφαλος | Σκέψη, σχεδιασμός, αποφάσεις, γραφή, ανάλυση | Claude API (Messages API + tool use), `claude-opus-5-5`, adaptive thinking, server-side fallback σε άρνηση |
 | **MCP** = σύνδεση με εργαλεία | Τυποποιημένη σύνδεση εργαλείων | Τα εργαλεία του agent έχουν ήδη σχήμα συμβατό με MCP. Phase 5: δικός μας MCP server ώστε να τον ελέγχεις και από το Claude Code/Desktop |
-| **Creative AI** = γραφικά/βίντεο | Εικόνες, templates, video | ✅ Templates από τα δεδομένα αγώνων (`lib/graphics`, `next/og`). Επόμενα: AI εικόνες από εξωτερικό πάροχο, FFmpeg worker για clips από τα livestreams |
+| **Creative AI** = γραφικά/βίντεο | Εικόνες, templates, video | ✅ Τα σχέδια της καρτέλας Posts στον server (`lib/posts`). Επόμενα: AI εικόνες από εξωτερικό πάροχο, FFmpeg worker για clips από τα livestreams |
 | **APIs** = πρόσβαση στα social | Δημοσίευση, insights, σχόλια | Phase 3–6: επίσημα APIs (Meta, TikTok, YouTube, LinkedIn) με OAuth |
 | **Backend** = μνήμη, αυτοματισμοί, 24/7 | Βάση, ουρά, scheduler, audit | Η **ίδια βάση Supabase με το Salonicup** (πίνακες `social_*`), ουρά εργασιών, worker, pg_cron |
 | **Dashboard** = έλεγχος | Chat, εγκρίσεις, calendar, ρυθμίσεις, emergency stop | Next.js 14, Tailwind, dark/light, mobile |
@@ -138,7 +138,7 @@
 | Phase | Περιεχόμενο | Κατάσταση |
 |---|---|---|
 | **1** | Core Agent + 7 specialists, δεδομένα πρωταθλήματος, μνήμη, brand, admin-only πρόσβαση, εγκρίσεις, emergency stop, ουρά/scheduler, activity log, όριο κόστους, dashboard | ✅ Υλοποιημένο. Tests: 20 unit + 9 ομάδες DB tests σε PostgreSQL + build |
-| **2α** | Creative Studio: Final Score, Matchday, MVP, πρόγραμμα, αποτελέσματα, βαθμολογία, σκόρερ από τα πραγματικά δεδομένα, σε post 4:5, τετράγωνο, story 9:16, YouTube thumbnail 16:9· εργαλείο `create_graphic` για τον agent· Asset Library με απευθείας uploads έως 200 MB· γραφικά στο calendar | ✅ Υλοποιημένο. Tests: απόδοση κάθε template σε κάθε διάσταση + έλεγχος PNG, το εργαλείο του agent, άρνηση όταν λείπουν δεδομένα |
+| **2α** | Creative Studio με τα σχέδια της καρτέλας Posts (+ τελικό σκορ, MVP)· εργαλείο `create_graphic`· Asset Library με απευθείας uploads έως 200 MB· γραφικά στο calendar | ✅ Υλοποιημένο. Tests: κάθε τύπος σε κάθε μέγεθος, ίδιος κώδικας με την καρτέλα, λεπτά/αυτογκόλ, άρνηση όταν λείπουν δεδομένα, σύγκριση pixel με την παλιά καρτέλα |
 | **2β** | AI εικόνες, αφαίρεση φόντου, carousels πολλών σελίδων, video (clips από τα livestreams, υπότιτλοι, resize για Reels/Shorts/TikTok) | Χρειάζεται επιλογή παρόχου και FFmpeg worker |
 | **3** | OAuth Instagram/Facebook/YouTube/TikTok, ανανέωση tokens, δημοσίευση, retries, κατάσταση δημοσίευσης | — |
 | **4** | Συλλογή insights, Analytics, αναφορές, AI Performance Analyst | — |
@@ -151,8 +151,13 @@
 
 ## 6. Γραφικά (Phase 2α)
 
-- `lib/graphics/templates.tsx`: 7 templates (Satori/`next/og`), `lib/graphics/render.tsx`: φέρνει δεδομένα, λογότυπα και fonts και βγάζει PNG.
-- **Brand**: η παλέτα του Salonicup app (σκούρο φόντο, πορτοκαλί #E05B1F), DejaVu Sans με ελληνικά, το λογότυπο. Τα χρώματα αλλάζουν από τις Ρυθμίσεις (π.χ. «Κύριο: #…», «Φόντο: #…»).
-- **Ακρίβεια**: ονόματα, σκορ, σκόρερ (αυτογκόλ στη σωστή ομάδα), MVP και λογότυπα έρχονται από τη βάση. Αν τα δεδομένα δεν στηρίζουν ένα γραφικό, π.χ. Final Score για αγώνα που δεν έληξε, δεν φτιάχνεται και ο agent παίρνει τον λόγο.
-- **Αποθήκευση**: ιδιωτικό bucket `social-assets` και πίνακας `social_assets`. Η εμφάνιση στο dashboard γίνεται με προσωρινά signed URLs.
-- **Περιορισμός**: λογότυπα/φωτογραφίες σε WebP δεν διαβάζονται από τον renderer· εμφανίζονται τα αρχικά της ομάδας/του παίκτη.
+Ο agent φτιάχνει **τα ίδια posts με την καρτέλα «Posts» του admin** (`/admin/post`), όχι δικά του σχέδια.
+
+- **Κοινός κώδικας**: `app/admin/post/canvas.ts` (σχεδίαση) και `app/admin/post/build.ts` (δεδομένα: αγωνιστικές, playoff σκέλη, φόρμα, εβδομάδα, αποδόσεις, τελικό σκορ, MVP). Η καρτέλα τα τρέχει στον browser. Ο agent τα τρέχει στον server με `@napi-rs/canvas`, από αντίγραφο στο `social/lib/posts`.
+- **Συγχρονισμός**: μετά από αλλαγή στην καρτέλα → `npm run sync:posts`. Ένα test αποτυγχάνει αν τα αντίγραφα διαφέρουν.
+- **Τύποι**: Τελικό σκορ, MVP, Αναμέτρηση, Πρόγραμμα, Αποτελέσματα, Βαθμολογία, Εβδομάδα, Αποδόσεις. Μεγέθη: τετράγωνο, story, YouTube· Πρόγραμμα/Αποτελέσματα/Βαθμολογία μόνο τετράγωνα, όπως στην καρτέλα.
+- **Ίδια εμφάνιση**: θέμα ανά πρωτάθλημα (`themeForLeague`), χορηγοί από `app_settings.sponsors`, Oswald. Στον server τα ελληνικά βγαίνουν με Roboto Condensed, μια στενή γραμματοσειρά όπως η fallback του browser. Έλεγχος pixel προς pixel: τα 6 υπάρχοντα posts βγαίνουν ίδια με πριν.
+- **Βελτιώσεις που πήρε και η καρτέλα**: κεφαλαία χωρίς τόνους, όπως γράφονται στα ελληνικά, και δύο νέοι τύποι σχεδίων (τελικό σκορ, MVP). Οι νέοι τύποι δεν εμφανίζονται ακόμα στο μενού της καρτέλας.
+- **Ακρίβεια**: σκόρερ με τα λεπτά όπως στο app (Β' ημίχρονο «5» = 35'), αυτογκόλ στην αντίπαλη ομάδα. Αν τα δεδομένα δεν στηρίζουν ένα post, π.χ. τελικό σκορ για αγώνα που δεν έληξε, δεν φτιάχνεται και ο agent παίρνει τον λόγο.
+- **Αποθήκευση**: ιδιωτικό bucket `social-assets` και πίνακας `social_assets`· στο dashboard με προσωρινά signed URLs.
+- **Περιορισμός**: στον server δεν μπαίνει το 📍 πριν από το γήπεδο στην Αναμέτρηση (δεν υπάρχει γραμματοσειρά emoji).

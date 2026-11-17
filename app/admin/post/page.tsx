@@ -3,10 +3,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Loading } from '@/app/ui'
 import { Select, LogoUpload } from '../ui'
-import { athensDateKey, fmtDay, fmtTime } from '@/lib/time'
+import { athensDateKey, fmtDay } from '@/lib/time'
 import toast from 'react-hot-toast'
-import { drawPost, THEMES, type PostType, type PostData, type DayGroup, type MatchRow, type ThemeId } from './canvas'
-import { versusStageLabel, legOfMatch, saveImageBlob, themeForLeague } from './versus-card'
+import { drawPost, THEMES, type PostType, type PostData, type ThemeId } from './canvas'
+import { saveImageBlob, themeForLeague } from './versus-card'
+import { buildRoundGroups, buildWeekGroups, buildOddsGroups, buildVersus, roundSub, weekDays } from './build'
 
 const TYPES: { id: PostType; label: string }[] = [
   { id: 'schedule',  label: 'Πρόγραμμα' },
@@ -16,51 +17,6 @@ const TYPES: { id: PostType; label: string }[] = [
   { id: 'week',      label: 'Εβδομάδα' },
   { id: 'odds',      label: 'Αποδόσεις' },
 ]
-
-const DAY_FMT: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'numeric' }
-
-const STAGE_SHORT: Record<string, string> = { QF: 'ΠΡΟΗΜ.', SF: 'ΗΜΙΤΕΛ.', Final: 'ΤΕΛΙΚΟΣ' }
-
-/** Χάρτης match_id → αριθμός σκέλους (1/2) για διπλά playoff (QF/SF). */
-function buildLegMap(list: any[]) {
-  const groups = new Map<string, any[]>()
-  for (const m of list) {
-    if (!m.stage || m.stage === 'Final') continue
-    const pair = [m.team_a, m.team_b].slice().sort().join('-')
-    const k = `${m.league_id}:${m.stage}:${pair}`
-    if (!groups.has(k)) groups.set(k, [])
-    groups.get(k)!.push(m)
-  }
-  const out = new Map<string, number>()
-  for (const arr of groups.values()) {
-    arr.sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
-    arr.forEach((m, i) => out.set(m.match_id, i + 1))
-  }
-  return out
-}
-
-/** Χρυσό σήμα playoff για μια κάρτα αγώνα, ή undefined αν είναι κανονικός. */
-function playoffTag(m: any, legMap: Map<string, number>): string | undefined {
-  const s = STAGE_SHORT[m.stage as string]
-  if (!s) return undefined
-  const leg = legMap.get(m.match_id)
-  const legLbl = m.stage === 'Final' ? '' : leg === 2 ? ' Β΄' : ' Α΄'
-  return `PLAYOFF · ${s}${legLbl}`
-}
-
-/** Οι 7 ημέρες (Δευτ→Κυρ) της εβδομάδας που περιέχει το dateKey, ως {key, label}. */
-function weekDays(dateKey: string): { key: string; label: string }[] {
-  const base = new Date(`${dateKey}T12:00:00Z`)
-  const dow = (base.getUTCDay() + 6) % 7 // 0=Δευτ … 6=Κυρ
-  const mon = new Date(base); mon.setUTCDate(base.getUTCDate() - dow)
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(mon); d.setUTCDate(mon.getUTCDate() + i)
-    return {
-      key: d.toISOString().slice(0, 10),
-      label: d.toLocaleDateString('el-GR', { weekday: 'long', day: 'numeric', month: 'numeric' }),
-    }
-  })
-}
 
 async function ensureOswald() {
   if (!document.getElementById('oswald-font')) {
@@ -186,51 +142,9 @@ export default function AdminPost() {
     }
     return out
   }, [matches])
-  const parseStageRound = (r: string): { stage: string; leg?: number } | null => {
-    const [stage, leg] = (r || '').split(':')
-    if (stage === 'QF' || stage === 'SF' || stage === 'Final') return { stage, leg: leg ? Number(leg) : undefined }
-    return null
-  }
   const leagueObj = leagues.find(l => l.league_id === league)
 
-  function buildGroups(kind: 'schedule' | 'results'): DayGroup[] {
-    const wanted = kind === 'schedule'
-      ? ['Scheduled', 'Live']
-      : ['Played', 'Forfeit']
-    const legMap = buildLegMap(matches)
-    const sr = parseStageRound(round)
-    const list = matches
-      .filter(m => wanted.includes(m.match_status) && (scope === 'day'
-        ? (m.match_date && athensDateKey(m.match_date) === day)
-        : sr
-          ? (m.stage === sr.stage && (sr.leg ? legMap.get(m.match_id) === sr.leg : true))
-          : (!m.stage && String(m.round) === round)))
-      .sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
-      .slice(0, 6)
-
-    const byDay = new Map<string, MatchRow[]>()
-    for (const m of list) {
-      const d = m.match_date ? new Date(m.match_date) : null
-      const dayKey = d ? d.toLocaleDateString('el-GR', DAY_FMT) : 'Πρόγραμμα'
-      const row: MatchRow = {
-        homeName: m.team_a_data?.name ?? '—',
-        homeLogo: m.team_a_data?.logo_url ?? null,
-        awayName: m.team_b_data?.name ?? '—',
-        awayLogo: m.team_b_data?.logo_url ?? null,
-      }
-      const tag = playoffTag(m, legMap)
-      if (tag) row.tag = tag
-      if (m.field) row.field = m.field
-      if (kind === 'results') {
-        row.score = `${m.goals_team_a ?? 0}-${m.goals_team_b ?? 0}`
-      } else {
-        row.time = d ? d.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', hour12: false }) : ''
-      }
-      if (!byDay.has(dayKey)) byDay.set(dayKey, [])
-      byDay.get(dayKey)!.push(row)
-    }
-    return [...byDay.entries()].map(([day, ms]) => ({ day, matches: ms }))
-  }
+  const buildGroups = (kind: 'schedule' | 'results') => buildRoundGroups(matches, kind, { scope, round, day })
 
   async function generate() {
     if (!leagueObj || !canvasRef.current) return
@@ -247,42 +161,11 @@ export default function AdminPost() {
         const selIds = [...weekLeagues]
         const selLeagues = leagues.filter(l => selIds.includes(l.league_id))
         const multi = selLeagues.length > 1
-        const wdays = weekDays(weekDate)
-        const keys = new Set(wdays.map(w => w.key))
-        const want = weekMode === 'results' ? ['Played', 'Forfeit'] : ['Scheduled', 'Live']
         const { data: wm } = await supabase.from('matches')
           .select('*, team_a_data:team_a(name,logo_url), team_b_data:team_b(name,logo_url), league:league_id(name,logo_url)')
           .in('league_id', selIds)
           .not('match_date', 'is', null)
-        const wLegMap = buildLegMap(wm ?? [])
-        const byKey = new Map<string, any[]>()
-        for (const m of wm ?? []) {
-          const k = athensDateKey(m.match_date)
-          if (!keys.has(k) || !want.includes(m.match_status)) continue
-          if (!byKey.has(k)) byKey.set(k, [])
-          byKey.get(k)!.push(m)
-        }
-        const groups: DayGroup[] = wdays.filter(w => byKey.has(w.key)).map(w => ({
-          day: w.label,
-          matches: (byKey.get(w.key) ?? [])
-            .sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? '')
-              || (a.field ?? '').localeCompare(b.field ?? ''))
-            .map(m => {
-              const row: MatchRow = {
-                homeName: m.team_a_data?.name ?? '—', homeLogo: m.team_a_data?.logo_url ?? null,
-                awayName: m.team_b_data?.name ?? '—', awayLogo: m.team_b_data?.logo_url ?? null,
-              }
-              if (weekMode === 'results') row.score = `${m.goals_team_a ?? 0}-${m.goals_team_b ?? 0}`
-              else row.time = fmtTime(m.match_date)
-              if (m.field) row.field = m.field
-              const wtag = playoffTag(m, wLegMap)
-              if (wtag) row.tag = wtag
-              if (multi) { row.leagueName = m.league?.name; row.leagueLogo = m.league?.logo_url ?? null }
-              return row
-            }),
-        }))
-        const dm = (key: string) => { const [, mo, da] = key.split('-'); return `${+da}/${+mo}` }
-        const range = `Εβδομάδα ${dm(wdays[0].key)} – ${dm(wdays[6].key)}`
+        const { groups, range } = buildWeekGroups(wm ?? [], weekDate, weekMode, multi)
         const one = selLeagues[0]
         const weekPost: PostData = {
           type: 'week',
@@ -306,36 +189,13 @@ export default function AdminPost() {
           .select('*, team_a_data:team_a(name,logo_url), team_b_data:team_b(name,logo_url), league:league_id(name,logo_url,sort_order)')
           .not('match_date', 'is', null)
         const all = dm ?? []
-        const dayList = all
-          .filter((m: any) => ['Scheduled', 'Live'].includes(m.match_status)
-            && athensDateKey(m.match_date) === day)
-          .sort((a: any, b: any) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
-        if (!dayList.length) { toast.error('Δεν υπάρχουν αγώνες αυτή την ημέρα'); setBusy(false); return }
-        const legMap = buildLegMap(all)
+        const dayIds = all
+          .filter((m: any) => ['Scheduled', 'Live'].includes(m.match_status) && athensDateKey(m.match_date) === day)
+          .map((m: any) => m.match_id)
+        if (!dayIds.length) { toast.error('Δεν υπάρχουν αγώνες αυτή την ημέρα'); setBusy(false); return }
         const { data: od } = await supabase.from('bet_odds')
-          .select('match_id,home,draw,away').in('match_id', dayList.map((m: any) => m.match_id))
-        const oMap = new Map<string, any>((od ?? []).map((o: any) => [o.match_id, o]))
-        const fmtOdd = (v: any) => (v == null ? undefined : Number(v).toFixed(2))
-
-        const byLeague = new Map<string, { name: string; sort: number; rows: MatchRow[] }>()
-        for (const m of dayList) {
-          const dt = m.match_date ? new Date(m.match_date) : null
-          const o = oMap.get(m.match_id)
-          const row: MatchRow = {
-            homeName: m.team_a_data?.name ?? '—', homeLogo: m.team_a_data?.logo_url ?? null,
-            awayName: m.team_b_data?.name ?? '—', awayLogo: m.team_b_data?.logo_url ?? null,
-            time: dt ? dt.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
-            leagueName: m.league?.name, leagueLogo: m.league?.logo_url ?? null,
-          }
-          if (m.field) row.field = m.field
-          const tag = playoffTag(m, legMap); if (tag) row.tag = tag
-          if (o) { row.oHome = fmtOdd(o.home); row.oDraw = fmtOdd(o.draw); row.oAway = fmtOdd(o.away) }
-          if (!byLeague.has(m.league_id)) byLeague.set(m.league_id, { name: m.league?.name ?? '—', sort: m.league?.sort_order ?? 999, rows: [] })
-          byLeague.get(m.league_id)!.rows.push(row)
-        }
-        const groups: DayGroup[] = [...byLeague.values()]
-          .sort((a, b) => a.sort - b.sort)
-          .map(g => ({ day: g.name, matches: g.rows }))
+          .select('match_id,home,draw,away').in('match_id', dayIds)
+        const groups = buildOddsGroups(all, day, od ?? [])
 
         const oddsPost: PostData = {
           type: 'odds',
@@ -358,44 +218,10 @@ export default function AdminPost() {
       if (type === 'versus') {
         const m = matches.find(x => x.match_id === matchId)
         if (!m) { toast.error('Διάλεξε αγώνα'); setBusy(false); return }
-        const dt = m.match_date ? new Date(m.match_date) : null
-
-        const formOf = (teamId: string): ('W' | 'D' | 'L')[] =>
-          matches
-            .filter(x => ['Played', 'Forfeit'].includes(x.match_status) &&
-              (x.team_a === teamId || x.team_b === teamId))
-            .sort((a, b) => (a.match_date ?? '').localeCompare(b.match_date ?? ''))
-            .slice(-5)
-            .map(x => {
-              const us = x.team_a === teamId
-              const gf = us ? x.goals_team_a : x.goals_team_b
-              const ga = us ? x.goals_team_b : x.goals_team_a
-              return gf > ga ? 'W' : gf < ga ? 'L' : 'D'
-            })
-        const st = (teamId: string) => standings.find((s: any) => s.team_id === teamId)
-        const sa = st(m.team_a), sb = st(m.team_b)
-
-        versus = {
-          homeName: m.team_a_data?.name ?? '—', homeLogo: m.team_a_data?.logo_url ?? null,
-          awayName: m.team_b_data?.name ?? '—', awayLogo: m.team_b_data?.logo_url ?? null,
-          day: dt ? fmtDay(m.match_date) : '',
-          time: dt ? dt.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
-          field: m.field ?? '',
-          homePos: sa?.position, homePts: sa?.points, homeForm: formOf(m.team_a),
-          awayPos: sb?.position, awayPts: sb?.points, awayForm: formOf(m.team_b),
-          tag: versusStageLabel(m.stage, legOfMatch(m, matches)) ?? undefined,
-        }
+        versus = buildVersus(m, matches, standings)
       }
 
-      const srTitle = parseStageRound(round)
-      const stageTitleName: Record<string, string> = { QF: 'Quarter Finals', SF: 'Semi Finals', Final: 'Final' }
-      const sub = type === 'standings' || type === 'versus'
-        ? season
-        : scope === 'day'
-        ? `${dayLabel} · ${season}`.trim()
-        : srTitle
-        ? `Playoff · ${stageTitleName[srTitle.stage]}${srTitle.leg ? ` · ${srTitle.leg}ο ματς` : ''} · ${season}`
-        : `Αγωνιστική ${round} · ${season}`
+      const sub = type === 'standings' || type === 'versus' ? season : roundSub({ scope, round, day }, season)
 
       const data: PostData = {
         type,

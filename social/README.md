@@ -10,7 +10,7 @@
 | AI Agent chat με 7 specialists και web search | Migrations στο Supabase (0001, 0002) | AI εικόνες, video (Phase 2β) |
 | Διαβάζει αγώνες, αποτελέσματα, σκόρερ, MVP, βαθμολογίες από τη βάση | `CRON_SECRET` + pg_cron για τις αυτόματες εργασίες | Σύνδεση λογαριασμών και δημοσίευση (Phase 3) |
 | Drafts (Matchday, Final Score κ.λπ.), καμπάνιες, content calendar | | Analytics και αναφορές (Phase 4) |
-| **Γραφικά** Final Score, Matchday, MVP, πρόγραμμα, αποτελέσματα, βαθμολογία, σκόρερ σε 4 διαστάσεις (Studio + agent) | | |
+| **Γραφικά** με τα σχέδια της καρτέλας Posts (+ τελικό σκορ, MVP), από το Studio και τον agent | | |
 | Asset Library με uploads έως 200 MB | | |
 | Μόνιμη μνήμη, μάθηση από απορρίψεις | | A/B tests, MCP server (Phase 5) |
 | Εγκρίσεις, 3 επίπεδα αυτονομίας, emergency stop, όριο κόστους | | Σχόλια, άλλες διοργανώσεις (Phase 6) |
@@ -44,6 +44,7 @@ npm test             # policy, ουρά, scheduler/DST, κρυπτογράφησ
 GRAPHICS_OUT=./out npm test   # αποθηκεύει και τα PNG όλων των templates για οπτικό έλεγχο
 npm run test:db      # σχήμα + RLS σε προσωρινό PostgreSQL (χρειάζεται τοπικό postgres)
 npm run build
+npm run sync:posts   # μετά από αλλαγή στην καρτέλα Posts του admin
 ```
 
 ## Δομή
@@ -53,7 +54,9 @@ lib/agent/runner.ts     agent loop: Claude, εργαλεία, specialists, όρ�
 lib/agent/tools.ts      εργαλεία του agent (zod validation, έλεγχος αυτονομίας)
 lib/agent/prompts.ts    orchestrator, 7 specialists, prompts αυτόματων εργασιών
 lib/agent/context.ts    τι ξέρει ο agent σε κάθε εκτέλεση (brand, μνήμη, calendar, πρωτάθλημα, κατάσταση)
-lib/graphics/*          templates γραφικών, renderer (next/og), αποθήκευση στο Asset Library
+lib/posts/canvas.ts     ΑΝΤΙΓΡΑΦΟ του app/admin/post/canvas.ts (σχεδίαση) — npm run sync:posts
+lib/posts/build.ts      ΑΝΤΙΓΡΑΦΟ του app/admin/post/build.ts (δεδομένα των posts)
+lib/posts/render.ts     φόρτωση δεδομένων + fonts και σχεδίαση στον server (@napi-rs/canvas)
 lib/salonicup.ts        ανάγνωση αγώνων/αποτελεσμάτων/βαθμολογιών/σκόρερ από τη βάση του Salonicup
 lib/policy.ts           αυτονομία, emergency stop, όριο κόστους
 lib/jobs/worker.ts      schedules → jobs, εκτέλεση με retries/backoff/dead-letter

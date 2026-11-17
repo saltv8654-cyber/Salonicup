@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getSettings } from "@/lib/settings";
 import { serviceClient, userClient } from "@/lib/supabase/server";
-import { signedUrls } from "@/lib/graphics/store";
+import { signedUrls } from "@/lib/posts/store";
 import { PageHeader, StatusBadge, Badge, fmtDate } from "@/app/ui";
 
 type Item = {

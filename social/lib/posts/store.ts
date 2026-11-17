@@ -1,18 +1,18 @@
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { GraphicSpec, Rendered } from "./render";
+import type { RenderedPost, PostSpec } from "./render";
 
 export const BUCKET = "social-assets";
 
-/** Stores a rendered graphic in the private bucket, records it in the Asset Library and optionally attaches it to a draft. */
-export async function saveGraphic(db: SupabaseClient, r: Rendered, spec: GraphicSpec, contentId?: string | null) {
+/** Stores a rendered post in the private bucket, records it in the Asset Library and optionally attaches it to a draft. */
+export async function savePost(db: SupabaseClient, r: RenderedPost, spec: PostSpec, contentId?: string | null) {
   const month = new Date().toISOString().slice(0, 7);
-  const path = `generated/${month}/${spec.template}-${spec.format}-${randomUUID()}.png`;
+  const path = `generated/${month}/${spec.type}-${r.format}-${randomUUID()}.png`;
   const up = await db.storage.from(BUCKET).upload(path, r.png, { contentType: "image/png", upsert: false });
   if (up.error) throw new Error(`storage upload: ${up.error.message}`);
   const { data: asset, error } = await db.from("social_assets").insert({
     kind: "image", storage_path: path, mime: "image/png", width: r.width, height: r.height, bytes: r.png.length,
-    tags: ["graphic", spec.template, spec.format], source: "generated", match_id: r.match_id, title: r.title,
+    tags: ["post", spec.type, r.format], source: "generated", match_id: r.match_id, title: r.title,
   }).select("id").single();
   if (error || !asset) throw new Error(`social_assets: ${error?.message}`);
   if (contentId) await attachAsset(db, contentId, asset.id);

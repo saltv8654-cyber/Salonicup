@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { serviceClient, userClient } from "@/lib/supabase/server";
 import { getSettings } from "@/lib/settings";
-import { signedUrls } from "@/lib/graphics/store";
+import { signedUrls } from "@/lib/posts/store";
 import { PageHeader, Badge, Empty, fmtDate } from "@/app/ui";
 import { archiveAsset } from "./actions";
 import { Upload } from "./upload";

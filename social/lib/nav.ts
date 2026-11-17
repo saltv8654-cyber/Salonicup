@@ -6,7 +6,7 @@ export const SECTIONS: Section[] = [
   { slug: "", label: "Overview", icon: "◎", phase: 1, active: true, about: "Κατάσταση συστήματος, εκκρεμότητες, τελευταίες ενέργειες του agent." },
   { slug: "chat", label: "AI Agent Chat", icon: "✦", phase: 1, active: true, about: "Φυσικές εντολές στον agent." },
   { slug: "studio", label: "Creative Studio", icon: "◧", phase: 2, active: true,
-    about: "Γραφικά από τα πραγματικά δεδομένα αγώνων (Matchday, Final Score, βαθμολογία, σκόρερ, MVP, ομάδα εβδομάδας), stories, carousels, YouTube thumbnails, AI εικόνες, αφαίρεση φόντου, resize, video (Reels/Shorts/TikTok) από τα livestreams με υπότιτλους.",
+    about: "Τα σχέδια της καρτέλας Posts (πρόγραμμα, αποτελέσματα, βαθμολογία, αναμέτρηση, εβδομάδα, αποδόσεις) + τελικό σκορ και MVP, σε τετράγωνο, story και YouTube.",
     needs: "Phase 2: template renderer (next/og), πάροχος AI εικόνων, FFmpeg worker για video." },
   { slug: "calendar", label: "Content Calendar", icon: "▦", phase: 1, active: true, about: "Όλο το περιεχόμενο ανά ημέρα και κατάσταση." },
   { slug: "publishing", label: "Publishing Manager", icon: "➤", phase: 3, active: false,

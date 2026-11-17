@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/access";
 import { serviceClient } from "@/lib/supabase/server";
-import { BUCKET } from "@/lib/graphics/store";
+import { BUCKET } from "@/lib/posts/store";
 import { logActivity } from "@/lib/activity";
 
 const KINDS = ["image", "video", "logo", "font", "template", "document", "audio"] as const;

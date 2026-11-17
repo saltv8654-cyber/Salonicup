@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { absMinute, fmtMinute } from "./posts/build";
 
 // Read-only access to the Salonicup league data that lives in the same database.
 // This is the agent's primary source of real content: fixtures, results, scorers, standings, match reports.
@@ -75,8 +76,10 @@ async function describeResults(db: SupabaseClient, m: Row[]) {
   const player = new Map((players ?? []).map((p) => [p.player_id, p as Row]));
 
   return m.map((x) => {
-    const ev = (events ?? []).filter((e) => e.match_id === x.match_id && e.period !== "PEN");
-    const line = (e: Row) => `${player.get(e.player_id)?.full_name ?? "?"}${e.minute ? ` ${e.minute}'` : ""}${e.event_type === "OWN" ? " (αυτογκόλ)" : ""}`;
+    // Minutes are stored relative to the half (H2 "5" = 35'); show them as the app does, in match order.
+    const ev = (events ?? []).filter((e) => e.match_id === x.match_id && e.period !== "PEN")
+      .sort((a, b) => absMinute(a.period, a.minute) - absMinute(b.period, b.minute));
+    const line = (e: Row) => `${player.get(e.player_id)?.full_name ?? "?"}${e.minute != null ? ` ${fmtMinute(e.period, e.minute)}` : ""}${e.event_type === "OWN" ? " (αυτογκόλ)" : ""}`;
     const mvp = x.mvp_player_id ? player.get(x.mvp_player_id) : null;
     const played = x.match_status === "Played" || x.match_status === "Forfeit";
     return {

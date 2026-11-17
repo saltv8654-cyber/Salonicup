@@ -127,8 +127,9 @@ test("league results: scores, scorers, own goals credited to the other team, MVP
   assert.equal(r.home, "Spartans");
   assert.equal(r.away, "ES Pylaia");
   assert.equal(r.score, "2-1");
-  assert.deepEqual(r.home_scorers, ["Γιάννης 12'", "Κώστας 20' (αυτογκόλ)"]);
-  assert.deepEqual(r.away_scorers, ["Νίκος 5'"]);
+  // H2 minutes are stored relative to the half: 5 → 35', 20 → 50'
+  assert.deepEqual(r.home_scorers, ["Γιάννης 12'", "Κώστας 50' (αυτογκόλ)"]);
+  assert.deepEqual(r.away_scorers, ["Νίκος 35'"]);
   assert.equal(r.mvp, "Γιάννης");
   assert.equal(r.league, "Master League");
 });
