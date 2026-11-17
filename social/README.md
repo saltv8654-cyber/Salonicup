@@ -7,16 +7,18 @@
 
 | Ενεργό | Χρειάζεται ρύθμιση | Δεν έχει υλοποιηθεί ακόμα |
 |---|---|---|
-| AI Agent chat με 7 specialists και web search | Migration στο Supabase | Γραφικά/video (Phase 2) |
+| AI Agent chat με 7 specialists και web search | Migrations στο Supabase (0001, 0002) | AI εικόνες, video (Phase 2β) |
 | Διαβάζει αγώνες, αποτελέσματα, σκόρερ, MVP, βαθμολογίες από τη βάση | `CRON_SECRET` + pg_cron για τις αυτόματες εργασίες | Σύνδεση λογαριασμών και δημοσίευση (Phase 3) |
 | Drafts (Matchday, Final Score κ.λπ.), καμπάνιες, content calendar | | Analytics και αναφορές (Phase 4) |
+| **Γραφικά** Final Score, Matchday, MVP, πρόγραμμα, αποτελέσματα, βαθμολογία, σκόρερ σε 4 διαστάσεις (Studio + agent) | | |
+| Asset Library με uploads έως 200 MB | | |
 | Μόνιμη μνήμη, μάθηση από απορρίψεις | | A/B tests, MCP server (Phase 5) |
 | Εγκρίσεις, 3 επίπεδα αυτονομίας, emergency stop, όριο κόστους | | Σχόλια, άλλες διοργανώσεις (Phase 6) |
 | Αυτόματες εργασίες (ημέρα/εβδομάδα/μήνα) με ουρά και retries | | |
 
 ## Εγκατάσταση
 
-1. **Supabase του Salonicup** → SQL Editor → τρέξε το `supabase/migrations/0001_social.sql`. Φτιάχνει μόνο πίνακες `social_*`, δεν πειράζει τίποτα υπάρχον και ξανατρέχει με ασφάλεια.
+1. **Supabase του Salonicup** → SQL Editor → τρέξε με τη σειρά τα `supabase/migrations/0001_social.sql` και `0002_creative.sql`. Φτιάχνουν μόνο πίνακες `social_*` και το ιδιωτικό bucket `social-assets`· δεν πειράζουν τίποτα υπάρχον και ξανατρέχουν με ασφάλεια.
 2. **Vercel** → New Project από το ίδιο repo, με **Root Directory = `social`**.
 3. **Environment Variables**:
    - Ίδια με του Salonicup: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`.
@@ -38,7 +40,8 @@
 npm install
 npm run dev          # http://localhost:3100
 npm run typecheck
-npm test             # policy, ουρά, scheduler/DST, κρυπτογράφηση, εργαλεία agent, δεδομένα πρωταθλήματος
+npm test             # policy, ουρά, scheduler/DST, κρυπτογράφηση, εργαλεία agent, δεδομένα πρωταθλήματος, γραφικά
+GRAPHICS_OUT=./out npm test   # αποθηκεύει και τα PNG όλων των templates για οπτικό έλεγχο
 npm run test:db      # σχήμα + RLS σε προσωρινό PostgreSQL (χρειάζεται τοπικό postgres)
 npm run build
 ```
@@ -50,6 +53,7 @@ lib/agent/runner.ts     agent loop: Claude, εργαλεία, specialists, όρ�
 lib/agent/tools.ts      εργαλεία του agent (zod validation, έλεγχος αυτονομίας)
 lib/agent/prompts.ts    orchestrator, 7 specialists, prompts αυτόματων εργασιών
 lib/agent/context.ts    τι ξέρει ο agent σε κάθε εκτέλεση (brand, μνήμη, calendar, πρωτάθλημα, κατάσταση)
+lib/graphics/*          templates γραφικών, renderer (next/og), αποθήκευση στο Asset Library
 lib/salonicup.ts        ανάγνωση αγώνων/αποτελεσμάτων/βαθμολογιών/σκόρερ από τη βάση του Salonicup
 lib/policy.ts           αυτονομία, emergency stop, όριο κόστους
 lib/jobs/worker.ts      schedules → jobs, εκτέλεση με retries/backoff/dead-letter

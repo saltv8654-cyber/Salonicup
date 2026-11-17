@@ -4,6 +4,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { decide, type ActionKind, type AutonomyMode, type Trigger } from "../policy";
 import * as league from "../salonicup";
 import { SPECIALISTS, type SpecialistId } from "./prompts";
+import { renderGraphic, GraphicError } from "../graphics/render";
+import { saveGraphic } from "../graphics/store";
+import { FORMATS, TEMPLATES, type FormatId, type TemplateId } from "../graphics/theme";
 
 export interface ToolCtx {
   db: SupabaseClient; // service role (server only)
@@ -284,8 +287,34 @@ const delegate = tool({
   },
 });
 
+const createGraphic = tool({
+  name: "create_graphic",
+  description: `Render a branded graphic from REAL league data and save it in the Asset Library (optionally attached to a draft via content_id). Templates: ${Object.entries(TEMPLATES).map(([k, v]) => `${k} (${v.label}, needs ${v.needs === "match" ? "match_id" : v.needs === "days" ? "days window, optional league_id" : "optional league_id"})`).join("; ")}. Formats: ${Object.entries(FORMATS).map(([k, v]) => `${k} ${v.width}x${v.height}`).join(", ")}. Names, scores and logos come from the database, so they are always correct. Returns status "unavailable" with the reason when the data does not support the graphic (e.g. Final Score for a match not yet played).`,
+  schema: z.object({
+    template: z.enum(Object.keys(TEMPLATES) as [TemplateId, ...TemplateId[]]),
+    format: z.enum(Object.keys(FORMATS) as [FormatId, ...FormatId[]]),
+    match_id: z.string().uuid().optional(),
+    league_id: z.string().uuid().optional(),
+    days: z.number().int().min(1).max(30).optional(),
+    content_id: z.string().uuid().optional().describe("draft to attach the graphic to"),
+  }),
+  async run(ctx, { content_id, ...spec }) {
+    if (gate(ctx, "create_draft") === "blocked") return { status: "blocked" };
+    const settings = check(await ctx.db.from("social_settings").select("brand_name,colors,website,hashtags,timezone").single());
+    try {
+      const r = await renderGraphic(ctx.db, spec, settings);
+      const saved = await saveGraphic(ctx.db, r, spec, content_id);
+      await audit(ctx, "graphic.created", "asset", saved.asset_id, { ...spec, content_id });
+      return { status: "created", asset_id: saved.asset_id, title: r.title, size: `${r.width}x${r.height}`, attached_to: content_id ?? null };
+    } catch (e) {
+      if (e instanceof GraphicError) return { status: "unavailable", reason: e.message };
+      throw e;
+    }
+  },
+});
+
 // ---------------------------------------------------------------------------
-export const TOOLS = [getLeagueData, saveMemory, searchMemory, updateBrand, createCampaign, createDrafts, listContent,
+export const TOOLS = [getLeagueData, createGraphic, saveMemory, searchMemory, updateBrand, createCampaign, createDrafts, listContent,
   updateContent, scheduleContent, recentActivity, delegate] as ToolDef<z.ZodTypeAny>[];
 
 export function toolDefinitions(): Anthropic.Beta.BetaToolUnion[] {

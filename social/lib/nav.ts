@@ -5,7 +5,7 @@ export interface Section { slug: string; label: string; icon: string; phase: num
 export const SECTIONS: Section[] = [
   { slug: "", label: "Overview", icon: "◎", phase: 1, active: true, about: "Κατάσταση συστήματος, εκκρεμότητες, τελευταίες ενέργειες του agent." },
   { slug: "chat", label: "AI Agent Chat", icon: "✦", phase: 1, active: true, about: "Φυσικές εντολές στον agent." },
-  { slug: "studio", label: "Creative Studio", icon: "◧", phase: 2, active: false,
+  { slug: "studio", label: "Creative Studio", icon: "◧", phase: 2, active: true,
     about: "Γραφικά από τα πραγματικά δεδομένα αγώνων (Matchday, Final Score, βαθμολογία, σκόρερ, MVP, ομάδα εβδομάδας), stories, carousels, YouTube thumbnails, AI εικόνες, αφαίρεση φόντου, resize, video (Reels/Shorts/TikTok) από τα livestreams με υπότιτλους.",
     needs: "Phase 2: template renderer (next/og), πάροχος AI εικόνων, FFmpeg worker για video." },
   { slug: "calendar", label: "Content Calendar", icon: "▦", phase: 1, active: true, about: "Όλο το περιεχόμενο ανά ημέρα και κατάσταση." },
@@ -26,7 +26,7 @@ export const SECTIONS: Section[] = [
     about: "Νέα σχόλια και μηνύματα, κατηγοριοποίηση, αρνητικά σχόλια, προτεινόμενες απαντήσεις, εμπορικές ευκαιρίες, εγκρίσεις.",
     needs: "Phase 6: πρόσβαση σε comments/messages από συνδεδεμένους λογαριασμούς." },
   { slug: "strategy", label: "Marketing Strategy", icon: "◈", phase: 1, active: true, about: "Καμπάνιες, στρατηγική και ό,τι έχει μάθει ο agent." },
-  { slug: "assets", label: "Asset Library", icon: "▣", phase: 2, active: false,
+  { slug: "assets", label: "Asset Library", icon: "▣", phase: 2, active: true,
     about: "Λογότυπα ομάδων και χορηγών (ήδη στο Salonicup), φωτογραφίες αγώνων, βίντεο, fonts, templates και προηγούμενα δημιουργικά, οργανωμένα με tags.",
     needs: "Phase 2: uploads στο ιδιωτικό bucket «assets» και επεξεργασία εικόνας." },
   { slug: "settings", label: "Ρυθμίσεις", icon: "⚙", phase: 1, active: true, about: "Brand identity, autonomy, emergency stop, αυτόματες εργασίες, όριο κόστους." },

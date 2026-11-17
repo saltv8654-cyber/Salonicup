@@ -127,9 +127,10 @@ export const INTEGRATIONS: Integration[] = [
     ],
   },
   {
-    id: "graphics", name: "Γραφικά από templates (next/og)", kind: "creative", phase: 2, implemented: false,
+    id: "graphics", name: "Γραφικά από templates (next/og)", kind: "creative", phase: 2, implemented: true,
     env: [], cost: "Δωρεάν, τρέχει στον server.",
-    limits: ["Ακριβές brand identity: λογότυπα, χρώματα, fonts από το Asset Library."],
+    limits: ["Final Score, Matchday, MVP, πρόγραμμα, αποτελέσματα, βαθμολογία, σκόρερ σε 4 διαστάσεις.",
+      "Λογότυπα/φωτογραφίες σε WebP δεν διαβάζονται από τον renderer — εμφανίζονται αρχικά."],
   },
   {
     id: "image_ai", name: "AI εικόνες (π.χ. OpenAI Images, Google Imagen/Gemini, FLUX)", kind: "creative", phase: 2, implemented: false,

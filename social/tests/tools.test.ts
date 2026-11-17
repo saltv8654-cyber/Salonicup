@@ -3,44 +3,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fakeDb, type Rec } from "./fake-db.ts";
 import { executeTool, toolDefinitions, TOOLS, type ToolCtx } from "../lib/agent/tools.ts";
 import { recentResults } from "../lib/salonicup.ts";
-
-type Rec = Record<string, any>;
-function fakeDb(seed: Record<string, Rec[]>) {
-  const tables: Record<string, Rec[]> = structuredClone(seed);
-  const log: { table: string; op: string; filters: [string, unknown][]; values?: unknown }[] = [];
-  const db = {
-    from(table: string) {
-      tables[table] ??= [];
-      const entry = { table, op: "select", filters: [] as [string, unknown][], values: undefined as unknown };
-      log.push(entry);
-      const match = (r: Rec) => entry.filters.every(([k, v]) => r[k] === v);
-      const result = () => {
-        if (entry.op === "insert") {
-          const rows = (Array.isArray(entry.values) ? entry.values : [entry.values]).map((v: any, i: number) => ({ id: `new-${table}-${tables[table].length + i}`, ...v }));
-          tables[table].push(...rows);
-          return rows;
-        }
-        const rows = tables[table].filter(match);
-        if (entry.op === "update") rows.forEach((r) => Object.assign(r, entry.values));
-        return rows;
-      };
-      const q: any = {
-        select: () => q,
-        insert: (v: unknown) => { entry.op = "insert"; entry.values = v; return q; },
-        update: (v: unknown) => { entry.op = "update"; entry.values = v; return q; },
-        eq: (k: string, v: unknown) => { entry.filters.push([k, v]); return q; },
-        in: () => q, gte: () => q, lte: () => q, lt: () => q, is: () => q, or: () => q, order: () => q, limit: () => q,
-        single: async () => { const r = result(); return r.length ? { data: r[0], error: null } : { data: null, error: { message: "0 rows" } }; },
-        maybeSingle: async () => ({ data: result()[0] ?? null, error: null }),
-        then: (res: (v: unknown) => void) => res({ data: result(), error: null }),
-      };
-      return q;
-    },
-  };
-  return { db: db as unknown as SupabaseClient, tables, log };
-}
 
 const C1 = "3f1c6a52-8e0b-4d7a-9a51-0c6a1e2b7d10";
 const future = new Date(Date.now() + 3 * 86_400_000).toISOString();

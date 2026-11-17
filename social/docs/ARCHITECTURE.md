@@ -15,7 +15,7 @@
 |---|---|---|
 | **Claude** = εγκέφαλος | Σκέψη, σχεδιασμός, αποφάσεις, γραφή, ανάλυση | Claude API (Messages API + tool use), `claude-opus-5-5`, adaptive thinking, server-side fallback σε άρνηση |
 | **MCP** = σύνδεση με εργαλεία | Τυποποιημένη σύνδεση εργαλείων | Τα εργαλεία του agent έχουν ήδη σχήμα συμβατό με MCP. Phase 5: δικός μας MCP server ώστε να τον ελέγχεις και από το Claude Code/Desktop |
-| **Creative AI** = γραφικά/βίντεο | Εικόνες, templates, video | Phase 2: templates από τα δεδομένα αγώνων (`next/og`), AI εικόνες από εξωτερικό πάροχο, FFmpeg worker για clips από τα livestreams |
+| **Creative AI** = γραφικά/βίντεο | Εικόνες, templates, video | ✅ Templates από τα δεδομένα αγώνων (`lib/graphics`, `next/og`). Επόμενα: AI εικόνες από εξωτερικό πάροχο, FFmpeg worker για clips από τα livestreams |
 | **APIs** = πρόσβαση στα social | Δημοσίευση, insights, σχόλια | Phase 3–6: επίσημα APIs (Meta, TikTok, YouTube, LinkedIn) με OAuth |
 | **Backend** = μνήμη, αυτοματισμοί, 24/7 | Βάση, ουρά, scheduler, audit | Η **ίδια βάση Supabase με το Salonicup** (πίνακες `social_*`), ουρά εργασιών, worker, pg_cron |
 | **Dashboard** = έλεγχος | Chat, εγκρίσεις, calendar, ρυθμίσεις, emergency stop | Next.js 14, Tailwind, dark/light, mobile |
@@ -60,7 +60,7 @@
   - ποτέ δεν εφευρίσκει metrics ή ποδοσφαιρικά γεγονότα,
   - σέβεται τους παίκτες (ερασιτέχνες, πραγματικά πρόσωπα).
 - **7 specialists** μέσω `delegate_to_specialist`. Ο orchestrator ελέγχει την έξοδό τους πριν τη χρησιμοποιήσει.
-- **Εργαλεία**: `get_league_data`, `save_memory`, `search_memory`, `update_brand_profile`, `create_campaign`, `create_content_drafts` (με σύνδεση σε `match_id`), `list_content`, `update_content`, `schedule_content`, `get_recent_activity`, `delegate_to_specialist`, `web_search`.
+- **Εργαλεία**: `get_league_data`, `create_graphic`, `save_memory`, `search_memory`, `update_brand_profile`, `create_campaign`, `create_content_drafts` (με σύνδεση σε `match_id`), `list_content`, `update_content`, `schedule_content`, `get_recent_activity`, `delegate_to_specialist`, `web_search`.
 - **Μνήμη**: brand profile + `social_memories` + ιστορικό συζητήσεων. Κάθε απόρριψη με αιτιολογία γίνεται αυτόματα «προτίμηση» στη μνήμη.
 - **Όρια**: 20 βήματα / 240″ ανά εντολή και μηνιαίο όριο κόστους (προεπιλογή $50, αλλάζει στις Ρυθμίσεις). Κάθε κλήση στο Claude καταγράφεται με το κόστος της.
 
@@ -138,10 +138,21 @@
 | Phase | Περιεχόμενο | Κατάσταση |
 |---|---|---|
 | **1** | Core Agent + 7 specialists, δεδομένα πρωταθλήματος, μνήμη, brand, admin-only πρόσβαση, εγκρίσεις, emergency stop, ουρά/scheduler, activity log, όριο κόστους, dashboard | ✅ Υλοποιημένο. Tests: 20 unit + 9 ομάδες DB tests σε PostgreSQL + build |
-| **2** | Creative Studio: Matchday, Final Score, βαθμολογία, σκόρερ, MVP, ομάδα εβδομάδας από πραγματικά δεδομένα· stories, carousels, thumbnails· Asset Library (λογότυπα ομάδων/χορηγών υπάρχουν ήδη)· AI εικόνες· clips από τα livestreams με υπότιτλους | Επόμενο |
+| **2α** | Creative Studio: Final Score, Matchday, MVP, πρόγραμμα, αποτελέσματα, βαθμολογία, σκόρερ από τα πραγματικά δεδομένα, σε post 4:5, τετράγωνο, story 9:16, YouTube thumbnail 16:9· εργαλείο `create_graphic` για τον agent· Asset Library με απευθείας uploads έως 200 MB· γραφικά στο calendar | ✅ Υλοποιημένο. Tests: απόδοση κάθε template σε κάθε διάσταση + έλεγχος PNG, το εργαλείο του agent, άρνηση όταν λείπουν δεδομένα |
+| **2β** | AI εικόνες, αφαίρεση φόντου, carousels πολλών σελίδων, video (clips από τα livestreams, υπότιτλοι, resize για Reels/Shorts/TikTok) | Χρειάζεται επιλογή παρόχου και FFmpeg worker |
 | **3** | OAuth Instagram/Facebook/YouTube/TikTok, ανανέωση tokens, δημοσίευση, retries, κατάσταση δημοσίευσης | — |
 | **4** | Συλλογή insights, Analytics, αναφορές, AI Performance Analyst | — |
 | **5** | Optimization: A/B tests, ιστορικό αλλαγών στρατηγικής και αξιολόγησή τους, MCP server | — |
 | **6** | Community Manager (σχόλια, μηνύματα, αιτήματα ομάδων/χορηγών), ανάλυση άλλων διοργανώσεων | — |
 
 Η Phase 7 (SaaS, συνδρομές, πολλοί πελάτες) **αφαιρέθηκε**.
+
+---
+
+## 6. Γραφικά (Phase 2α)
+
+- `lib/graphics/templates.tsx`: 7 templates (Satori/`next/og`), `lib/graphics/render.tsx`: φέρνει δεδομένα, λογότυπα και fonts και βγάζει PNG.
+- **Brand**: η παλέτα του Salonicup app (σκούρο φόντο, πορτοκαλί #E05B1F), DejaVu Sans με ελληνικά, το λογότυπο. Τα χρώματα αλλάζουν από τις Ρυθμίσεις (π.χ. «Κύριο: #…», «Φόντο: #…»).
+- **Ακρίβεια**: ονόματα, σκορ, σκόρερ (αυτογκόλ στη σωστή ομάδα), MVP και λογότυπα έρχονται από τη βάση. Αν τα δεδομένα δεν στηρίζουν ένα γραφικό, π.χ. Final Score για αγώνα που δεν έληξε, δεν φτιάχνεται και ο agent παίρνει τον λόγο.
+- **Αποθήκευση**: ιδιωτικό bucket `social-assets` και πίνακας `social_assets`. Η εμφάνιση στο dashboard γίνεται με προσωρινά signed URLs.
+- **Περιορισμός**: λογότυπα/φωτογραφίες σε WebP δεν διαβάζονται από τον renderer· εμφανίζονται τα αρχικά της ομάδας/του παίκτη.
