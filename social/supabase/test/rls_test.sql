@@ -15,7 +15,8 @@ grant select on profiles to authenticated;
 -- 1. Seed rows exist
 do $$ begin
   if (select count(*) from social_settings) <> 1 then raise exception 'FAIL 1: settings row'; end if;
-  if (select count(*) from social_schedules) <> 4 then raise exception 'FAIL 1: schedules'; end if;
+  if (select count(*) from social_schedules) <> 5 then raise exception 'FAIL 1: schedules'; end if;
+  if (select weekday from social_schedules where workflow = 'weekly_standings') <> 1 then raise exception 'FAIL 1: Monday'; end if;
   if (select weekday from social_schedules where workflow = 'weekly_program') <> 4 then raise exception 'FAIL 1: Thursday'; end if;
   if (select brand_name from social_settings) <> 'Salonicup' then raise exception 'FAIL 1: brand'; end if;
 end $$;

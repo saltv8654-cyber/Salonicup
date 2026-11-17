@@ -3,7 +3,7 @@ import { retryDelayMs, isRetryable } from "../backoff";
 import { nextRun, type ScheduleSpec } from "../schedule";
 import { runAgent } from "../agent/runner";
 import { WORKFLOW_PROMPTS } from "../agent/prompts";
-import { runWeeklyProgram, type WeeklyProgramOptions } from "./weekly-program";
+import { runRecurringPosts, type RecurringOptions } from "./recurring-posts";
 
 type Job = { id: string; type: string; payload: Record<string, unknown>; attempts: number; max_attempts: number };
 
@@ -16,10 +16,12 @@ const HANDLERS: Record<string, (job: Job) => Promise<Record<string, unknown>>> =
     const r = await runAgent({ trigger: "schedule", workflow, prompt });
     return { run_id: r.runId, status: r.status, summary: r.text.slice(0, 1000) };
   },
-  /** Thursday programme: deterministic, no AI. */
+  /** Thursday programme / Monday standings: deterministic, no AI. */
   async weekly_program(job) {
-    const r = await runWeeklyProgram(serviceClient(), { trigger: "schedule", options: job.payload.options as WeeklyProgramOptions });
-    return r as unknown as Record<string, unknown>;
+    return (await runRecurringPosts(serviceClient(), "weekly_program", { trigger: "schedule", options: job.payload.options as RecurringOptions })) as unknown as Record<string, unknown>;
+  },
+  async weekly_standings(job) {
+    return (await runRecurringPosts(serviceClient(), "weekly_standings", { trigger: "schedule", options: job.payload.options as RecurringOptions })) as unknown as Record<string, unknown>;
   },
   async agent_task(job) {
     const r = await runAgent({ trigger: "job", prompt: String(job.payload.prompt) });
@@ -42,8 +44,9 @@ export async function enqueueDueSchedules(now = new Date()) {
       .update({ next_run_at: next.toISOString(), last_run_at: now.toISOString() })
       .eq("workflow", s.workflow).eq("next_run_at", s.next_run_at).select("workflow");
     if (!moved?.length || settings?.paused) continue;
-    const { error } = await db.from("social_jobs").insert(s.workflow === "weekly_program"
-      ? { type: "weekly_program", payload: { options: s.options ?? {} }, max_attempts: 3, idempotency_key: `wf:${s.workflow}:${s.next_run_at}` }
+    const recurring = s.workflow === "weekly_program" || s.workflow === "weekly_standings";
+    const { error } = await db.from("social_jobs").insert(recurring
+      ? { type: s.workflow, payload: { options: s.options ?? {} }, max_attempts: 3, idempotency_key: `wf:${s.workflow}:${s.next_run_at}` }
       : { type: "agent_workflow", payload: { workflow: s.workflow }, max_attempts: 3, idempotency_key: `wf:${s.workflow}:${s.next_run_at}` });
     if (!error) enqueued++;
   }

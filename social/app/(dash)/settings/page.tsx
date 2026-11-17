@@ -5,6 +5,7 @@ import { saveBrand, setAutonomy, setPaused, setSchedule } from "./actions";
 import { RunNow } from "./run-now";
 
 const WF = {
+  weekly_standings: { label: "Βαθμολογίες (Δευτέρα)", about: "Ένα post ανά πρωτάθλημα με το σχέδιο «Βαθμολογία» της καρτέλας Posts (τετράγωνο + story) και λεζάντα με την πρώτη τριάδα. Χωρίς AI, χωρίς κόστος. Πρωταθλήματα που δεν έπαιξαν την προηγούμενη εβδομάδα παραλείπονται." },
   weekly_program: { label: "Πρόγραμμα εβδομάδας (Πέμπτη)", about: "Ένα post ανά πρωτάθλημα με το σχέδιο «Εβδομάδα» της καρτέλας Posts (τετράγωνο + story) και λεζάντα με όλους τους αγώνες. Χωρίς AI, χωρίς κόστος. Πρωταθλήματα χωρίς αγώνες παραλείπονται." },
   daily_check: { label: "Καθημερινός έλεγχος", about: "Νέα αποτελέσματα → Final Score drafts, επόμενοι αγώνες → Matchday drafts, κενά στο calendar, εκκρεμότητες." },
   weekly_strategy: { label: "Εβδομαδιαία στρατηγική", about: "Ανασκόπηση, ιστορίες της αγωνιστικής (ντέρμπι, σερί, σκόρερ), content plan επόμενης εβδομάδας." },
@@ -16,7 +17,9 @@ export default async function SettingsPage() {
   const s = (await getSettings())!;
   const { data: rows } = await userClient().from("social_schedules").select("*").order("workflow");
   // The Thursday programme first: it is the main job.
-  const schedules = [...(rows ?? [])].sort((a, b) => (a.workflow === "weekly_program" ? -1 : b.workflow === "weekly_program" ? 1 : 0));
+  const ORDER = ["weekly_program", "weekly_standings"];
+  const rank = (w: string) => (ORDER.includes(w) ? ORDER.indexOf(w) : ORDER.length);
+  const schedules = [...(rows ?? [])].sort((a, b) => rank(a.workflow) - rank(b.workflow));
   const field = (name: string, label: string, value: string | null | undefined, rows = 2, hint?: string) => (
     <div><label className="label" htmlFor={name}>{label}</label>
       <textarea id={name} name={name} rows={rows} className="input" defaultValue={value ?? ""} />
@@ -78,18 +81,22 @@ export default async function SettingsPage() {
                     <option value="next">Εβδομάδα που ξεκινά την επόμενη Δευτέρα</option>
                     <option value="current">Τρέχουσα εβδομάδα</option>
                   </select>
+                </>
+              )}
+              {(w.workflow === "weekly_program" || w.workflow === "weekly_standings") && (
+                <>
                   {["instagram", "facebook"].map((p) => (
                     <label key={p} className="flex items-center gap-1 text-sm"><input type="checkbox" name={`p_${p}`} defaultChecked={(w.options?.platforms ?? ["instagram", "facebook"]).includes(p)} /> {p}</label>
                   ))}
                 </>
               )}
-              {(w.workflow === "weekly_strategy" || w.workflow === "weekly_program") && <select name="weekday" defaultValue={w.weekday ?? 1} className="input w-auto">{DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}</select>}
+              {(w.workflow === "weekly_strategy" || w.workflow === "weekly_program" || w.workflow === "weekly_standings") && <select name="weekday" defaultValue={w.weekday ?? 1} className="input w-auto">{DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}</select>}
               {w.workflow === "monthly_report" && <input name="monthday" type="number" min={1} max={28} defaultValue={w.monthday ?? 1} className="input w-20" />}
               <select name="hour" defaultValue={w.hour_local} className="input w-auto">{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>)}</select>
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="enabled" defaultChecked={w.enabled} /> Ενεργό</label>
               <button className="btn-ghost">Αποθήκευση</button>
             </form>
-            {w.workflow === "weekly_program" && <RunNow />}
+            {(w.workflow === "weekly_program" || w.workflow === "weekly_standings") && <RunNow kind={w.workflow} />}
             </div>
           ))}
         </div>

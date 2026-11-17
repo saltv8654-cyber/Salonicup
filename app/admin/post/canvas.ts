@@ -734,8 +734,14 @@ function drawStandings(ctx: any, d: PostData, L: (u: string | null) => Img | nul
   const colN = colI - 68
   const colA = colN - 68
 
+  // Story (ψηλό μέγεθος): μεγαλύτερες γραμμές και κάθετο κεντράρισμα. Το τετράγωνο μένει ίδιο.
+  const tall = bottom > S
+  const maxRow = tall ? 92 : 70
+  const tallRowH = Math.min(maxRow, (bottom - 286) / Math.max(rows.length, 1))
+  const shift = tall ? Math.max(0, (bottom - 264 - (22 + rows.length * tallRowH)) / 2) : 0
+
   // κεφαλίδα στηλών
-  let y = 264
+  let y = 264 + shift
   ctx.fillStyle = COL.blue
   ctx.font = font(600, 24)
   ctx.textBaseline = 'alphabetic'
@@ -752,8 +758,8 @@ function drawStandings(ctx: any, d: PostData, L: (u: string | null) => Img | nul
   ctx.fillStyle = pal.accent
   ctx.fillText('Β', colB, y)
 
-  y = 286
-  const rowH = Math.min(70, (bottom - y) / Math.max(rows.length, 1))
+  y = 286 + shift
+  const rowH = Math.min(maxRow, (bottom - y) / Math.max(rows.length, 1))
 
   rows.forEach((t, i) => {
     const top = y + i * rowH

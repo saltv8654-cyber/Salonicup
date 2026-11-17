@@ -3,7 +3,8 @@
 -- Νέα αυτόματη εργασία.
 alter table social_schedules drop constraint if exists social_schedules_workflow_check;
 alter table social_schedules add constraint social_schedules_workflow_check
-  check (workflow in ('daily_check','weekly_strategy','monthly_report','weekly_program'));
+  -- Η πλήρης λίστα (και του 0004), ώστε να ξανατρέχει με ασφάλεια σε οποιαδήποτε σειρά.
+  check (workflow in ('daily_check','weekly_strategy','monthly_report','weekly_program','weekly_standings'));
 alter table social_schedules add column if not exists options jsonb not null default '{}'::jsonb;
 
 -- Πέμπτη (4) στις 12:00, για την εβδομάδα που ξεκινά την επόμενη Δευτέρα. Ανενεργό μέχρι να το ανοίξεις.

@@ -273,7 +273,7 @@ export default function AdminPost() {
         sponsors: showSponsors ? [sponsorA, sponsorB, sponsorC, sponsorD].filter(Boolean) : [],
         theme,
       }
-      await drawPost(canvasRef.current, data, type === 'versus' ? { w: size.w, h: size.h } : undefined)
+      await drawPost(canvasRef.current, data, type === 'versus' || (type === 'standings' && format === 'story') ? { w: size.w, h: size.h } : undefined)
       setReady(true)
       toast.success('Έτοιμο! Κατέβασέ το.')
     } catch (e: any) {
@@ -304,7 +304,7 @@ export default function AdminPost() {
   const size = SIZES[format]
   const needsRound = type === 'schedule' || type === 'results'
   const perMatch = type === 'versus' || type === 'final' || type === 'mvp'
-  const sized = perMatch || type === 'week' || type === 'odds'
+  const sized = perMatch || type === 'week' || type === 'odds' || (type === 'standings' && format === 'story')
   // Σειρά αγώνων: Σήμερα πρώτα, μετά προηγούμενα (πιο πρόσφατα ψηλά), μετά επόμενα.
   const matchOptions = (() => {
     const tk = athensDateKey(new Date().toISOString())
@@ -344,7 +344,7 @@ export default function AdminPost() {
           <div className="grid grid-cols-3 gap-[3px] bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
             {TYPES.map(t => (
               <button key={t.id}
-                onClick={() => { setType(t.id); setReady(false); if (t.id === 'week' || t.id === 'odds') setFormat('story'); if (t.id === 'final' || t.id === 'mvp') setMatchId('') }}
+                onClick={() => { setType(t.id); setReady(false); if (t.id === 'week' || t.id === 'odds') setFormat('story'); if (t.id === 'standings') setFormat('square'); if (t.id === 'final' || t.id === 'mvp') setMatchId('') }}
                 className={`py-2.5 rounded-lg text-[12px] font-bold transition-colors
                   ${type === t.id ? 'bg-brand text-chalk' : 'text-dim'}`}>
                 {t.label}
@@ -401,6 +401,22 @@ export default function AdminPost() {
             ))}
           </div>
         </div>
+
+        {type === 'standings' && (
+          <div>
+            <label className="block text-[8.5px] font-extrabold text-dim
+              tracking-[0.12em] mb-1.5 pl-0.5">ΜΕΓΕΘΟΣ</label>
+            <div className="flex bg-turf rounded-xl p-[3px] border border-chalk/[0.05]">
+              {(['square', 'story'] as const).map(f => (
+                <button key={f} onClick={() => { setFormat(f); setReady(false) }}
+                  className={`flex-1 py-2.5 rounded-lg text-[12px] font-bold transition-colors
+                    ${format === f ? 'bg-brand text-chalk' : 'text-dim'}`}>
+                  {SIZES[f].label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {perMatch && (
           <>

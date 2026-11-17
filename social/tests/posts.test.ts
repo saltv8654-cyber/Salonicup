@@ -92,7 +92,9 @@ for (const type of Object.keys(POST_TYPES) as PostType[]) {
     const { db } = fakeDb(seed());
     for (const format of Object.keys(POST_FORMATS) as (keyof typeof POST_FORMATS)[]) {
       const r = await renderPost(db, { type, format, ...SPEC[type] } as PostSpec, fetcher);
-      const expected = ["schedule", "results", "standings"].includes(type) ? POST_FORMATS.square : POST_FORMATS[format];
+      // Like the Posts tab: schedule/results only square; standings square or story (not YouTube).
+      const squareOnly = ["schedule", "results"].includes(type) || (type === "standings" && format === "yt");
+      const expected = squareOnly ? POST_FORMATS.square : POST_FORMATS[format];
       assert.deepEqual(sizeOf(r.png), { w: expected.w, h: expected.h }, `${type}/${format}`);
       assert.ok(r.png.length > 20_000, `${type}/${format} has content`);
       if (process.env.GRAPHICS_OUT) {

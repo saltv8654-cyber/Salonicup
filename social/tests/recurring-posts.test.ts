@@ -1,8 +1,8 @@
-// Thursday: the coming week's programme, one post per league.
+// Recurring posts per league: Thursday programme, Monday standings.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "./fake-db.ts";
-import { runWeeklyProgram, targetMonday, weeklyCaption } from "../lib/jobs/weekly-program.ts";
+import { runRecurringPosts, targetMonday, weeklyCaption, standingsCaption } from "../lib/jobs/recurring-posts.ts";
 
 const U = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const THURSDAY = new Date("2026-11-19T10:00:00Z"); // Πέμπτη 19/11, 12:00 Ελλάδα
@@ -28,6 +28,8 @@ function seed(mode = "manual", paused = false) {
     ],
     app_settings: [{ id: 1, sponsors: [] }],
     social_content: [] as Record<string, unknown>[],
+    standings: [0, 1, 2, 3].map((i) => ({ league_id: U(1), team_id: U(100 + i), position: i + 1, team_name: ["Spartans", "ES Pylaia", "Θερμαϊκός", "Real Kalamaria"][i],
+      logo_url: null, played: 9, wins: 6 - i, draws: 1, losses: i, goals_for: 20 - i, goals_against: 8 + i, goal_diff: 12 - 2 * i, points: 19 - 3 * i })),
   };
 }
 
@@ -40,7 +42,7 @@ test("which week: next Monday by default, or the current one", () => {
 
 test("manual mode: one post per league with matches, waiting for approval", async () => {
   const { db, tables, uploads } = fakeDb(seed("manual"));
-  const r = await runWeeklyProgram(db, { trigger: "schedule", now: THURSDAY });
+  const r = await runRecurringPosts(db, "weekly_program", { trigger: "schedule", now: THURSDAY });
   assert.equal(r.week_start, "2026-11-23");
   assert.deepEqual(r.created.map((c) => [c.league, c.status]), [["Master League", "pending_approval"]]);
   assert.deepEqual(r.skipped.map((s) => s.league), ["Liga"]);
@@ -64,8 +66,8 @@ test("manual mode: one post per league with matches, waiting for approval", asyn
 
 test("running again does not create duplicates", async () => {
   const { db, tables, uploads } = fakeDb(seed("manual"));
-  await runWeeklyProgram(db, { trigger: "schedule", now: THURSDAY });
-  const again = await runWeeklyProgram(db, { trigger: "schedule", now: new Date(THURSDAY.getTime() + 3_600_000) });
+  await runRecurringPosts(db, "weekly_program", { trigger: "schedule", now: THURSDAY });
+  const again = await runRecurringPosts(db, "weekly_program", { trigger: "schedule", now: new Date(THURSDAY.getTime() + 3_600_000) });
   assert.equal(again.created.length, 0);
   assert.match(again.skipped[0].reason, /υπάρχει ήδη/);
   assert.equal(tables.social_content.length, 1);
@@ -74,7 +76,7 @@ test("running again does not create duplicates", async () => {
 
 test("semi/full autonomy: scheduled directly", async () => {
   const { db, tables } = fakeDb(seed("semi"));
-  const r = await runWeeklyProgram(db, { trigger: "schedule", now: THURSDAY });
+  const r = await runRecurringPosts(db, "weekly_program", { trigger: "schedule", now: THURSDAY });
   assert.equal(r.created[0].status, "scheduled");
   assert.equal(tables.social_content[0].scheduled_for, THURSDAY.toISOString());
   assert.equal(tables.social_approvals?.length ?? 0, 0);
@@ -82,7 +84,7 @@ test("semi/full autonomy: scheduled directly", async () => {
 
 test("emergency stop: the Thursday run does nothing", async () => {
   const { db, tables } = fakeDb(seed("full", true));
-  const r = await runWeeklyProgram(db, { trigger: "schedule", now: THURSDAY });
+  const r = await runRecurringPosts(db, "weekly_program", { trigger: "schedule", now: THURSDAY });
   assert.equal(r.status, "stopped");
   assert.equal(tables.social_content.length, 0);
 });
@@ -90,4 +92,50 @@ test("emergency stop: the Thursday run does nothing", async () => {
 test("caption format", () => {
   const c = weeklyCaption("Liga", "Εβδομάδα 23/11 – 29/11", [{ day: "Δευτέρα 23/11", matches: [{ homeName: "A", homeLogo: null, awayName: "B", awayLogo: null, time: "21:00", tag: "PLAYOFF · ΗΜΙΤΕΛ. Α΄" }] }], ["#salonicup"]);
   assert.equal(c, "📅 Το πρόγραμμα της εβδομάδας για το Liga\n23/11 – 29/11\n\n🗓️ Δευτέρα 23/11\n21:00 A – B · PLAYOFF · ΗΜΙΤΕΛ. Α΄\n\nΚαλή επιτυχία σε όλες τις ομάδες! ⚽\n\n#salonicup #liga");
+});
+
+// ---------------------------------------------------------------------------
+// Monday: standings
+// ---------------------------------------------------------------------------
+const MONDAY = new Date("2026-11-23T10:00:00Z"); // Δευτέρα 23/11, 12:00 Ελλάδα
+
+function mondaySeed(mode = "manual") {
+  const s = seed(mode);
+  s.matches.push(
+    { ...s.matches[0], match_id: U(20), round: 9, match_date: "2026-11-21T17:00:00Z", match_status: "Played", goals_team_a: 2, goals_team_b: 1 },
+    { ...s.matches[0], match_id: U(21), round: 8, match_date: "2026-11-14T17:00:00Z", match_status: "Played" },
+    { ...s.matches[0], match_id: U(22), round: 1, stage: "SF", match_date: "2026-11-22T17:00:00Z", match_status: "Played", league_id: U(2) } as never,
+  );
+  return s;
+}
+
+test("Monday standings: one post per league that played, square + story", async () => {
+  const { db, tables, uploads } = fakeDb(mondaySeed("manual"));
+  const r = await runRecurringPosts(db, "weekly_standings", { trigger: "schedule", now: MONDAY });
+  assert.equal(r.week_start, "2026-11-23");
+  assert.deepEqual(r.created.map((c) => [c.league, c.status]), [["Master League", "pending_approval"]]);
+  // Liga only had a playoff match: its regular-season standings did not change.
+  assert.deepEqual(r.skipped.map((s) => [s.league, s.reason]), [["Liga", "δεν έπαιξε αγώνα πρωταθλήματος τις τελευταίες 7 ημέρες"]]);
+  const item = tables.social_content[0];
+  assert.equal(item.title, "Βαθμολογία · Master League · μετά την 9η αγωνιστική");
+  assert.equal(item.source_key, `weekly_standings:${U(1)}:2026-11-23`);
+  assert.deepEqual(uploads.map((u) => u.path.split("/").pop()!.split("-").slice(0, 2).join("-")), ["standings-square", "standings-story"]);
+  assert.deepEqual(tables.social_assets.map((a) => [a.width, a.height]), [[1080, 1080], [1080, 1920]]);
+  assert.match(String(item.caption), /🥇 Spartans · 19 β\.\n🥈 ES Pylaia · 16 β\.\n🥉 Θερμαϊκός · 13 β\./);
+  assert.match(String(item.caption), /μετά την 9η αγωνιστική/);
+  const again = await runRecurringPosts(db, "weekly_standings", { trigger: "schedule", now: new Date(MONDAY.getTime() + 3_600_000) });
+  assert.equal(again.created.length, 0, "no duplicates the same week");
+});
+
+test("Monday standings: nothing to post in a week without matches", async () => {
+  const { db, tables } = fakeDb(seed("full"));
+  const r = await runRecurringPosts(db, "weekly_standings", { trigger: "schedule", now: new Date("2026-12-14T10:00:00Z") });
+  assert.equal(r.created.length, 0);
+  assert.equal(tables.social_content.length, 0);
+});
+
+test("standings caption", () => {
+  const rows = [1, 2, 3, 4].map((p) => ({ position: p, name: `T${p}`, logo: null, played: 9, wins: 1, draws: 1, losses: 1, gd: 0, points: 20 - p }));
+  assert.equal(standingsCaption("Liga", 9, rows, ["salonicup"]),
+    "📊 Η βαθμολογία του Liga μετά την 9η αγωνιστική\n\n🥇 T1 · 19 β.\n🥈 T2 · 18 β.\n🥉 T3 · 17 β.\n\nΌλη η βαθμολογία και τα στατιστικά στο salonicup.gr\n\n#salonicup #liga");
 });

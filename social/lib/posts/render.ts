@@ -12,8 +12,9 @@ import {
 
 import { POST_FORMATS, POST_TYPES, type PostFormat, type PostType } from "./meta";
 export { POST_FORMATS, POST_TYPES, type PostFormat, type PostType };
-/** Like the Posts tab: these layouts are drawn for 1080×1080 only. */
-const SQUARE_ONLY: PostType[] = ["schedule", "results", "standings"];
+/** Like the Posts tab: these layouts are drawn 1080 wide. Schedule/results only square; standings also as a story. */
+const SQUARE_ONLY: PostType[] = ["schedule", "results"];
+const NO_LANDSCAPE: PostType[] = ["standings"];
 
 export interface PostSpec {
   type: PostType;
@@ -121,7 +122,7 @@ function defaultRound(matches: Row[], kind: "schedule" | "results"): string | nu
 export async function renderPost(db: SupabaseClient, spec: PostSpec, fetcher: typeof fetch = fetch): Promise<RenderedPost> {
   const info = POST_TYPES[spec.type];
   if (!info) throw new PostError("Άγνωστος τύπος post");
-  const format: PostFormat = SQUARE_ONLY.includes(spec.type) ? "square" : spec.format ?? "square";
+  const format: PostFormat = SQUARE_ONLY.includes(spec.type) || (NO_LANDSCAPE.includes(spec.type) && spec.format === "yt") ? "square" : spec.format ?? "square";
   const size = POST_FORMATS[format];
   const sponsors = spec.sponsors === false ? [] : await sponsorUrls(db);
   const leagues = await activeLeagues(db);
@@ -214,7 +215,7 @@ export async function renderPost(db: SupabaseClient, spec: PostSpec, fetcher: ty
 
   await registerFonts();
   const canvas = createCanvas(size.w, size.h);
-  // Same call as the Posts tab: the square layouts get no explicit size.
-  await drawPost(canvas, data, SQUARE_ONLY.includes(spec.type) ? undefined : { w: size.w, h: size.h }, { loadImage: imageLoader(fetcher), emoji: false });
+  // Same call as the Posts tab for the square layouts (no explicit size).
+  await drawPost(canvas, data, format === "square" && [...SQUARE_ONLY, ...NO_LANDSCAPE].includes(spec.type) ? undefined : { w: size.w, h: size.h }, { loadImage: imageLoader(fetcher), emoji: false });
   return { png: canvas.toBuffer("image/png"), width: canvas.width, height: canvas.height, title, match_id: matchId, format, post: data };
 }

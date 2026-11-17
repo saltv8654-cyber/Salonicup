@@ -14,9 +14,12 @@ PSQL="psql -h $DIR -p 54329 -U postgres -d postgres -v ON_ERROR_STOP=1 -q"
 $PSQL -f test/setup_local.sql
 $PSQL -f test/grants_local.sql
 $PSQL -f migrations/0001_social.sql
-$PSQL -f migrations/0001_social.sql   # must be re-runnable
 $PSQL -f migrations/0002_creative.sql
 $PSQL -f migrations/0003_weekly_program.sql
+$PSQL -f migrations/0004_weekly_standings.sql
+# re-run all of them: every migration must be safe to run again
+$PSQL -f migrations/0001_social.sql
 $PSQL -f migrations/0002_creative.sql
 $PSQL -f migrations/0003_weekly_program.sql
+$PSQL -f migrations/0004_weekly_standings.sql
 $PSQL -o /dev/null -f test/rls_test.sql
